@@ -34,6 +34,7 @@ const els = {
   taskAgentCheck: document.querySelector("#task-agent-check"),
   taskChecks: document.querySelector("#task-checks"),
   generatedTaskPackage: document.querySelector("#generated-task-package"),
+  fillStarterTemplate: document.querySelector("#fill-starter-template"),
   buildTaskPackage: document.querySelector("#build-task-package"),
   copyTaskPackage: document.querySelector("#copy-task-package"),
   exportData: document.querySelector("#export-data"),
@@ -286,6 +287,12 @@ function analyzeQuestion() {
 function buildTaskPackage() {
   const fields = getTaskFields();
   renderTaskChecks(fields);
+
+  if (Object.values(fields).every((value) => !value)) {
+    els.generatedTaskPackage.value = "Use Load Example or enter your own task details, then click Build Package.";
+    return;
+  }
+
   els.generatedTaskPackage.value = [
     "Selection Improvement Expert Task Package",
     "",
@@ -316,6 +323,35 @@ function buildTaskPackage() {
     "Built-in guideline checklist",
     getTaskChecks(fields).map((check) => `${check.pass ? "PASS" : "NEEDS WORK"} - ${check.title}: ${check.message}`).join("\n")
   ].join("\n");
+}
+
+function fillStarterTemplate() {
+  const confirmed = hasTaskDraft() ? confirm("Replace the current draft with the example? Do not submit the example as your own prompt.") : true;
+  if (!confirmed) return;
+
+  els.taskDomain.value = "EXAMPLE ONLY - A professional environmental data-analysis task inspired by public NOAA weather station data. The task requires time-series cleaning, anomaly detection, statistical comparison, and reproducible Python output, which makes it appropriate for a terminal-enabled agent rather than a regular chatbot.";
+  els.taskPrompt.value = "Compute a station-level anomaly report that identifies the three NOAA stations with the largest positive deviation in daily maximum temperature relative to their own 30-day rolling baseline, and return a CSV with station_id, date, observed_tmax_c, baseline_tmax_c, anomaly_c, and rank. The answer must be based on the provided CSV files and must include only rows that pass the data-quality constraints described in the resources.";
+  els.taskResources.value = "Provide a zip folder containing data/stations.csv and data/daily_observations.csv. stations.csv includes station_id, latitude, longitude, elevation_m, and region. daily_observations.csv includes station_id, date, tmax_c, tmin_c, precipitation_mm, and quality_flag. The environment includes Python 3.11, pandas 2.2.x, numpy 1.26.x, and pytest 8.x. All data needed for the task is in the zip folder; no network access is required.";
+  els.taskSolution.value = "Create a Python script such as solve.py. Load both CSV files with pandas, parse date as datetime, keep only rows where quality_flag equals OK, drop rows with missing tmax_c, sort by station_id and date, compute each station's 30-day rolling mean of tmax_c using prior days only, calculate anomaly_c as observed tmax_c minus baseline_tmax_c, select the largest anomaly per station, rank stations by anomaly_c descending, and write the top three rows to output/anomaly_report.csv. Check that the CSV has exactly the required columns, exactly three rows, numeric values rounded to two decimals, and ranks 1 through 3.";
+  els.taskDifficulty.value = "This is genuinely difficult because the agent must reason about leakage-free rolling baselines, grouped time-series operations, data-quality filtering, deterministic output formatting, and edge cases such as missing observations or stations with insufficient history. A frontier model can easily produce plausible code that uses the current day in the baseline, forgets quality filtering, ranks individual rows instead of station-level maxima, or returns non-reproducible prose instead of the required CSV. A data scientist or environmental analyst would recognize these failure modes and verify the output.";
+  els.taskTime.value = "3-5 hours for a professional data scientist with time-series data-cleaning experience.";
+  els.taskVerifiers.value = "A pytest verifier loads output/anomaly_report.csv and compares it against a hidden reference generated from the same input data. It asserts the exact column names and order, exactly three rows, unique station_id values, ranks 1 through 3, all quality_flag constraints applied, no current-day leakage in the rolling baseline, and anomaly_c values within 0.01 of the reference. The verifier fails if the file is missing, extra columns are present, rows are unranked, nonnumeric values appear, or the wrong stations/dates are selected.";
+  els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding agent, record whether it produced the CSV, whether verifier failures came from rolling-window leakage, filtering mistakes, ranking mistakes, or output-format errors.";
+
+  buildTaskPackage();
+}
+
+function hasTaskDraft() {
+  return [
+    els.taskDomain,
+    els.taskPrompt,
+    els.taskResources,
+    els.taskSolution,
+    els.taskDifficulty,
+    els.taskTime,
+    els.taskVerifiers,
+    els.taskAgentCheck
+  ].some((input) => input.value.trim());
 }
 
 function getTaskFields() {
@@ -361,6 +397,21 @@ function getTaskChecks(fields) {
       message: "The task must require computer use such as code, scripts, data analysis, files, or terminal commands."
     },
     {
+      title: "Real-world source inspiration",
+      pass: hasAny(`${domain} ${resources}`, ["public", "dataset", "paper", "standard", "specification", "benchmark", "repository", "research", "industry", "professional", "academic", "case study"]),
+      message: "Ground the task in a real public dataset, paper, standard, benchmark, repository, or professional workflow."
+    },
+    {
+      title: "Not toy or classroom-style",
+      pass: !hasAny(allText, ["toy example", "simple example", "hello world", "classroom", "homework", "beginner", "basic tutorial", "contrived", "made up data"]),
+      message: "Avoid prompts that read like homework, tutorials, toy examples, or made-up data exercises."
+    },
+    {
+      title: "Specific objective output",
+      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create"]) && hasAny(prompt, ["csv", "json", "file", "table", "report", "metric", "score", "plot", "artifact", "output"]),
+      message: "The prompt should request a concrete output artifact or measurable result, not broad advice or explanation."
+    },
+    {
       title: "Complete environment",
       pass: resources.length > 80 && hasAny(resources, ["dataset", "file", "package", "library", "version", "source", "download", "csv", "json", "python"]),
       message: "List all files, datasets, packages, versions, public sources, and setup artifacts the agent needs."
@@ -391,6 +442,11 @@ function getTaskChecks(fields) {
       message: "Explain why the task is hard because of domain reasoning or implementation, not arbitrary volume or obscure trivia."
     },
     {
+      title: "Difficulty is not artificial",
+      pass: !hasAny(difficulty, ["lots of files", "large volume", "many pages", "obscure trivia", "trick question", "adversarial wording", "tedious only", "takes a long time"]),
+      message: "Difficulty should come from domain reasoning, implementation, or verification complexity, not volume, tricks, or obscurity."
+    },
+    {
       title: "Domain expertise",
       pass: domain.length > 50 && hasAny(`${domain} ${difficulty}`, ["professional", "academic", "expert", "domain", "engineering", "scientific", "research"]),
       message: "Tie the task to a professional or academic domain where expertise matters."
@@ -404,6 +460,11 @@ function getTaskChecks(fields) {
       title: "No prohibited prompt authorship wording",
       pass: !hasAny(allText, ["use chatgpt to write", "use an llm to write", "ask claude to write", "generated by ai"]),
       message: "Do not include wording that says an LLM wrote the task prompt."
+    },
+    {
+      title: "User-authored prompt",
+      pass: prompt.length > 0,
+      message: "Draft the actual prompt yourself, then use this app to check and format it against the guidelines."
     }
   ];
 }
@@ -534,6 +595,7 @@ els.search.addEventListener("input", (event) => {
 els.guideForm.addEventListener("submit", saveGuide);
 els.resetForm.addEventListener("click", resetForm);
 els.analyzeQuestion.addEventListener("click", analyzeQuestion);
+els.fillStarterTemplate.addEventListener("click", fillStarterTemplate);
 els.buildTaskPackage.addEventListener("click", buildTaskPackage);
 els.copyTaskPackage.addEventListener("click", copyTaskPackage);
 els.exportData.addEventListener("click", exportData);

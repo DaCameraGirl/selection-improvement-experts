@@ -9,8 +9,8 @@ Open `index.html` in a browser. The app saves data in browser local storage and 
 - Stores onboarding guideline notes by title and tags.
 - Extracts likely rules from bullets, numbered lists, and policy wording.
 - Searches saved guidelines.
-- Builds a complete task package with prompt, resources, golden solution, difficulty explanation, time estimate, verifiers, and optional agent difficulty check.
-- Checks the draft against the visible onboarding rules: computer/terminal requirement, final goal upfront, goal-not-process wording, complete environment, deterministic verifiers, no LLM-as-judge, solvability, difficulty, and domain expertise.
+- Provides a Prompt Maker that formats your own draft into a complete task package with prompt, resources, golden solution, difficulty explanation, time estimate, verifiers, and optional agent difficulty check.
+- Checks the draft against the visible onboarding rules: computer/terminal requirement, final goal upfront, goal-not-process wording, real-world source inspiration, non-contrived task design, concrete output, complete environment, deterministic verifiers, no LLM-as-judge, solvability, difficulty, and domain expertise.
 - Finds relevant rules for a pasted onboarding question and creates an answer outline.
 
 ## PDF workflow

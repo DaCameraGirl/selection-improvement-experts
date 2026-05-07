@@ -377,6 +377,13 @@ summary {
   gap: 14px;
 }
 
+.helper-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 14px;
+}
+
 .task-form textarea {
   min-height: 150px;
 }

@@ -19,7 +19,7 @@
 
         <nav class="tabs" aria-label="Primary">
           <button class="tab is-active" data-view="library" type="button">Library</button>
-          <button class="tab" data-view="prompt" type="button">Task Builder</button>
+          <button class="tab" data-view="prompt" type="button">Prompt Maker</button>
           <button class="tab" data-view="answer" type="button">Answer Helper</button>
         </nav>
 
@@ -89,14 +89,16 @@
         <section class="view" id="view-prompt">
           <div class="panel wide-panel">
             <div class="panel-header">
-              <h2>Selection Task Builder</h2>
+              <h2>Prompt Maker</h2>
               <div class="inline-actions">
+                <button id="fill-starter-template" type="button">Load Example</button>
                 <button id="build-task-package" class="primary" type="button">Build Package</button>
                 <button id="copy-task-package" type="button">Copy</button>
               </div>
             </div>
             <div class="task-layout">
               <section class="task-form">
+                <p class="helper-copy">Use this to coach and format your own prompt draft against the Selection Improvement Expert rules. The guidelines prohibit using an LLM to write the prompt for you, so the app checks quality and flags weak, contrived, or underspecified drafts.</p>
                 <label>
                   Domain and source inspiration
                   <textarea id="task-domain" placeholder="Example: professional ECG signal-processing task based on an open dataset and known DSP standards."></textarea>
