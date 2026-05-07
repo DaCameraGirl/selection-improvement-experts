@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Selection Improvement Experts</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Workspace">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">SI</div>
+          <div>
+            <h1>Selection Improvement Experts</h1>
+            <p>Onboarding study workspace</p>
+          </div>
+        </div>
+
+        <nav class="tabs" aria-label="Primary">
+          <button class="tab is-active" data-view="library" type="button">Library</button>
+          <button class="tab" data-view="prompt" type="button">Task Builder</button>
+          <button class="tab" data-view="answer" type="button">Answer Helper</button>
+        </nav>
+
+        <div class="stats">
+          <div>
+            <span id="stat-guides">0</span>
+            <small>Guides</small>
+          </div>
+          <div>
+            <span id="stat-rules">0</span>
+            <small>Rules</small>
+          </div>
+        </div>
+
+        <div class="storage-actions">
+          <button id="export-data" type="button">Export</button>
+          <label class="file-button">
+            Import
+            <input id="import-data" type="file" accept="application/json" />
+          </label>
+          <button id="clear-data" class="danger" type="button">Clear</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <section class="topbar" aria-label="Search">
+          <div class="search-box">
+            <label for="search">Search guidelines</label>
+            <input id="search" type="search" placeholder="Type a policy, keyword, or project term" autocomplete="off" />
+          </div>
+          <button id="sample-data" type="button">Load starter guide</button>
+        </section>
+
+        <section class="view is-visible" id="view-library">
+          <div class="split">
+            <form id="guide-form" class="panel" autocomplete="off">
+              <div class="panel-header">
+                <h2>Add Guidelines</h2>
+                <button id="reset-form" type="button" title="Reset form">Reset</button>
+              </div>
+              <input type="hidden" id="guide-id" />
+              <label>
+                Guide title
+                <input id="guide-title" required placeholder="Example: Quality Rating Rules" />
+              </label>
+              <label>
+                Tags
+                <input id="guide-tags" placeholder="accuracy, tone, rejection criteria" />
+              </label>
+              <label>
+                Guideline text
+                <textarea id="guide-body" required placeholder="Paste the onboarding guidelines here. Use headings, bullets, numbered rules, or examples."></textarea>
+              </label>
+              <button class="primary" type="submit">Save guide</button>
+            </form>
+
+            <div class="panel">
+              <div class="panel-header">
+                <h2>Guideline Library</h2>
+                <span id="match-count">0 matches</span>
+              </div>
+              <div id="guide-list" class="guide-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-prompt">
+          <div class="panel wide-panel">
+            <div class="panel-header">
+              <h2>Selection Task Builder</h2>
+              <div class="inline-actions">
+                <button id="build-task-package" class="primary" type="button">Build Package</button>
+                <button id="copy-task-package" type="button">Copy</button>
+              </div>
+            </div>
+            <div class="task-layout">
+              <section class="task-form">
+                <label>
+                  Domain and source inspiration
+                  <textarea id="task-domain" placeholder="Example: professional ECG signal-processing task based on an open dataset and known DSP standards."></textarea>
+                </label>
+                <label>
+                  Prompt to give the agent
+                  <textarea id="task-prompt" placeholder="State the final goal up front. Focus on the goal, not the process. Keep it concise and outcome-verifiable."></textarea>
+                </label>
+                <label>
+                  Resources needed to solve the task
+                  <textarea id="task-resources" placeholder="List datasets, libraries, docs, files, packages, version numbers, and anything the agent environment must contain."></textarea>
+                </label>
+                <label>
+                  Golden solution
+                  <textarea id="task-solution" placeholder="Describe the solution path as granularly as possible. Include actual commands, code/script names, or logical steps an expert would execute."></textarea>
+                </label>
+                <label>
+                  Difficulty explanation
+                  <textarea id="task-difficulty" placeholder="Explain why this is hard for current frontier models, why domain expertise is required, and why the difficulty is genuine rather than arbitrary."></textarea>
+                </label>
+                <label>
+                  Professional time estimate
+                  <input id="task-time" placeholder="Example: 5-7 hours for a senior data scientist with signal-processing experience" />
+                </label>
+                <label>
+                  Verifiers description
+                  <textarea id="task-verifiers" placeholder="Describe deterministic checks that accept only correct outputs. Avoid LLM-as-judge, methodology checks, and unverifiable scripts as final answers."></textarea>
+                </label>
+                <label>
+                  Optional agent difficulty check
+                  <textarea id="task-agent-check" placeholder="If tested with Cursor, Claude Code, or a similar terminal agent, summarize what happened and whether failures were due to reasoning/tool/debugging/workflow limits."></textarea>
+                </label>
+              </section>
+              <section>
+                <h3>Guideline Checks</h3>
+                <div id="task-checks" class="checklist"></div>
+                <h3>Generated Submission Package</h3>
+                <textarea id="generated-task-package" class="generated-prompt" readonly placeholder="Fill the fields and build a task package."></textarea>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-answer">
+          <div class="panel wide-panel">
+            <div class="panel-header">
+              <h2>Answer Helper</h2>
+              <button id="analyze-question" class="primary" type="button">Analyze</button>
+            </div>
+            <label>
+              Onboarding question or scenario
+              <textarea id="question-input" placeholder="Paste an onboarding question or scenario. The helper will find matching guideline notes and build an answer outline."></textarea>
+            </label>
+            <div class="answer-grid">
+              <section>
+                <h3>Relevant Guidelines</h3>
+                <div id="relevant-results" class="result-list empty">Add guidelines, then analyze a question.</div>
+              </section>
+              <section>
+                <h3>Answer Outline</h3>
+                <div id="answer-outline" class="outline-box empty">The outline will appear here.</div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <template id="guide-card-template">
+      <article class="guide-card">
+        <header>
+          <div>
+            <h3></h3>
+            <p class="tags"></p>
+          </div>
+          <div class="card-actions">
+            <button class="edit-guide" type="button">Edit</button>
+            <button class="delete-guide danger" type="button">Delete</button>
+          </div>
+        </header>
+        <p class="excerpt"></p>
+        <details>
+          <summary>Extracted rules</summary>
+          <ul class="rule-list"></ul>
+        </details>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>

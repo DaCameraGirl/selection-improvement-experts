@@ -1,0 +1,10 @@
+# Local/private onboarding material
+data/
+*.pdf
+*.local.json
+selection-improvement-experts-data.json
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/

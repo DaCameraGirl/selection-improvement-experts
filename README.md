@@ -1,0 +1,35 @@
+# Selection Improvement Experts
+
+A local browser workspace for building Selection Improvement Expert task submissions against the onboarding guidelines.
+
+Open `index.html` in a browser. The app saves data in browser local storage and can export/import a JSON backup.
+
+## What it does
+
+- Stores onboarding guideline notes by title and tags.
+- Extracts likely rules from bullets, numbered lists, and policy wording.
+- Searches saved guidelines.
+- Builds a complete task package with prompt, resources, golden solution, difficulty explanation, time estimate, verifiers, and optional agent difficulty check.
+- Checks the draft against the visible onboarding rules: computer/terminal requirement, final goal upfront, goal-not-process wording, complete environment, deterministic verifiers, no LLM-as-judge, solvability, difficulty, and domain expertise.
+- Finds relevant rules for a pasted onboarding question and creates an answer outline.
+
+## PDF workflow
+
+Private onboarding PDFs should stay out of git. This repo ignores PDFs and the `data/` folder by default.
+
+To extract selectable text from a PDF into a local ignored file:
+
+```powershell
+New-Item -ItemType Directory -Path data -Force
+node tools/extract-pdf-text.mjs "C:\Users\enter\Downloads\Outlier_AI_Selection_Improvement_Experts.pdf" > data\selection-improvement-experts.txt
+```
+
+Then open the text file, paste the extracted guideline text into the Library, and save it as a guide.
+
+If the script says no selectable text was found, the PDF is probably scanned images and needs OCR.
+
+## Repo notes
+
+This app is intentionally dependency-free: no build step, no server, and no package install. The browser stores your guideline library locally.
+
+Use it to draft and check your own task submissions against the official rules.
