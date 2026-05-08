@@ -28,6 +28,7 @@ const els = {
   taskExpertise: document.querySelector("#task-expertise"),
   taskDomainSelect: document.querySelector("#task-domain-select"),
   taskType: document.querySelector("#task-type"),
+  taskStandard: document.querySelector("#task-standard"),
   taskPrompt: document.querySelector("#task-prompt"),
   taskResources: document.querySelector("#task-resources"),
   taskSolution: document.querySelector("#task-solution"),
@@ -298,38 +299,50 @@ function buildTaskPackage() {
 
   els.generatedTaskPackage.value = [
     "Selection Improvement Expert Worker Submission Package",
+    "==============================================",
     "",
-    "Project fit",
+    "COPY BLOCK 1 - Project Fit",
+    "----------------------------------------------",
     packageText(fields.domain, "Describe the real-world professional domain, source inspiration, and why the task requires domain expertise."),
     "",
-    "Expertise level target",
+    "COPY BLOCK 2 - Expertise Level Target",
+    "----------------------------------------------",
     expertiseLabel(fields.expertise),
     "",
-    "Prompt",
+    "COPY BLOCK 3 - Prompt",
+    "----------------------------------------------",
     packageText(fields.prompt, "Write the exact prompt that will be provided to the agent."),
     "",
-    "Resources needed to solve the task",
+    "COPY BLOCK 4 - Resources Needed To Solve The Task",
+    "----------------------------------------------",
     packageText(fields.resources, "List every dataset, file, package, public source, version, and setup artifact the agent needs."),
     "",
-    "Golden solution - as granular as possible",
+    "COPY BLOCK 5 - Golden Solution As Granular As Possible",
+    "----------------------------------------------",
     packageText(fields.solution, "Provide the solve path, including commands, code/scripts, checks, and expected outputs."),
     "",
-    "Difficulty explanation",
+    "COPY BLOCK 6 - Difficulty Explanation",
+    "----------------------------------------------",
     packageText(fields.difficulty, "Explain why this is hard, why common automated approaches may fail, and why it requires domain expertise."),
     "",
-    "Professional time estimate",
+    "COPY BLOCK 7 - Professional Time Estimate",
+    "----------------------------------------------",
     packageText(fields.time, "Estimate how long a qualified professional would need."),
     "",
-    "Verifiers description",
+    "COPY BLOCK 8 - Verifiers Description",
+    "----------------------------------------------",
     packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
     "",
-    "Submission rubric",
+    "COPY BLOCK 9 - Submission Rubric",
+    "----------------------------------------------",
     buildSubmissionRubric(fields),
     "",
-    "Optional agent difficulty check",
+    "COPY BLOCK 10 - Optional Agent Difficulty Check",
+    "----------------------------------------------",
     packageText(fields.agentCheck, "Summarize terminal-agent testing only if you performed it."),
     "",
-    "Built-in guideline checklist",
+    "INTERNAL CHECKLIST - Do Not Submit Unless Needed",
+    "----------------------------------------------",
     getTaskChecks(fields).map((check) => `${check.pass ? "PASS" : "NEEDS WORK"} - ${check.title}: ${check.message}`).join("\n")
   ].join("\n");
 }
@@ -500,23 +513,62 @@ const TYPE_DRAFTS = {
   }
 };
 
+const STANDARD_DRAFTS = {
+  enterprise: {
+    label: "Enterprise production",
+    prompt: "Treat the output as something another team would consume in a production handoff: stable file names, explicit schemas, reproducible runs, clear failure handling, and audit-friendly intermediate outputs.",
+    resources: "Include CI-style test instructions, a lockfile or version manifest, sample and edge-case inputs, expected output schemas, and operational notes for rerunning the workflow from a clean checkout.",
+    verifier: "The verifier should behave like a CI gate: deterministic, repeatable, schema-aware, tolerant only where specified, and strict about missing artifacts, unstable ordering, and regression cases.",
+    rubric: "Enterprise pass criteria: reproducible from clean checkout, documented schemas, stable artifacts, operational edge cases, clear failure modes, and verifier behavior suitable for a CI gate."
+  },
+  regulated: {
+    label: "Regulated / audited",
+    prompt: "Treat the output as an audited deliverable: preserve traceability from each input to each output, record assumptions, make exclusions explicit, and produce evidence that can be independently reviewed.",
+    resources: "Include a data dictionary, provenance notes, allowed exclusions, package versions, audit log expectations, and examples of valid and invalid records.",
+    verifier: "The verifier should check traceability, required audit fields, exclusion accounting, exact schema, deterministic calculations, and tolerance rules.",
+    rubric: "Regulated pass criteria: traceable inputs, documented assumptions, auditable exclusions, deterministic calculations, and independently reviewable evidence."
+  },
+  research: {
+    label: "Research benchmark",
+    prompt: "Treat the output as a benchmark-quality research artifact: include baselines, ablations or sensitivity checks where appropriate, strict evaluation metrics, and reproducibility notes.",
+    resources: "Include benchmark splits, baseline outputs, seed values, metric definitions, reference configs, and notes that prevent leakage or invalid comparison.",
+    verifier: "The verifier should check metric definitions, split integrity, seed reproducibility, baseline comparison, tolerance bands, and required ablation or sensitivity outputs.",
+    rubric: "Research pass criteria: valid benchmark setup, leakage prevention, meaningful baselines, reproducible metrics, and clear failure analysis."
+  }
+};
+
 function fillStarterTemplate() {
   const confirmed = hasTaskDraft() ? confirm("Replace the current draft with a generated domain draft?") : true;
   if (!confirmed) return;
 
   const profile = DOMAIN_DRAFTS[els.taskDomainSelect.value] || DOMAIN_DRAFTS["biomedical-signal"];
   const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
+  const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
   const expertise = expertiseLabel(els.taskExpertise.value).toLowerCase();
   const userNotes = els.taskDomain.value.trim();
   const sourceSentence = userNotes ? ` Use these source notes and constraints: ${userNotes}` : "";
 
   els.taskDomain.value = `${capitalize(expertise)} task in ${profile.domain}.${sourceSentence}`;
-  els.taskPrompt.value = `${type.verb} ${type.focus} for ${profile.domain}. Return ${profile.artifact} that can be checked without interpretation. The result must use the provided resources, apply the required domain constraints, and expose enough intermediate fields for verification.`;
-  els.taskResources.value = `Provide a self-contained zip folder with ${profile.data}. Include a README describing file schemas, units, coordinate systems or sampling rates where relevant, package versions, and the expected output paths. The environment should include Python 3.11 plus domain-appropriate open-source packages, and no network access should be needed after the resources are supplied.`;
-  els.taskSolution.value = `Create a reproducible script such as solve.py. Load and validate the provided files, normalize units and identifiers, apply ${profile.method}, write the required output artifact, and emit a small QC summary with row counts, rejected records, parameter settings, and final metrics. Re-run the script from a clean directory and confirm that the same outputs are produced.`;
-  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow. A weak solution can look plausible while still failing due to ${profile.failure}. The difficulty comes from domain constraints, edge cases, reproducible computation, and verifier-aware output design rather than from arbitrary volume or obscure trivia.`;
+  els.taskPrompt.value = `Please ${type.verb.toLowerCase()} ${type.focus} for ${profile.domain}. Return ${profile.artifact} that can be checked without interpretation. Use the provided resources, apply the domain constraints, and include enough intermediate fields for someone else to verify the result. ${standard.prompt}`;
+  els.taskResources.value = `Provide a self-contained zip folder with ${profile.data}. Include a README describing file schemas, units, coordinate systems or sampling rates where relevant, package versions, and the expected output paths. The environment should include Python 3.11 plus domain-appropriate open-source packages, and no network access should be needed after the resources are supplied. ${standard.resources}`;
+  els.taskSolution.value = [
+    "A strong solution would be organized as a reproducible terminal workflow rather than a prose answer.",
+    "",
+    "1. Create a script such as solve.py that reads the provided resource bundle and validates that every required input file is present.",
+    `2. Parse the domain inputs for ${profile.domain}, normalize identifiers and units, and reject records that violate the stated schema or quality constraints.`,
+    `3. Apply ${profile.method}. Keep intermediate tables or logs that make the key domain decisions auditable.`,
+    `4. Write ${profile.artifact} to the requested output path with stable column names, deterministic ordering, and enough intermediate fields for verification.`,
+    "5. Emit a QC summary that includes input row counts, rejected records, parameter settings, final metrics, and any tolerance assumptions.",
+    "6. Re-run the workflow from a clean directory and confirm that the same output files and metrics are produced.",
+    "7. Add a lightweight run log or metadata file that records package versions, input checksums, rejected inputs, and final artifact paths.",
+    "8. Check at least one normal case, one edge case, and one intentionally invalid input so the verifier can distinguish robust work from a happy-path-only solution.",
+    "",
+    "Expected artifacts: solve.py or equivalent workflow script, the required output file(s), a small machine-readable QC summary, and reproducibility metadata.",
+    `Important edge cases: ${profile.failure}.`
+  ].join("\n");
+  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow. A weak solution can look plausible while still failing due to ${profile.failure}. The difficulty comes from domain constraints, enterprise-grade edge cases, reproducible computation, and verifier-aware output design rather than from arbitrary volume or obscure trivia.`;
   els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
-  els.taskVerifiers.value = `A deterministic verifier should ${type.verifier}. It should assert exact output schema, required files, numeric tolerances, record counts, domain-specific constraints, and reproducibility across repeated runs. It should fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, and outputs that omit required intermediate evidence.`;
+  els.taskVerifiers.value = `A deterministic verifier should ${type.verifier}. It should assert exact output schema, required files, numeric tolerances, record counts, domain-specific constraints, and reproducibility across repeated runs. It should fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, and outputs that omit required intermediate evidence. ${standard.verifier}`;
   els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding tool, record whether failures came from data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation.";
 
   buildTaskPackage();
