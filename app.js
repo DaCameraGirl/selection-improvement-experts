@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-08 source-isolation";
+const APP_VERSION = "2026-05-08 airtight-core";
 
 const state = {
   guides: [],
