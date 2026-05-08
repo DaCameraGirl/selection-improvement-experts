@@ -332,19 +332,23 @@ function buildTaskPackage() {
     "----------------------------------------------",
     packageText(fields.difficulty, "Explain why this is hard, why common automated approaches may fail, and why it requires domain expertise."),
     "",
-    "COPY BLOCK 8 - Professional Time Estimate",
+    "COPY BLOCK 8 - Six Core Criteria Evidence",
+    "----------------------------------------------",
+    buildCoreCriteriaEvidence(fields),
+    "",
+    "COPY BLOCK 9 - Professional Time Estimate",
     "----------------------------------------------",
     packageText(fields.time, "Estimate how long a qualified professional would need."),
     "",
-    "COPY BLOCK 9 - Verifiers Description",
+    "COPY BLOCK 10 - Verifiers Description",
     "----------------------------------------------",
     packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
     "",
-    "COPY BLOCK 10 - Submission Rubric",
+    "COPY BLOCK 11 - Submission Rubric",
     "----------------------------------------------",
     buildSubmissionRubric(fields),
     "",
-    "COPY BLOCK 11 - Optional Agent Difficulty Check",
+    "COPY BLOCK 12 - Optional Agent Difficulty Check",
     "----------------------------------------------",
     packageText(fields.agentCheck, "Summarize terminal-agent testing only if you performed it."),
     "",
@@ -596,7 +600,7 @@ const SCENARIO_STYLES = [
       return [
         `We need a migration validation pass: ${profile.brief}.`,
         `Compare the legacy and migrated outputs and produce ${profile.artifact} showing every material divergence, the reason code for the divergence, and the source records needed to audit it.`,
-        `The deliverable should be usable by an engineering review team: ${standard.prompt}`
+        `The deliverable should be usable by an engineering review team. ${standard.prompt}`
       ].join("\n\n");
     }
   },
@@ -611,8 +615,7 @@ const SCENARIO_STYLES = [
       return [
         `A previously stable workflow regressed: ${profile.brief}.`,
         `Find the smallest reproducible failing case, explain the failing condition in machine-readable form, and return ${profile.artifact}.`,
-        "The result should separate the root cause from unrelated output drift and include enough evidence for someone else to rerun the failure.",
-        standard.prompt
+        `The result should separate the root cause from unrelated output drift and include enough evidence for someone else to rerun the failure. ${standard.prompt}`
       ].join("\n\n");
     }
   },
@@ -627,8 +630,7 @@ const SCENARIO_STYLES = [
       return [
         `Prepare an audit-ready evidence package: ${profile.brief}.`,
         `Return ${profile.artifact} with traceability from each final output back to validated inputs, documented exclusions, and any assumptions used in the calculation.`,
-        "The output should make it clear which records were accepted, which were rejected, and why.",
-        standard.prompt
+        `The output should make it clear which records were accepted, which were rejected, and why. ${standard.prompt}`
       ].join("\n\n");
     }
   },
@@ -643,8 +645,7 @@ const SCENARIO_STYLES = [
       return [
         `Build an edge-case benchmark: ${profile.brief}.`,
         `The output should include ${profile.artifact} plus a failure-analysis table that shows which cases target normal behavior, boundary behavior, invalid input handling, and domain-specific failure modes.`,
-        "Make the final artifacts deterministic and easy to grade without reading the solver's reasoning.",
-        standard.prompt
+        `Make the final artifacts deterministic and easy to grade without reading the solver's reasoning. ${standard.prompt}`
       ].join("\n\n");
     }
   },
@@ -659,8 +660,7 @@ const SCENARIO_STYLES = [
       return [
         `Two trusted operational sources disagree: ${profile.brief}.`,
         `Reconcile them into ${profile.artifact}, including final selected values, conflict reason codes, confidence flags, and a separate unresolved-record queue.`,
-        "The deliverable should let a downstream team understand every changed or unresolved record from the output files alone.",
-        standard.prompt
+        `The deliverable should let a downstream team understand every changed or unresolved record from the output files alone. ${standard.prompt}`
       ].join("\n\n");
     }
   }
@@ -770,6 +770,11 @@ const DOMAIN_DETAILS = {
     ]
   },
   "robotics-control": {
+    sources: [
+      "Self-contained robotics benchmark source: include the converted trajectory CSVs, reference paths, controller configs, actuator limits, and expected metrics in the zip.",
+      "If adapted from TurtleBot3 or another ROS-based project, cite the exact repository URL, commit or release, robot model, ROS distribution, and bag-to-CSV conversion script.",
+      "If adapted from a public robotics trajectory dataset, cite the dataset URL, license, selected run IDs, coordinate-frame convention, and any downsampling used."
+    ],
     resources: [
       "data/routes/route_a_reference.csv and route_b_reference.csv with timestamp_ns, frame_id, x_m, y_m, yaw_rad, v_ref_mps.",
       "data/logs/controller_run_01.csv and controller_run_02.csv with odom pose, command velocity, actuator saturation flags, and controller mode.",
@@ -890,7 +895,7 @@ function fillStarterTemplate() {
   els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
-  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, enterprise-grade edge cases, reproducible computation, and verifier-aware output design rather than from arbitrary volume or obscure trivia.`;
+  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.`;
   els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
   els.taskVerifiers.value = buildVerifierDraft(domainKey, type, scenario, standard);
   els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding tool, record whether failures came from data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation.";
@@ -1135,6 +1140,17 @@ function buildGoldenSolutionRubric(fields) {
   ].join("\n");
 }
 
+function buildCoreCriteriaEvidence(fields) {
+  return [
+    "Verifiable: final outputs are explicit files with schemas, tolerances, expected reason codes, and deterministic verifier behavior.",
+    "Well-specified: resources name the input files, source references, environment files, output paths, and acceptance rules.",
+    "Solvable: the golden solution gives a known expert workflow, expected artifacts, rerun checks, and normal/edge/invalid fixture handling.",
+    "Requires code or computer use: the task requires scripts, structured data files, reproducible runs, and machine-checkable outputs.",
+    "Difficult: failure modes require domain reasoning, implementation judgment, and edge-case handling beyond a happy-path solution.",
+    `Domain expertise: the task is grounded in ${fields.domain || "the selected professional domain"} and uses domain-specific methods, constraints, and failure modes.`
+  ].join("\n");
+}
+
 function getTaskChecks(fields) {
   const allText = Object.values(fields).join(" ");
   const prompt = fields.prompt;
@@ -1283,7 +1299,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Six core criteria covered",
-      pass: hasAny(allText, ["verifiable", "well specified", "well-specified"]) && hasAny(allText, ["solvable"]) && hasAny(allText, ["code", "script", "python", "computer"]) && hasAny(allText, ["difficult", "hard", "nontrivial"]) && hasAny(allText, ["domain", "expert", "professional", "academic"]),
+      pass: hasSixCoreEvidence(fields),
       message: "The submission should clearly satisfy verifiable, well-specified, solvable, requires-code, difficult, and domain-expertise criteria."
     },
     {
@@ -1347,6 +1363,21 @@ function hasAny(text, terms) {
 
 function countMatches(text, regex) {
   return (String(text || "").match(regex) || []).length;
+}
+
+function hasSixCoreEvidence(fields) {
+  const prompt = fields.prompt;
+  const resources = fields.resources;
+  const solution = fields.solution;
+  const verifiers = fields.verifiers;
+  const difficulty = fields.difficulty;
+  const hasVerifiable = hasAny(`${prompt} ${verifiers}`, ["schema", "tolerance", "threshold", "pass", "fail", "expected", "reason code"]);
+  const hasWellSpecified = countMatches(resources, /\b[\w/-]+\.(csv|json|jsonl|yaml|yml|md|txt|parquet|sql|py|geojson|gff3|fa|fasta|pcap|log|edn|tla|als)\b/gi) >= 5;
+  const hasSolvable = solution.length > 140 && hasAny(solution, ["expected", "outputs/", "re-run", "rerun", "normal case", "edge case", "invalid case"]);
+  const requiresCode = hasAny(`${resources} ${solution}`, ["python", "script", "solve.py", "pytest", "command", "terminal", "json", "csv"]);
+  const hasDifficulty = difficulty.length > 120 && hasAny(difficulty, ["domain", "implementation", "edge-case", "failure", "constraints", "judgment"]);
+  const hasExpertise = hasAny(`${fields.domain} ${difficulty}`, ["professional", "academic", "expert", "domain", "engineering", "scientific", "research"]);
+  return hasVerifiable && hasWellSpecified && hasSolvable && requiresCode && hasDifficulty && hasExpertise;
 }
 
 function hasExpertiseDepth(fields) {
