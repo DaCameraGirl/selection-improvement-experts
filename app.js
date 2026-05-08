@@ -297,7 +297,7 @@ function buildTaskPackage() {
   }
 
   els.generatedTaskPackage.value = [
-    "Selection Improvement Expert Task Package",
+    "Selection Improvement Expert Worker Submission Package",
     "",
     "Project fit",
     packageText(fields.domain, "Describe the real-world professional domain, source inspiration, and why the task requires domain expertise."),
@@ -525,6 +525,11 @@ function getTaskChecks(fields) {
       message: "Avoid prescribing every step or specific tools unless required by the task."
     },
     {
+      title: "Concise prompt",
+      pass: prompt.length > 0 && prompt.split(/\n\s*\n/).filter(Boolean).length <= 3 && prompt.length <= 1400,
+      message: "Keep the task prompt brief enough to fit in one to three focused paragraphs."
+    },
+    {
       title: "No persona framing",
       pass: !hasAny(prompt, ["you are a scientist", "you are an engineer", "act as", "pretend you are", "roleplay", "as a data scientist"]),
       message: "Avoid persona-based framing; state the task objective directly."
@@ -570,6 +575,11 @@ function getTaskChecks(fields) {
       message: "List all files, datasets, packages, versions, public sources, and setup artifacts the agent needs."
     },
     {
+      title: "Open usable data",
+      pass: !hasAny(resources, ["private dataset", "paywalled", "login required", "credentials required", "proprietary", "restricted license", "not publicly available"]),
+      message: "Data and resources should be available without usage restrictions, credentials, or hidden access."
+    },
+    {
       title: "Resource bundle clarity",
       pass: hasAny(resources, ["zip", "folder", "archive", "data/", "README", "schema", "manifest"]) && hasAny(resources, ["version", "package", "library", "environment", "python"]),
       message: "Name the provided files/folders, schema or manifest, package versions, and environment assumptions."
@@ -613,6 +623,11 @@ function getTaskChecks(fields) {
       title: "Solvable",
       pass: solution.length > 140 && !hasAny(allText, ["unknown answer", "unsolved research", "impossible"]),
       message: "The task needs a known path to a correct answer and should not be an unsolved research problem."
+    },
+    {
+      title: "Six core criteria covered",
+      pass: hasAny(allText, ["verifiable", "well specified", "well-specified"]) && hasAny(allText, ["solvable"]) && hasAny(allText, ["code", "script", "python", "computer"]) && hasAny(allText, ["difficult", "hard", "nontrivial"]) && hasAny(allText, ["domain", "expert", "professional", "academic"]),
+      message: "The submission should clearly satisfy verifiable, well-specified, solvable, requires-code, difficult, and domain-expertise criteria."
     },
     {
       title: "Genuinely difficult",
@@ -748,21 +763,48 @@ function clearData() {
 function loadSampleData() {
   const sample = {
     id: uid(),
-    title: "Selection Improvement Expert Core Rules",
-    tags: "task design, terminal, verifiers, quality criteria",
+    title: "Visible Selection Improvement Expert Rubric",
+    tags: "worker submission, task design, terminal, verifiers, quality criteria",
     body: `Tasks must require a computer to be answered, such as data analysis, numerical simulation, code, files, terminal commands, or tool usage.
 Prompts must be answerable using a Linux terminal, for example with Python scripts or tool usage.
+Do not make GUI-only workflows.
+Do not make just-reasoning questions.
+Tasks must involve actual computation, coding, or tool use.
+Agents should be evaluated as workflow performers, not just answer generators.
+Strong tasks require the agent to understand the goal, choose an approach, execute commands, inspect results, and revise when something fails.
+Tasks should force meaningful iteration.
+Tasks should be difficult, real-world, verifiable professional tasks in your domain.
+Most successful tasks use prior professional or academic projects as inspiration.
+All data required for the task must be available from sources without usage restrictions.
+Tasks must have objective, verifiable answers with well-specified output formats.
+Tasks should take a long time for a professional in the field to perform.
 State the final goal upfront. The best instructions are brief, with the objective stated clearly in the first sentences.
 Focus on the goal, not the process. Do not enumerate every step or prescribe specific tools.
 Keep it concise. The best tasks can be described in one to three paragraphs.
+Avoid persona-based framing.
+Do not include sentences that will not be used for solving the problem.
 Leave nothing ambiguous. Every acceptance criterion that the verifier will check must be stated or clearly inferable.
 Ensure the task is outcome-verified. Grade the final result, not the approach taken.
+Do not force a specific tool or command unless the method itself is part of the domain requirement.
 Assume a complete environment. Reference the environment, files, and tools that will be available to the agent.
+Resources must list all databases, public datasets, open-source packages, configuration files, simulation inputs, container images, custom scripts, pre-built binaries, and setup details needed to solve the task.
+Name every artifact and describe what it contains.
+Include version numbers for packages and tools.
+Upload resources as zip files when needed.
+Individual resource files must stay within project upload limits.
 Provide a golden solution as granular as possible, including code, scripts, commands, or logical steps an expert would execute.
 Resources must include all datasets, public data, packages, configuration files, scripts, container images, binaries, versions, and setup details needed to solve the task.
+The golden solution should be implementable by someone who knows exactly what to do in a few hours at most.
 Difficulty explanation must explain why the task is beyond common automated approaches, why domain expertise is required, and why the difficulty is genuine rather than arbitrary.
+Difficulty should not come from high compute requirements, large tedious volumes, obscure trivia, adversarial tricks, or an unknown/open-ended answer.
+Optional agent difficulty checks are supporting evidence only and do not replace the formal difficulty validation.
+Professional time estimates should be realistic for a qualified professional and scoped down if work volume, rather than intellectual difficulty, makes it too long.
 Verifiers must be deterministic, efficient, reliable, and based on explicit output.
 Verifiers must not rely on subjective judgment.
+Verifiers must pass a correct solution and reject an incorrect one.
+Simple verifiers are often better than elaborate ones.
+Verifiers should be based on explicit output files and artifacts, not hidden conversation or subjective interpretation.
+Types of checks to consider include logic and accuracy, technical compliance, regressions and quality, and performance or parity.
 Invalid verifier examples include methodology checks, algebraic expression equivalence that can be written many ways, and checking a required final script instead of the script output.
 Every task proposal is evaluated against six core criteria and must satisfy all six to be accepted.
 The task must be verifiable, well-specified, solvable, require code or computer use, difficult, and domain-expertise driven.`

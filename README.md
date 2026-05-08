@@ -1,6 +1,6 @@
 # Selection Improvement Experts
 
-A local browser workspace for building Selection Improvement Expert task submissions against the onboarding guidelines.
+A local browser workspace for building worker-side Selection Improvement Expert task submissions against the onboarding guidelines.
 
 Open `index.html` in a browser. The app saves data in browser local storage and can export/import a JSON backup.
 
