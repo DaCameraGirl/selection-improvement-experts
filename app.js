@@ -26,6 +26,8 @@ const els = {
   answerOutline: document.querySelector("#answer-outline"),
   taskDomain: document.querySelector("#task-domain"),
   taskExpertise: document.querySelector("#task-expertise"),
+  taskDomainSelect: document.querySelector("#task-domain-select"),
+  taskType: document.querySelector("#task-type"),
   taskPrompt: document.querySelector("#task-prompt"),
   taskResources: document.querySelector("#task-resources"),
   taskSolution: document.querySelector("#task-solution"),
@@ -290,7 +292,7 @@ function buildTaskPackage() {
   renderTaskChecks(fields);
 
   if (taskContentValues(fields).every((value) => !value)) {
-    els.generatedTaskPackage.value = "Use Load Example or enter your own task details, then click Build Package.";
+    els.generatedTaskPackage.value = "Use Generate Draft or enter your own task details, then click Build Package.";
     return;
   }
 
@@ -329,19 +331,120 @@ function buildTaskPackage() {
   ].join("\n");
 }
 
+const DOMAIN_DRAFTS = {
+  "biomedical-signal": {
+    domain: "biomedical signal processing using public ECG or PPG waveform data, clinical signal-quality constraints, and reproducible Python analysis",
+    artifact: "a CSV report and validation plot",
+    method: "wavelet denoising, notch filtering, peak detection, beat-level feature extraction, and tolerance-based validation against reference annotations",
+    data: "MIT-BIH-style waveform segments, annotation files, sampling-rate metadata, and a channel manifest",
+    failure: "filter leakage, incorrect sampling-rate conversion, false peak matching, and accepting visually plausible but clinically invalid beat intervals"
+  },
+  "climate-geospatial": {
+    domain: "climate and geospatial analytics using station observations, raster grids, coordinate transforms, and reproducible regional aggregation",
+    artifact: "a GeoJSON layer and a CSV anomaly table",
+    method: "spatial joins, CRS normalization, temporal baseline construction, raster sampling, and uncertainty-aware regional aggregation",
+    data: "station CSV files, a region boundary GeoJSON, gridded NetCDF or GeoTIFF data, and metadata describing units and coordinate reference systems",
+    failure: "mixing coordinate systems, leaking target-period values into baselines, mishandling missing stations, and producing maps that cannot be verified numerically"
+  },
+  "computational-biology": {
+    domain: "computational biology using sequence data, public gene annotations, reproducible alignment-derived features, and biologically meaningful constraints",
+    artifact: "a ranked TSV of candidate loci and a machine-readable QC summary",
+    method: "sequence parsing, motif scanning, multiple-testing correction, genomic interval joins, and reference-based validation",
+    data: "FASTA sequences, GFF/GTF annotations, sample metadata, and a known reference motif table",
+    failure: "off-by-one genomic coordinates, strand errors, invalid multiple-testing correction, and biologically implausible candidates"
+  },
+  "quant-finance": {
+    domain: "quantitative finance using market microstructure data, corporate-action adjustments, and reproducible risk metric computation",
+    artifact: "a portfolio risk report in CSV and JSON",
+    method: "return normalization, volatility estimation, drawdown analysis, factor exposure regression, and out-of-sample validation",
+    data: "OHLCV price files, corporate-action tables, factor-return files, and a portfolio holdings file",
+    failure: "look-ahead bias, unadjusted splits, incorrect annualization, unstable regression windows, and unverifiable prose-only risk conclusions"
+  },
+  "materials-science": {
+    domain: "materials science using crystallographic structure files, composition descriptors, and reproducible property-screening logic",
+    artifact: "a ranked materials table and structure-level validation summary",
+    method: "CIF parsing, stoichiometry checks, descriptor generation, symmetry-aware filtering, and threshold-based property ranking",
+    data: "CIF files, a composition metadata CSV, reference property measurements, and package/version notes for pymatgen or ASE",
+    failure: "invalid oxidation-state assumptions, duplicate structures, unit mistakes, and rankings that ignore crystal symmetry constraints"
+  },
+  "power-systems": {
+    domain: "power systems engineering using load-flow cases, bus/branch tables, generator constraints, and reproducible contingency analysis",
+    artifact: "a contingency ranking CSV and voltage-violation report",
+    method: "AC or DC load-flow computation, N-1 contingency screening, constraint checking, and tolerance-based comparison to reference cases",
+    data: "bus, branch, generator, and load tables plus base-MVA metadata and solver package versions",
+    failure: "per-unit conversion errors, slack-bus mishandling, ignored thermal limits, and non-reproducible solver settings"
+  },
+  "cyber-forensics": {
+    domain: "cybersecurity forensics using packet captures, endpoint logs, file hashes, and reproducible incident-timeline reconstruction",
+    artifact: "a JSON incident timeline and IOC table",
+    method: "PCAP parsing, timestamp normalization, session reconstruction, hash matching, and rule-based event correlation",
+    data: "PCAP files, endpoint event logs, hash allow/block lists, and schema documentation for event fields",
+    failure: "timezone drift, conflating benign retries with compromise, missing correlated events, and relying on screenshots instead of parsed evidence"
+  },
+  "robotics-control": {
+    domain: "robotics and control using trajectory logs, actuator limits, controller parameters, and reproducible stability or tracking analysis",
+    artifact: "a metrics JSON file and trajectory-error CSV",
+    method: "state-estimation checks, controller-response simulation, tracking-error computation, and constraint violation detection",
+    data: "trajectory logs, robot parameter YAML, reference path files, and controller configuration files",
+    failure: "frame-transform mistakes, unstable discretization, hidden actuator-limit violations, and metrics that reward smooth but inaccurate paths"
+  },
+  econometrics: {
+    domain: "econometrics and policy analysis using panel data, treatment timing, fixed effects, and reproducible robustness checks",
+    artifact: "a regression summary CSV and robustness-check JSON",
+    method: "panel cleaning, difference-in-differences estimation, clustered standard errors, placebo tests, and pre-trend diagnostics",
+    data: "panel outcome data, treatment timing tables, covariate files, and a data dictionary",
+    failure: "bad treatment timing, wrong fixed effects, unclustered errors, post-treatment controls, and conclusions not tied to computed estimates"
+  },
+  "computational-linguistics": {
+    domain: "computational linguistics using annotated corpora, morphology or syntax labels, and reproducible corpus-level evaluation",
+    artifact: "an error-analysis table and metrics JSON",
+    method: "corpus parsing, stratified metric computation, agreement analysis, tokenization checks, and label-level confusion analysis",
+    data: "annotated text files, label schema documentation, train/test split manifests, and tokenizer version notes",
+    failure: "label leakage, token-boundary drift, invalid averaging, and unsupported linguistic conclusions"
+  }
+};
+
+const TYPE_DRAFTS = {
+  analysis: {
+    verb: "Compute",
+    focus: "a reproducible analysis artifact",
+    verifier: "compare generated metrics and output files against hidden reference outputs"
+  },
+  simulation: {
+    verb: "Simulate",
+    focus: "a numerical model result under specified constraints",
+    verifier: "compare simulation outputs against reference tolerances and conservation or stability checks"
+  },
+  verification: {
+    verb: "Produce",
+    focus: "an output designed to pass deterministic verification",
+    verifier: "run strict schema, value, and edge-case checks against the submitted output"
+  },
+  optimization: {
+    verb: "Optimize",
+    focus: "a calibrated parameter set or ranked decision artifact",
+    verifier: "check objective value, constraint satisfaction, and reproducibility against reference thresholds"
+  }
+};
+
 function fillStarterTemplate() {
-  const confirmed = hasTaskDraft() ? confirm("Replace the current draft with the example? Do not submit the example as your own prompt.") : true;
+  const confirmed = hasTaskDraft() ? confirm("Replace the current draft with a generated domain draft?") : true;
   if (!confirmed) return;
 
-  els.taskDomain.value = "EXAMPLE ONLY - A professional environmental data-analysis task inspired by public NOAA weather station data. The task requires time-series cleaning, anomaly detection, statistical comparison, and reproducible Python output, which makes it appropriate for a terminal-enabled agent rather than a regular chatbot.";
-  els.taskExpertise.value = "masters";
-  els.taskPrompt.value = "Compute a station-level anomaly report that identifies the three NOAA stations with the largest positive deviation in daily maximum temperature relative to their own 30-day rolling baseline, and return a CSV with station_id, date, observed_tmax_c, baseline_tmax_c, anomaly_c, and rank. The answer must be based on the provided CSV files and must include only rows that pass the data-quality constraints described in the resources.";
-  els.taskResources.value = "Provide a zip folder containing data/stations.csv and data/daily_observations.csv. stations.csv includes station_id, latitude, longitude, elevation_m, and region. daily_observations.csv includes station_id, date, tmax_c, tmin_c, precipitation_mm, and quality_flag. The environment includes Python 3.11, pandas 2.2.x, numpy 1.26.x, and pytest 8.x. All data needed for the task is in the zip folder; no network access is required.";
-  els.taskSolution.value = "Create a Python script such as solve.py. Load both CSV files with pandas, parse date as datetime, keep only rows where quality_flag equals OK, drop rows with missing tmax_c, sort by station_id and date, compute each station's 30-day rolling mean of tmax_c using prior days only, calculate anomaly_c as observed tmax_c minus baseline_tmax_c, select the largest anomaly per station, rank stations by anomaly_c descending, and write the top three rows to output/anomaly_report.csv. Check that the CSV has exactly the required columns, exactly three rows, numeric values rounded to two decimals, and ranks 1 through 3.";
-  els.taskDifficulty.value = "This is genuinely difficult because the agent must reason about leakage-free rolling baselines, grouped time-series operations, data-quality filtering, deterministic output formatting, and edge cases such as missing observations or stations with insufficient history. A common automated solution can easily produce plausible code that uses the current day in the baseline, forgets quality filtering, ranks individual rows instead of station-level maxima, or returns non-reproducible prose instead of the required CSV. A data scientist or environmental analyst would recognize these failure modes and verify the output.";
-  els.taskTime.value = "3-5 hours for a professional data scientist with time-series data-cleaning experience.";
-  els.taskVerifiers.value = "A pytest verifier loads output/anomaly_report.csv and compares it against a hidden reference generated from the same input data. It asserts the exact column names and order, exactly three rows, unique station_id values, ranks 1 through 3, all quality_flag constraints applied, no current-day leakage in the rolling baseline, and anomaly_c values within 0.01 of the reference. The verifier fails if the file is missing, extra columns are present, rows are unranked, nonnumeric values appear, or the wrong stations/dates are selected.";
-  els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding agent, record whether it produced the CSV, whether verifier failures came from rolling-window leakage, filtering mistakes, ranking mistakes, or output-format errors.";
+  const profile = DOMAIN_DRAFTS[els.taskDomainSelect.value] || DOMAIN_DRAFTS["biomedical-signal"];
+  const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
+  const expertise = expertiseLabel(els.taskExpertise.value).toLowerCase();
+  const userNotes = els.taskDomain.value.trim();
+  const sourceSentence = userNotes ? ` Use these source notes and constraints: ${userNotes}` : "";
+
+  els.taskDomain.value = `${capitalize(expertise)} task in ${profile.domain}.${sourceSentence}`;
+  els.taskPrompt.value = `${type.verb} ${type.focus} for ${profile.domain}. Return ${profile.artifact} that can be checked without interpretation. The result must use the provided resources, apply the required domain constraints, and expose enough intermediate fields for verification.`;
+  els.taskResources.value = `Provide a self-contained zip folder with ${profile.data}. Include a README describing file schemas, units, coordinate systems or sampling rates where relevant, package versions, and the expected output paths. The environment should include Python 3.11 plus domain-appropriate open-source packages, and no network access should be needed after the resources are supplied.`;
+  els.taskSolution.value = `Create a reproducible script such as solve.py. Load and validate the provided files, normalize units and identifiers, apply ${profile.method}, write the required output artifact, and emit a small QC summary with row counts, rejected records, parameter settings, and final metrics. Re-run the script from a clean directory and confirm that the same outputs are produced.`;
+  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow. A weak solution can look plausible while still failing due to ${profile.failure}. The difficulty comes from domain constraints, edge cases, reproducible computation, and verifier-aware output design rather than from arbitrary volume or obscure trivia.`;
+  els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
+  els.taskVerifiers.value = `A deterministic verifier should ${type.verifier}. It should assert exact output schema, required files, numeric tolerances, record counts, domain-specific constraints, and reproducibility across repeated runs. It should fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, and outputs that omit required intermediate evidence.`;
+  els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding tool, record whether failures came from data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation.";
 
   buildTaskPackage();
 }
@@ -370,6 +473,16 @@ function expertiseLabel(value) {
     phd: "PhD / research level"
   };
   return labels[value] || labels.professional;
+}
+
+function timeEstimateFor(expertise, domain) {
+  if (expertise === "phd") return `8-16 hours for a PhD-level specialist or research engineer with experience in ${domain}.`;
+  if (expertise === "masters") return `5-9 hours for a master's-level practitioner with applied experience in ${domain}.`;
+  return `3-6 hours for a senior professional with hands-on experience in ${domain}.`;
+}
+
+function capitalize(text) {
+  return String(text).charAt(0).toUpperCase() + String(text).slice(1);
 }
 
 function getTaskFields() {

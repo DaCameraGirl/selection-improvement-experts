@@ -91,7 +91,7 @@
             <div class="panel-header">
               <h2>Prompt Maker</h2>
               <div class="inline-actions">
-                <button id="fill-starter-template" type="button">Load Example</button>
+                <button id="fill-starter-template" type="button">Generate Draft</button>
                 <button id="build-task-package" class="primary" type="button">Build Package</button>
                 <button id="copy-task-package" type="button">Copy</button>
               </div>
@@ -99,10 +99,6 @@
             <div class="task-layout">
               <section class="task-form">
                 <p class="helper-copy">Use this to coach and format your own prompt draft against the Selection Improvement Expert rules. The app checks quality and flags weak, contrived, or underspecified drafts.</p>
-                <label>
-                  Domain and source inspiration
-                  <textarea id="task-domain" placeholder="Example: professional ECG signal-processing task based on an open dataset and known DSP standards."></textarea>
-                </label>
                 <label>
                   Expertise level target
                   <select id="task-expertise">
@@ -112,8 +108,36 @@
                   </select>
                 </label>
                 <label>
-                  Prompt to give the agent
-                  <textarea id="task-prompt" placeholder="State the final goal up front. Focus on the goal, not the process. Keep it concise and outcome-verifiable."></textarea>
+                  Domain
+                  <select id="task-domain-select">
+                    <option value="biomedical-signal">Biomedical signal processing</option>
+                    <option value="climate-geospatial">Climate and geospatial analytics</option>
+                    <option value="computational-biology">Computational biology</option>
+                    <option value="quant-finance">Quantitative finance</option>
+                    <option value="materials-science">Materials science</option>
+                    <option value="power-systems">Power systems engineering</option>
+                    <option value="cyber-forensics">Cybersecurity forensics</option>
+                    <option value="robotics-control">Robotics and control</option>
+                    <option value="econometrics">Econometrics and policy analysis</option>
+                    <option value="computational-linguistics">Computational linguistics</option>
+                  </select>
+                </label>
+                <label>
+                  Task shape
+                  <select id="task-type">
+                    <option value="analysis">Data analysis artifact</option>
+                    <option value="simulation">Simulation or numerical model</option>
+                    <option value="verification">Verifier-focused benchmark</option>
+                    <option value="optimization">Optimization or calibration</option>
+                  </select>
+                </label>
+                <label>
+                  Source notes or constraints
+                  <textarea id="task-domain" placeholder="Optional: add a dataset, paper, standard, repository, file names, or constraints you want the generated draft to use."></textarea>
+                </label>
+                <label>
+                  Generated prompt draft
+                  <textarea id="task-prompt" placeholder="Click Generate Draft, then edit the prompt so it matches your actual source material and task idea."></textarea>
                 </label>
                 <label>
                   Resources needed to solve the task
