@@ -537,6 +537,49 @@ const STANDARD_DRAFTS = {
   }
 };
 
+const SCENARIO_STYLES = [
+  {
+    name: "post-migration validation",
+    situation: "after a production data or system migration",
+    objective: "identify where the migrated outputs diverge from the trusted reference and produce an auditable exception report",
+    resource: "before/after extracts, migration mapping tables, reference outputs, and a small set of intentionally malformed edge-case records",
+    solution: "compare old and new outputs by stable keys, classify each mismatch by failure type, compute summary rates, and preserve row-level evidence for every rejected or changed record",
+    verifier: "check exact mismatch categories, row counts, reference joins, stable ordering, and whether known malformed records are rejected for the right reason"
+  },
+  {
+    name: "regression triage",
+    situation: "after a new release caused a measurable regression in a previously stable workflow",
+    objective: "isolate the smallest reproducible regression case and return a machine-readable diagnosis with the failing condition",
+    resource: "two versioned output folders, failing logs, configuration diffs, seed values, and expected baseline metrics",
+    solution: "re-run the baseline and candidate workflows, bisect configuration differences, compute metric deltas, and produce a minimal failing case with evidence",
+    verifier: "confirm the reported failing case reproduces, the metric delta matches reference tolerance, and unrelated changes are not mislabeled as root causes"
+  },
+  {
+    name: "compliance audit",
+    situation: "during a scheduled audit of a regulated or high-stakes workflow",
+    objective: "produce an audit-ready evidence package that traces every final output back to validated inputs and documented exclusions",
+    resource: "raw inputs, data dictionary, exclusion rules, expected output schema, audit log template, and package version manifest",
+    solution: "validate schemas, apply exclusion rules, record every accepted and rejected input, compute final outputs, and generate traceability metadata",
+    verifier: "check traceability fields, exclusion accounting, exact schema, version metadata, and deterministic recalculation of final values"
+  },
+  {
+    name: "edge-case benchmark",
+    situation: "while building a benchmark intended to catch subtle expert-level failures",
+    objective: "generate the required output and a failure-analysis table for edge cases that ordinary happy-path solutions miss",
+    resource: "normal fixtures, edge-case fixtures, invalid inputs, reference outputs, and a manifest describing which cases target which failure modes",
+    solution: "run the workflow on normal, edge, and invalid fixtures; compute outputs; label failure modes; and summarize which constraints each case exercises",
+    verifier: "assert normal-case correctness, edge-case handling, invalid-input rejection, failure-mode labels, and reproducibility across repeated runs"
+  },
+  {
+    name: "operational reconciliation",
+    situation: "when two trusted operational systems disagree and the downstream team needs a defensible reconciliation",
+    objective: "reconcile the systems into a final output table with reason codes, confidence flags, and a review queue for unresolved records",
+    resource: "two system exports, schema documentation, precedence rules, timestamp metadata, and a set of known reconciliation examples",
+    solution: "normalize identifiers, align timestamps, apply precedence rules, classify conflicts, compute final reconciled records, and emit unresolved cases separately",
+    verifier: "check conflict classification, precedence handling, timestamp normalization, exact output schema, and whether known examples receive the expected reason codes"
+  }
+];
+
 function fillStarterTemplate() {
   const confirmed = hasTaskDraft() ? confirm("Replace the current draft with a generated domain draft?") : true;
   if (!confirmed) return;
@@ -544,19 +587,20 @@ function fillStarterTemplate() {
   const profile = DOMAIN_DRAFTS[els.taskDomainSelect.value] || DOMAIN_DRAFTS["biomedical-signal"];
   const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
+  const scenario = pickScenario();
   const expertise = expertiseLabel(els.taskExpertise.value).toLowerCase();
   const userNotes = els.taskDomain.value.trim();
   const sourceSentence = userNotes ? ` Use these source notes and constraints: ${userNotes}` : "";
 
-  els.taskDomain.value = `${capitalize(expertise)} task in ${profile.domain}.${sourceSentence}`;
-  els.taskPrompt.value = `Please ${type.verb.toLowerCase()} ${type.focus} for ${profile.domain}. Return ${profile.artifact} that can be checked without interpretation. Use the provided resources, apply the domain constraints, and include enough intermediate fields for someone else to verify the result. ${standard.prompt}`;
-  els.taskResources.value = `Provide a self-contained zip folder with ${profile.data}. Include a README describing file schemas, units, coordinate systems or sampling rates where relevant, package versions, and the expected output paths. The environment should include Python 3.11 plus domain-appropriate open-source packages, and no network access should be needed after the resources are supplied. ${standard.resources}`;
+  els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.${sourceSentence}`;
+  els.taskPrompt.value = `Please ${type.verb.toLowerCase()} ${type.focus} for ${profile.domain} ${scenario.situation}. The goal is to ${scenario.objective}. Return ${profile.artifact} plus any supporting evidence files needed to check the result without interpretation. Use the provided resources, apply the domain constraints, and include enough intermediate fields for another reviewer to verify the result. ${standard.prompt}`;
+  els.taskResources.value = `Provide a self-contained zip folder with ${profile.data}, plus ${scenario.resource}. Include a README describing file schemas, units, coordinate systems or sampling rates where relevant, package versions, and the expected output paths. The environment should include Python 3.11 plus domain-appropriate open-source packages, and no network access should be needed after the resources are supplied. ${standard.resources}`;
   els.taskSolution.value = [
     "A strong solution would be organized as a reproducible terminal workflow rather than a prose answer.",
     "",
     "1. Create a script such as solve.py that reads the provided resource bundle and validates that every required input file is present.",
     `2. Parse the domain inputs for ${profile.domain}, normalize identifiers and units, and reject records that violate the stated schema or quality constraints.`,
-    `3. Apply ${profile.method}. Keep intermediate tables or logs that make the key domain decisions auditable.`,
+    `3. Apply ${profile.method} in the context of the ${scenario.name} scenario. ${scenario.solution}.`,
     `4. Write ${profile.artifact} to the requested output path with stable column names, deterministic ordering, and enough intermediate fields for verification.`,
     "5. Emit a QC summary that includes input row counts, rejected records, parameter settings, final metrics, and any tolerance assumptions.",
     "6. Re-run the workflow from a clean directory and confirm that the same output files and metrics are produced.",
@@ -566,12 +610,20 @@ function fillStarterTemplate() {
     "Expected artifacts: solve.py or equivalent workflow script, the required output file(s), a small machine-readable QC summary, and reproducibility metadata.",
     `Important edge cases: ${profile.failure}.`
   ].join("\n");
-  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow. A weak solution can look plausible while still failing due to ${profile.failure}. The difficulty comes from domain constraints, enterprise-grade edge cases, reproducible computation, and verifier-aware output design rather than from arbitrary volume or obscure trivia.`;
+  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, enterprise-grade edge cases, reproducible computation, and verifier-aware output design rather than from arbitrary volume or obscure trivia.`;
   els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
-  els.taskVerifiers.value = `A deterministic verifier should ${type.verifier}. It should assert exact output schema, required files, numeric tolerances, record counts, domain-specific constraints, and reproducibility across repeated runs. It should fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, and outputs that omit required intermediate evidence. ${standard.verifier}`;
+  els.taskVerifiers.value = `A deterministic verifier should ${type.verifier} and ${scenario.verifier}. It should assert exact output schema, required files, numeric tolerances, record counts, domain-specific constraints, and reproducibility across repeated runs. It should fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, and outputs that omit required intermediate evidence. ${standard.verifier}`;
   els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding tool, record whether failures came from data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation.";
 
   buildTaskPackage();
+}
+
+function pickScenario() {
+  const key = "selection-improvement-scenario-index";
+  const current = Number(localStorage.getItem(key) || "-1");
+  const next = (current + 1) % SCENARIO_STYLES.length;
+  localStorage.setItem(key, String(next));
+  return SCENARIO_STYLES[next];
 }
 
 function hasTaskDraft() {
