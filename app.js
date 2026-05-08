@@ -786,6 +786,10 @@ const DOMAIN_DETAILS = {
     ]
   },
   "ml-systems": {
+    sources: [
+      "Self-contained serving-evaluation source: include the feature snapshots, labels, model metadata, serving traces, and expected baseline metrics in the zip.",
+      "If adapted from OpenML or another public dataset, cite the dataset URL, version, task ID, license, and any preprocessing script used to create the supplied snapshots."
+    ],
     resources: [
       "data/features/batch_features.parquet and online_features.parquet with stable entity_id, event_time, feature_version, and named feature columns.",
       "data/predictions/batch_predictions.csv, online_predictions.jsonl, labels.csv, slice_definitions.yaml, latency_trace.csv, and model_card.md.",
@@ -822,6 +826,32 @@ const DOMAIN_DETAILS = {
       "Require repeated timing medians rather than a single non-repeatable run."
     ]
   },
+  "software-engineering": {
+    sources: [
+      "Self-contained repository benchmark source: include a pinned repository snapshot in repo_snapshot/ with the exact commit or release recorded in README.md.",
+      "If based on an open-source project, cite the repository URL, commit SHA, license, failing issue or regression note, and any upstream API documentation used."
+    ],
+    resources: [
+      "repo_snapshot/ containing the checked-out project at the pinned commit, excluding network-only build artifacts.",
+      "regression/bug_repro.md with the minimal user-facing behavior that regressed and the command that reproduces it.",
+      "regression/failing_tests.txt and regression/baseline_test_report.txt with exact test names, command lines, and observed failures.",
+      "contracts/api_contract.md describing public functions, CLI flags, return types, error behavior, and compatibility rules that must not change.",
+      "fixtures/regression_fixtures/ with normal_api_case.json, edge_backward_compat_case.json, invalid_input_case.json, and expected_behavior.json.",
+      "schemas/patch_summary.schema.json, schemas/test_report.schema.json, and schemas/compatibility_summary.schema.json."
+    ],
+    solution: [
+      "Run the documented failing command from regression/bug_repro.md and capture the failure in outputs/baseline_failure.txt.",
+      "Identify the smallest code path and fixture that reproduces the API-contract break without changing unrelated behavior.",
+      "Modify the repository code and add or update targeted regression tests that cover the normal case, backward-compatibility edge case, and invalid-input case.",
+      "Write outputs/fix.patch, outputs/test_report.json, outputs/compatibility_summary.json, outputs/minimal_repro.md, and outputs/run_manifest.json.",
+      "The compatibility summary must include changed_files, public_api_symbols_touched, tests_run, failing_before, passing_after, and any behavior intentionally left unchanged."
+    ],
+    verifiers: [
+      "Apply outputs/fix.patch to the clean pinned snapshot and run the exact documented test command.",
+      "Fail if public API behavior changes outside the allowed compatibility contract.",
+      "Check test_report.json and compatibility_summary.json against required schemas and expected regression fixture outcomes."
+    ]
+  },
   statistics: {
     resources: [
       "data/observations.csv, treatment_assignments.csv, missingness_flags.csv, covariates.csv, hypotheses.yaml, and analysis_plan.md.",
@@ -852,10 +882,8 @@ function fillStarterTemplate() {
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
   const scenario = pickScenario();
   const expertise = expertiseLabel(els.taskExpertise.value).toLowerCase();
-  const userNotes = cleanSourceNotes(els.taskDomain.value.trim());
-  const sourceSentence = userNotes ? ` Use these source notes and constraints: ${userNotes}` : "";
 
-  els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.${sourceSentence}`;
+  els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.`;
   els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
