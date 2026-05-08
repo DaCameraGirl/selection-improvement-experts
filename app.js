@@ -353,140 +353,160 @@ const DOMAIN_DRAFTS = {
     artifact: "a CSV report and validation plot",
     method: "wavelet denoising, notch filtering, peak detection, beat-level feature extraction, and tolerance-based validation against reference annotations",
     data: "MIT-BIH-style waveform segments, annotation files, sampling-rate metadata, and a channel manifest",
-    failure: "filter leakage, incorrect sampling-rate conversion, false peak matching, and accepting visually plausible but clinically invalid beat intervals"
+    failure: "filter leakage, incorrect sampling-rate conversion, false peak matching, and accepting visually plausible but clinically invalid beat intervals",
+    sourceKit: "PhysioNet MIT-BIH Arrhythmia Database records 100, 101, and 103 exported as records.csv, annotations.csv, sampling_metadata.json, and a README with the 360 Hz sampling rate and signal-unit notes"
   },
   "climate-geospatial": {
     domain: "climate and geospatial analytics using station observations, raster grids, coordinate transforms, and reproducible regional aggregation",
     artifact: "a GeoJSON layer and a CSV anomaly table",
     method: "spatial joins, CRS normalization, temporal baseline construction, raster sampling, and uncertainty-aware regional aggregation",
     data: "station CSV files, a region boundary GeoJSON, gridded NetCDF or GeoTIFF data, and metadata describing units and coordinate reference systems",
-    failure: "mixing coordinate systems, leaking target-period values into baselines, mishandling missing stations, and producing maps that cannot be verified numerically"
+    failure: "mixing coordinate systems, leaking target-period values into baselines, mishandling missing stations, and producing maps that cannot be verified numerically",
+    sourceKit: "NOAA GHCN Daily station observations, a TIGER/Line county boundary GeoJSON, station_metadata.csv, daily_observations.csv, county_boundaries.geojson, and crs_notes.md"
   },
   "computational-biology": {
     domain: "computational biology using sequence data, public gene annotations, reproducible alignment-derived features, and biologically meaningful constraints",
     artifact: "a ranked TSV of candidate loci and a machine-readable QC summary",
     method: "sequence parsing, motif scanning, multiple-testing correction, genomic interval joins, and reference-based validation",
     data: "FASTA sequences, GFF/GTF annotations, sample metadata, and a known reference motif table",
-    failure: "off-by-one genomic coordinates, strand errors, invalid multiple-testing correction, and biologically implausible candidates"
+    failure: "off-by-one genomic coordinates, strand errors, invalid multiple-testing correction, and biologically implausible candidates",
+    sourceKit: "Ensembl or NCBI RefSeq chromosome slice exports packaged as genome_slice.fa, annotations.gff3, sample_manifest.csv, jaspar_motifs.tsv, and coordinate_conventions.md"
   },
   "quant-finance": {
     domain: "quantitative finance using market microstructure data, corporate-action adjustments, and reproducible risk metric computation",
     artifact: "a portfolio risk report in CSV and JSON",
     method: "return normalization, volatility estimation, drawdown analysis, factor exposure regression, and out-of-sample validation",
     data: "OHLCV price files, corporate-action tables, factor-return files, and a portfolio holdings file",
-    failure: "look-ahead bias, unadjusted splits, incorrect annualization, unstable regression windows, and unverifiable prose-only risk conclusions"
+    failure: "look-ahead bias, unadjusted splits, incorrect annualization, unstable regression windows, and unverifiable prose-only risk conclusions",
+    sourceKit: "Stooq or Nasdaq Data Link daily OHLCV exports for selected tickers, Fama-French factor CSVs, corporate_actions.csv, holdings.csv, and trading_calendar.csv"
   },
   "materials-science": {
     domain: "materials science using crystallographic structure files, composition descriptors, and reproducible property-screening logic",
     artifact: "a ranked materials table and structure-level validation summary",
     method: "CIF parsing, stoichiometry checks, descriptor generation, symmetry-aware filtering, and threshold-based property ranking",
     data: "CIF files, a composition metadata CSV, reference property measurements, and package/version notes for pymatgen or ASE",
-    failure: "invalid oxidation-state assumptions, duplicate structures, unit mistakes, and rankings that ignore crystal symmetry constraints"
+    failure: "invalid oxidation-state assumptions, duplicate structures, unit mistakes, and rankings that ignore crystal symmetry constraints",
+    sourceKit: "Crystallography Open Database CIF samples, cod_metadata.csv, reference_properties.csv, pymatgen_version.txt, and structure_id_mapping.csv"
   },
   "power-systems": {
     domain: "power systems engineering using load-flow cases, bus/branch tables, generator constraints, and reproducible contingency analysis",
     artifact: "a contingency ranking CSV and voltage-violation report",
     method: "AC or DC load-flow computation, N-1 contingency screening, constraint checking, and tolerance-based comparison to reference cases",
     data: "bus, branch, generator, and load tables plus base-MVA metadata and solver package versions",
-    failure: "per-unit conversion errors, slack-bus mishandling, ignored thermal limits, and non-reproducible solver settings"
+    failure: "per-unit conversion errors, slack-bus mishandling, ignored thermal limits, and non-reproducible solver settings",
+    sourceKit: "MATPOWER case files such as case14 and case30 exported as bus.csv, branch.csv, gen.csv, load_profile.csv, base_mva.json, and solver_config.yaml"
   },
   "cyber-forensics": {
     domain: "cybersecurity forensics using packet captures, endpoint logs, file hashes, and reproducible incident-timeline reconstruction",
     artifact: "a JSON incident timeline and IOC table",
     method: "PCAP parsing, timestamp normalization, session reconstruction, hash matching, and rule-based event correlation",
     data: "PCAP files, endpoint event logs, hash allow/block lists, and schema documentation for event fields",
-    failure: "timezone drift, conflating benign retries with compromise, missing correlated events, and relying on screenshots instead of parsed evidence"
+    failure: "timezone drift, conflating benign retries with compromise, missing correlated events, and relying on screenshots instead of parsed evidence",
+    sourceKit: "Stratosphere IPS CTU-style PCAP slices or Malware-Traffic-Analysis exercise logs packaged as traffic.pcap, zeek_conn.log, zeek_dns.log, edr_events.jsonl, known_hashes.csv, and timezone_notes.md"
   },
   "robotics-control": {
     domain: "robotics and control using trajectory logs, actuator limits, controller parameters, and reproducible stability or tracking analysis",
     artifact: "a metrics JSON file and trajectory-error CSV",
     method: "state-estimation checks, controller-response simulation, tracking-error computation, and constraint violation detection",
     data: "trajectory logs, robot parameter YAML, reference path files, and controller configuration files",
-    failure: "frame-transform mistakes, unstable discretization, hidden actuator-limit violations, and metrics that reward smooth but inaccurate paths"
+    failure: "frame-transform mistakes, unstable discretization, hidden actuator-limit violations, and metrics that reward smooth but inaccurate paths",
+    sourceKit: "ROS bag-derived trajectory CSVs, robot_params.yaml, reference_path.csv, controller_config.yaml, actuator_limits.json, and frame_conventions.md"
   },
   econometrics: {
     domain: "econometrics and policy analysis using panel data, treatment timing, fixed effects, and reproducible robustness checks",
     artifact: "a regression summary CSV and robustness-check JSON",
     method: "panel cleaning, difference-in-differences estimation, clustered standard errors, placebo tests, and pre-trend diagnostics",
     data: "panel outcome data, treatment timing tables, covariate files, and a data dictionary",
-    failure: "bad treatment timing, wrong fixed effects, unclustered errors, post-treatment controls, and conclusions not tied to computed estimates"
+    failure: "bad treatment timing, wrong fixed effects, unclustered errors, post-treatment controls, and conclusions not tied to computed estimates",
+    sourceKit: "World Bank or IPUMS-style panel extracts packaged as panel_outcomes.csv, treatment_timing.csv, covariates.csv, data_dictionary.md, and pretrend_windows.json"
   },
   "computational-linguistics": {
     domain: "computational linguistics using annotated corpora, morphology or syntax labels, and reproducible corpus-level evaluation",
     artifact: "an error-analysis table and metrics JSON",
     method: "corpus parsing, stratified metric computation, agreement analysis, tokenization checks, and label-level confusion analysis",
     data: "annotated text files, label schema documentation, train/test split manifests, and tokenizer version notes",
-    failure: "label leakage, token-boundary drift, invalid averaging, and unsupported linguistic conclusions"
+    failure: "label leakage, token-boundary drift, invalid averaging, and unsupported linguistic conclusions",
+    sourceKit: "Universal Dependencies treebank samples packaged as train.conllu, test.conllu, label_schema.md, split_manifest.json, tokenizer_version.txt, and gold_metrics.json"
   },
   "software-engineering": {
     domain: "software engineering using real repository history, failing regression tests, API compatibility constraints, and reproducible build artifacts",
     artifact: "a patch file, test report, and compatibility summary JSON",
     method: "static analysis, targeted refactoring, regression-test minimization, dependency graph inspection, and behavioral compatibility checks",
     data: "a repository snapshot, failing test logs, API documentation, dependency lockfiles, and benchmark fixtures",
-    failure: "fixing symptoms instead of root causes, breaking public APIs, hiding failures with brittle test changes, and missing edge-case regressions"
+    failure: "fixing symptoms instead of root causes, breaking public APIs, hiding failures with brittle test changes, and missing edge-case regressions",
+    sourceKit: "a pinned open-source repository snapshot with bug_repro.md, failing_tests.txt, api_contract.md, package-lock.json or poetry.lock, regression_fixtures/, and expected_behavior.json"
   },
   "computer-science": {
     domain: "computer science algorithms using formal input constraints, asymptotic requirements, generated adversarial cases, and reproducible correctness testing",
     artifact: "an implementation file, complexity note, and adversarial test-results JSON",
     method: "algorithm design, proof-informed invariant checking, randomized stress testing, edge-case generation, and asymptotic performance validation",
     data: "problem specification files, seedable case generators, hidden reference outputs, and performance budget metadata",
-    failure: "passing small examples with an exponential solution, mishandling boundary conditions, relying on unstable heuristics, and giving an implementation with no verifiable complexity behavior"
+    failure: "passing small examples with an exponential solution, mishandling boundary conditions, relying on unstable heuristics, and giving an implementation with no verifiable complexity behavior",
+    sourceKit: "problem_statement.md, constraints.json, seed_generator.py, public_cases.jsonl, adversarial_cases.jsonl, reference_outputs.jsonl, and runtime_budget.json"
   },
   "distributed-systems": {
     domain: "distributed systems using event traces, consistency invariants, network partition scenarios, and reproducible simulation logs",
     artifact: "a consistency-violation report and replayable trace summary JSON",
     method: "trace replay, happens-before reconstruction, invariant checking, quorum analysis, and deterministic fault-injection simulation",
     data: "node event logs, message trace files, configuration manifests, clock-skew metadata, and expected invariant definitions",
-    failure: "assuming total ordering where none exists, ignoring delayed messages, missing split-brain cases, and producing conclusions not tied to replayed traces"
+    failure: "assuming total ordering where none exists, ignoring delayed messages, missing split-brain cases, and producing conclusions not tied to replayed traces",
+    sourceKit: "Jepsen-style event histories packaged as history.edn or history.jsonl, node_configs.yaml, partition_windows.csv, invariant_spec.md, and expected_counterexamples.json"
   },
   databases: {
     domain: "database systems using query plans, transaction logs, indexes, statistics, and reproducible optimizer or isolation-level analysis",
     artifact: "a query-plan diagnosis report, rewritten SQL file, and benchmark metrics CSV",
     method: "query-plan inspection, cardinality-estimation analysis, index design, transaction anomaly detection, and repeatable benchmark comparison",
     data: "SQL schema dumps, sample tables, query workloads, transaction traces, planner outputs, and database version metadata",
-    failure: "optimizing for one sample query only, ignoring isolation anomalies, using non-repeatable timings, and proposing indexes that violate workload constraints"
+    failure: "optimizing for one sample query only, ignoring isolation anomalies, using non-repeatable timings, and proposing indexes that violate workload constraints",
+    sourceKit: "TPC-H or Join Order Benchmark-inspired schema.sql, sample_data/, workload.sql, explain_plans_before.json, explain_plans_after.json, transaction_traces.csv, and postgres_version.txt"
   },
   compilers: {
     domain: "compilers and static analysis using source programs, intermediate representation dumps, optimization passes, and semantic-preservation tests",
     artifact: "a compiler-pass patch, IR diff report, and semantic test-results JSON",
     method: "control-flow graph analysis, data-flow analysis, SSA reasoning, optimization legality checks, and differential testing against reference execution",
     data: "source fixtures, grammar or IR documentation, expected outputs, compiler flags, and pass-pipeline configuration files",
-    failure: "performing an unsound optimization, mishandling undefined behavior, breaking scoping or type rules, and passing syntactic tests while changing program semantics"
+    failure: "performing an unsound optimization, mishandling undefined behavior, breaking scoping or type rules, and passing syntactic tests while changing program semantics",
+    sourceKit: "LLVM-lit-style fixtures or small language programs packaged as tests/input/, expected_stdout/, ir_before.ll, pass_pipeline.txt, grammar.md, and compiler_flags.txt"
   },
   "ml-systems": {
     domain: "machine learning systems using model-serving traces, feature pipelines, latency budgets, and reproducible offline evaluation",
     artifact: "a metrics JSON file, drift report, and serving-latency summary",
     method: "feature validation, calibration analysis, drift detection, latency profiling, batch/online parity checks, and threshold selection",
     data: "feature snapshots, prediction logs, ground-truth labels, model metadata, service traces, and evaluation configuration files",
-    failure: "leaking labels, optimizing aggregate accuracy while failing slices, ignoring calibration, breaking batch/online parity, and using unstable latency measurements"
+    failure: "leaking labels, optimizing aggregate accuracy while failing slices, ignoring calibration, breaking batch/online parity, and using unstable latency measurements",
+    sourceKit: "OpenML-style tabular snapshot or model-serving logs packaged as features.parquet, labels.csv, prediction_logs.jsonl, model_card.md, slice_definitions.yaml, and latency_trace.csv"
   },
   "applied-math": {
     domain: "applied mathematics using numerical methods, boundary conditions, convergence criteria, and reproducible error analysis",
     artifact: "a numerical solution table, convergence plot data, and error-bound report",
     method: "discretization, stability analysis, convergence testing, residual computation, and tolerance-based comparison to analytic or high-resolution reference solutions",
     data: "parameter files, boundary-condition definitions, reference solutions, mesh or grid specifications, and numerical tolerance requirements",
-    failure: "using an unstable discretization, confusing local and global error, failing boundary conditions, and reporting plausible numbers without convergence evidence"
+    failure: "using an unstable discretization, confusing local and global error, failing boundary conditions, and reporting plausible numbers without convergence evidence",
+    sourceKit: "parameter_config.yaml, boundary_conditions.json, reference_solution.csv, mesh_levels/, tolerance_spec.json, and analytic_case_notes.md"
   },
   statistics: {
     domain: "statistics and experimental design using raw observations, treatment assignments, missingness patterns, and reproducible inference checks",
     artifact: "a statistical analysis report CSV, model diagnostics JSON, and reproducibility notes",
     method: "power analysis, missing-data handling, model specification, multiple-testing correction, sensitivity analysis, and assumption diagnostics",
     data: "raw observation tables, treatment metadata, data dictionaries, pre-specified hypotheses, and analysis configuration files",
-    failure: "p-hacking through multiple comparisons, invalid independence assumptions, mishandling missingness, and reporting significant results without diagnostic support"
+    failure: "p-hacking through multiple comparisons, invalid independence assumptions, mishandling missingness, and reporting significant results without diagnostic support",
+    sourceKit: "Kaggle/UCI-style raw observations packaged as observations.csv, treatment_assignments.csv, missingness_flags.csv, hypotheses.yaml, and analysis_plan.md"
   },
   "scientific-computing": {
     domain: "scientific computing using simulation inputs, numerical solvers, physical constraints, and reproducible high-precision validation",
     artifact: "a solver output file, residual-history CSV, and conservation-check JSON",
     method: "solver configuration, residual tracking, convergence analysis, conservation-law checks, parameter sweeps, and tolerance-based reference comparison",
     data: "simulation input files, parameter manifests, reference outputs, unit definitions, and package/compiler version notes",
-    failure: "accepting non-converged runs, violating conservation constraints, mixing units, and using nondeterministic solver settings without documenting tolerances"
+    failure: "accepting non-converged runs, violating conservation constraints, mixing units, and using nondeterministic solver settings without documenting tolerances",
+    sourceKit: "solver_inputs/, parameters.yaml, unit_definitions.md, reference_outputs.csv, residual_targets.json, compiler_version.txt, and deterministic_seed.txt"
   },
   "formal-methods": {
     domain: "formal methods using specifications, transition systems, invariants, and reproducible model-checking or proof-assistant artifacts",
     artifact: "a machine-checkable proof or counterexample trace plus an invariant coverage report",
     method: "state-space modeling, invariant strengthening, counterexample minimization, temporal-logic checking, and proof obligation validation",
     data: "formal specifications, model files, property definitions, expected counterexamples or theorem statements, and tool-version metadata",
-    failure: "proving a weaker property than requested, missing liveness cases, relying on informal reasoning, and producing traces that cannot be replayed"
+    failure: "proving a weaker property than requested, missing liveness cases, relying on informal reasoning, and producing traces that cannot be replayed",
+    sourceKit: "TLA+/Alloy/Coq-style specs packaged as model.tla or model.als, properties.md, expected_counterexample.json, tool_versions.txt, and run_model_check.sh"
   }
 };
 
@@ -633,7 +653,15 @@ function fillStarterTemplate() {
 
   els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.${sourceSentence}`;
   els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
-  els.taskResources.value = `Provide a self-contained zip folder with ${profile.data}, plus ${scenario.resource}. Include a README describing file schemas, units, coordinate systems or sampling rates where relevant, package versions, and the expected output paths. The environment should include Python 3.11 plus domain-appropriate open-source packages, and no network access should be needed after the resources are supplied. ${standard.resources}`;
+  els.taskResources.value = [
+    "Provide a self-contained zip folder with realistic source-grounded files:",
+    `- Primary source kit: ${profile.sourceKit}.`,
+    `- Scenario-specific evidence: ${scenario.resource}.`,
+    "- README.md with file schemas, units, expected output paths, and any domain assumptions.",
+    "- requirements.txt or environment.yml with exact package versions.",
+    "- tests/ or verifier_inputs/ with at least one normal case, one edge case, and one invalid case.",
+    standard.resources
+  ].join("\n");
   els.taskSolution.value = [
     "A strong solution would be organized as a reproducible terminal workflow rather than a prose answer.",
     "",
