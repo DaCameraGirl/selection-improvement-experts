@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-08 airtight-core";
+const APP_VERSION = "2026-05-08 airtight-cs";
 
 const state = {
   guides: [],
@@ -511,6 +511,15 @@ const DOMAIN_DRAFTS = {
     failure: "leaking labels, optimizing aggregate accuracy while failing slices, ignoring calibration, breaking batch/online parity, and using unstable latency measurements",
     sourceKit: "OpenML-style tabular snapshot or model-serving logs packaged as features.parquet, labels.csv, prediction_logs.jsonl, model_card.md, slice_definitions.yaml, and latency_trace.csv"
   },
+  "ai-governance": {
+    brief: "Audit a model-risk and fairness report after a feature-policy migration changed production eligibility decisions",
+    domain: "AI ethics and model governance using model cards, decision logs, protected-attribute handling rules, slice metrics, calibration checks, and reproducible policy-compliance evidence",
+    artifact: "a governance metrics JSON file, fairness audit CSV, and policy-exception report",
+    method: "dataset-card validation, protected-attribute handling checks, slice-level performance analysis, calibration and threshold auditing, disparate-impact measurement, and policy-exception classification",
+    data: "model cards, dataset cards, de-identified decision logs, protected-attribute policy metadata, slice definitions, threshold configs, and audit templates",
+    failure: "leaking protected attributes, hiding harms in aggregate metrics, applying thresholds inconsistently across slices, missing calibration failures, and producing policy claims unsupported by output files",
+    sourceKit: "self-contained governance audit package with dataset_card.md, model_card.md, decision_logs.parquet, labels.csv, slice_definitions.yaml, threshold_policy.yaml, protected_attribute_policy.md, and expected_audit_metrics.json"
+  },
   "applied-math": {
     brief: "Validate convergence and boundary-condition handling for a numerical solver output",
     domain: "applied mathematics using numerical methods, boundary conditions, convergence criteria, and reproducible error analysis",
@@ -752,6 +761,56 @@ const DOMAIN_DETAILS = {
       "Run repeated seeded case generation and assert stable outputs, runtime budget compliance, and schema validity."
     ]
   },
+  "distributed-systems": {
+    sources: [
+      "Self-contained distributed-systems benchmark source: include node event histories, partition windows, invariant definitions, and expected counterexamples in the zip.",
+      "If adapted from Jepsen-style histories or a public consistency-testing repository, cite the repository URL, commit SHA, license, history format, and workload/invariant definition."
+    ],
+    resources: [
+      "histories/history_before.jsonl and histories/history_after.jsonl with event_id, node_id, process_id, op, key, value, call_time_ms, return_time_ms, status, and logical_clock.",
+      "config/node_configs.yaml with replica IDs, quorum size, consistency model, retry policy, and clock-skew assumptions.",
+      "config/partition_windows.csv with partition_id, affected_nodes, start_ms, end_ms, dropped_message_policy, and expected_recovery_state.",
+      "spec/invariant_spec.md describing the required safety property, allowed histories, invalid histories, and reason-code taxonomy.",
+      "schemas/violation_report.schema.json, schemas/replay_summary.schema.json, and verifier_inputs/expected_counterexamples.json."
+    ],
+    solution: [
+      "Implement replay.py with python replay.py --history histories/history_after.jsonl --config config/node_configs.yaml --partitions config/partition_windows.csv --out outputs.",
+      "Normalize event ordering using call/return intervals, reconstruct happens-before relationships, and avoid assuming a total order where operations overlap.",
+      "Check the invariant for each candidate serialization or replay window, then minimize the first counterexample by operation ID and partition window.",
+      "Write outputs/consistency_violations.json, outputs/replay_summary.json, outputs/minimal_counterexample.json, outputs/timeline.csv, and outputs/run_manifest.json.",
+      "The violation report must include violation_id, operation_ids, partition_id, invariant_name, expected_state, observed_state, confidence_flag, and replay_seed."
+    ],
+    verifiers: [
+      "Replay the reported minimal counterexample and fail if it does not reproduce the invariant violation.",
+      "Fail if overlapping operations are linearized by input order without respecting call/return intervals.",
+      "Check violation reason codes, partition IDs, and replay summaries against expected_counterexamples.json."
+    ]
+  },
+  compilers: {
+    sources: [
+      "Self-contained compiler/static-analysis benchmark source: include all source fixtures, expected outputs, IR snapshots, pass configuration, and semantic checks in the zip.",
+      "If adapted from LLVM-lit, rustc, mypy, ESLint, or another public compiler/static-analysis suite, cite the repository URL, commit SHA, license, test IDs, and any fixture modifications."
+    ],
+    resources: [
+      "fixtures/source/ with normal_case.lang, edge_undefined_behavior.lang, invalid_type_scope.lang, and regression_case.lang.",
+      "fixtures/expected_stdout/ and fixtures/expected_exit_codes.json with expected behavior before and after the optimization pass.",
+      "ir/ir_before.ll and ir/ir_after_candidate.ll for the target fixtures, plus pass_pipeline.txt and compiler_flags.txt.",
+      "spec/grammar.md, spec/type_rules.md, spec/optimization_legality.md, and config/pass_config.yaml.",
+      "schemas/ir_diff.schema.json, schemas/semantic_test_results.schema.json, and verifier_inputs/expected_semantic_failures.json."
+    ],
+    solution: [
+      "Implement analyze_pass.py with python analyze_pass.py --fixtures fixtures --ir ir --config config/pass_config.yaml --out outputs.",
+      "Parse the source fixtures and IR dumps, compare control-flow/data-flow changes, and identify transformations that violate the optimization legality rules.",
+      "Run differential execution against expected stdout and exit codes for normal, edge, invalid, and regression fixtures.",
+      "Write outputs/ir_diff_report.json, outputs/semantic_test_results.json, outputs/unsafe_transformations.csv, outputs/minimal_fixture.md, and outputs/run_manifest.json.",
+      "The semantic report must include fixture_id, transformation_id, before_behavior, after_behavior, legality_rule, failure_mode, and reproduction_command."
+    ],
+    verifiers: [
+      "Fail if a syntactic IR diff is reported without checking executable behavior.",
+      "Fail if undefined-behavior or invalid-program fixtures are treated as valid semantic-preservation failures.",
+      "Check unsafe_transformations.csv and semantic_test_results.json against expected semantic failures."
+    ]
+  },
   "applied-math": {
     sources: [
       "Self-contained numerical benchmark source: include the analytic case notes, reference solution, mesh files, tolerance spec, and solver configuration in the zip.",
@@ -824,7 +883,36 @@ const DOMAIN_DETAILS = {
       "Assert exact schema and reference metric tolerances for parity, drift, and latency."
     ]
   },
+  "ai-governance": {
+    sources: [
+      "Self-contained AI governance audit source: include de-identified decision logs, labels, model card, dataset card, threshold policy, protected-attribute handling policy, and expected audit metrics in the zip.",
+      "If adapted from a public dataset, cite the dataset URL, version, license, selected sensitive/proxy attributes, preprocessing script, and why the supplied data is permitted for this use."
+    ],
+    resources: [
+      "governance/model_card.md and governance/dataset_card.md with model purpose, intended use, limits, training/evaluation split notes, and known risk controls.",
+      "data/decision_logs.parquet with decision_id, entity_id, event_time, model_score, decision_outcome, threshold_version, policy_version, and slice keys.",
+      "data/labels.csv with entity_id, label_time, outcome_label, label_source, and label_availability_time to prevent leakage.",
+      "policy/protected_attribute_policy.md and policy/threshold_policy.yaml defining allowed attributes, proxy handling, threshold rules, and documented exception categories.",
+      "config/slice_definitions.yaml, config/audit_thresholds.yaml, schemas/governance_metrics.schema.json, schemas/fairness_audit.schema.json, and verifier_inputs/expected_audit_metrics.json."
+    ],
+    solution: [
+      "Implement audit.py with python audit.py --decisions data/decision_logs.parquet --labels data/labels.csv --policy policy --config config --out outputs.",
+      "Validate model card and dataset card fields, check label availability timing, enforce protected-attribute handling rules, and reject rows that violate policy constraints.",
+      "Compute aggregate and slice-level performance, calibration, threshold exceptions, disparate-impact ratios, false-positive/false-negative disparities, and unresolved policy exceptions.",
+      "Write outputs/governance_metrics.json, outputs/fairness_audit.csv, outputs/policy_exceptions.csv, outputs/rejected_records.csv, and outputs/run_manifest.json.",
+      "The fairness audit must include slice_id, metric_name, reference_group, comparison_group, value, threshold, pass_fail, exception_reason, and evidence_record_count."
+    ],
+    verifiers: [
+      "Fail if labels are joined before label_availability_time or if protected attributes are used contrary to policy.",
+      "Check slice-level fairness and calibration metrics against expected_audit_metrics.json, not only aggregate model performance.",
+      "Fail if policy exceptions lack reason codes, evidence counts, or traceability to decision_id values."
+    ]
+  },
   databases: {
+    sources: [
+      "Self-contained database benchmark source: include the schema, sample data, query workload, explain plans, statistics snapshots, and expected metrics in the zip.",
+      "If adapted from TPC-H, Join Order Benchmark, PostgreSQL examples, or another public benchmark, cite the source URL, version, license, scale factor, selected queries, and database engine version."
+    ],
     resources: [
       "db/schema.sql, db/sample_data/, workload/reporting_query.sql, plans/explain_before.json, plans/explain_after.json, stats/table_stats_before_after.csv, and db/postgres_version.txt.",
       "constraints/index_budget.yaml, workload_frequency.csv, expected_output_schema.json, and verifier_inputs/known_bad_plan.json.",

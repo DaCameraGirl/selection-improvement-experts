@@ -51,6 +51,70 @@ Why:
 - It naturally supports normal, edge, and invalid fixtures.
 - It is easy to make verifiable with CSV/JSON outputs.
 
+## Strongest Computer Science Track
+
+If the submitted task should match your background, use one of these before biomedical:
+
+Your background to lean on:
+
+- Master's in computer science
+- Master's in AI ethics
+- Minor in robotics
+- Software development background
+
+1. Software engineering API regression benchmark
+
+- Best fit for real CS/software work.
+- Use a pinned open-source repository snapshot.
+- Include `repo_snapshot/`, failing tests, API contract, regression fixtures, lockfile, and expected behavior.
+- Strong outputs: `outputs/fix.patch`, `outputs/test_report.json`, `outputs/compatibility_summary.json`, `outputs/minimal_repro.md`.
+- Verifier applies the patch to a clean snapshot and runs exact tests.
+
+2. Computer science algorithms adversarial benchmark
+
+- Best fit for theory plus implementation.
+- Use a self-contained problem statement with fixed constraints and generated cases.
+- Include `problem_statement.md`, `constraints.json`, `seed_generator.py`, `adversarial_cases.jsonl`, `reference_outputs.jsonl`, and `runtime_budget.json`.
+- Strong outputs: `outputs/solution.py`, `outputs/test_results.json`, `outputs/divergence_report.json`, `outputs/complexity_note.md`.
+- Verifier checks correctness and runtime/asymptotic behavior on adversarial cases.
+
+3. Databases/query optimization regression
+
+- Best fit for systems/database experience.
+- Include `schema.sql`, sample data, workload SQL, before/after explain plans, table statistics, and PostgreSQL version.
+- Strong outputs: `outputs/query_plan_diagnosis.md`, `outputs/rewrite.sql`, `outputs/benchmark_metrics.csv`, `outputs/root_cause.json`.
+- Verifier checks same result rows, plan-node evidence, repeated benchmark medians, and index/workload constraints.
+
+4. Distributed systems consistency replay
+
+- Strong but more advanced.
+- Include JSONL histories, partition windows, node configs, invariant spec, and expected counterexamples.
+- Strong outputs: `outputs/consistency_violations.json`, `outputs/replay_summary.json`, `outputs/minimal_counterexample.json`.
+- Verifier replays the reported minimal counterexample.
+
+5. Compilers/static analysis semantic preservation
+
+- Strong but must be carefully scoped.
+- Include source fixtures, expected stdout/exit codes, IR before/after, pass config, grammar/type rules, and expected semantic failures.
+- Strong outputs: `outputs/ir_diff_report.json`, `outputs/semantic_test_results.json`, `outputs/unsafe_transformations.csv`.
+- Verifier must check executable behavior, not only IR text.
+
+For your background, the safest CS submission is probably **Software engineering API regression benchmark** or **Algorithms adversarial benchmark**.
+
+6. AI ethics and model governance audit
+
+- Best fit for the AI ethics master's plus CS background.
+- Use de-identified decision logs, labels, model card, dataset card, threshold policy, protected-attribute handling policy, and slice definitions.
+- Strong outputs: `outputs/governance_metrics.json`, `outputs/fairness_audit.csv`, `outputs/policy_exceptions.csv`, `outputs/rejected_records.csv`.
+- Verifier checks label leakage, protected-attribute policy compliance, slice-level fairness/calibration metrics, and traceable exception reason codes.
+
+Given your credentials, the best final choices are:
+
+1. **AI ethics and model governance audit** if the project accepts governance/fairness style tasks.
+2. **Software engineering API regression benchmark** if you want the safest pure CS/software task.
+3. **Robotics trajectory controller audit** if you want to use the robotics minor.
+4. **ML systems batch-vs-online drift audit** if you want CS plus AI systems.
+
 ## Essential Before Submitting
 
 Every named resource must exist or be directly sourced.
@@ -125,4 +189,3 @@ A task is not airtight unless:
 - `d6ece96` Tighten core criteria evidence
 - `c51a2ef` Show prompt maker version
 - `340c7fb` Isolate generated source notes
-
