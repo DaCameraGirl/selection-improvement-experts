@@ -9,8 +9,8 @@ Open `index.html` in a browser. The app saves data in browser local storage and 
 - Stores onboarding guideline notes by title and tags.
 - Extracts likely rules from bullets, numbered lists, and policy wording.
 - Searches saved guidelines.
-- Provides a Prompt Maker that generates and formats a draft task package with prompt, resources, golden solution, difficulty explanation, time estimate, verifiers, and optional agent difficulty check.
-- Supports Senior professional, Master's level, and PhD / research level targets across multiple technical domains.
+- Provides a Prompt Maker that generates and formats a draft task package with prompt, resources, golden solution, difficulty explanation, time estimate, verifiers, a submission rubric, and optional agent difficulty check.
+- Supports Senior professional, Master's level, and PhD / research level targets across multiple technical domains, including software engineering, computer science, databases, distributed systems, compilers, ML systems, applied math, statistics, scientific computing, and formal methods.
 - Checks the draft against the visible onboarding rules: computer/terminal requirement, final goal upfront, goal-not-process wording, no persona framing, no GUI-only workflow, not-just-reasoning, real-world source inspiration, non-contrived task design, concrete output, complete environment, resource bundle clarity, deterministic verifiers, output-based grading, solvability, difficulty, expertise depth, specialized method, and domain expertise.
 - Finds relevant rules for a pasted onboarding question and creates an answer outline.
 

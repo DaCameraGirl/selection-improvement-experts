@@ -323,6 +323,9 @@ function buildTaskPackage() {
     "Verifiers description",
     packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
     "",
+    "Submission rubric",
+    buildSubmissionRubric(fields),
+    "",
     "Optional agent difficulty check",
     packageText(fields.agentCheck, "Summarize terminal-agent testing only if you performed it."),
     "",
@@ -401,6 +404,76 @@ const DOMAIN_DRAFTS = {
     method: "corpus parsing, stratified metric computation, agreement analysis, tokenization checks, and label-level confusion analysis",
     data: "annotated text files, label schema documentation, train/test split manifests, and tokenizer version notes",
     failure: "label leakage, token-boundary drift, invalid averaging, and unsupported linguistic conclusions"
+  },
+  "software-engineering": {
+    domain: "software engineering using real repository history, failing regression tests, API compatibility constraints, and reproducible build artifacts",
+    artifact: "a patch file, test report, and compatibility summary JSON",
+    method: "static analysis, targeted refactoring, regression-test minimization, dependency graph inspection, and behavioral compatibility checks",
+    data: "a repository snapshot, failing test logs, API documentation, dependency lockfiles, and benchmark fixtures",
+    failure: "fixing symptoms instead of root causes, breaking public APIs, hiding failures with brittle test changes, and missing edge-case regressions"
+  },
+  "computer-science": {
+    domain: "computer science algorithms using formal input constraints, asymptotic requirements, generated adversarial cases, and reproducible correctness testing",
+    artifact: "an implementation file, complexity note, and adversarial test-results JSON",
+    method: "algorithm design, proof-informed invariant checking, randomized stress testing, edge-case generation, and asymptotic performance validation",
+    data: "problem specification files, seedable case generators, hidden reference outputs, and performance budget metadata",
+    failure: "passing small examples with an exponential solution, mishandling boundary conditions, relying on unstable heuristics, and giving an implementation with no verifiable complexity behavior"
+  },
+  "distributed-systems": {
+    domain: "distributed systems using event traces, consistency invariants, network partition scenarios, and reproducible simulation logs",
+    artifact: "a consistency-violation report and replayable trace summary JSON",
+    method: "trace replay, happens-before reconstruction, invariant checking, quorum analysis, and deterministic fault-injection simulation",
+    data: "node event logs, message trace files, configuration manifests, clock-skew metadata, and expected invariant definitions",
+    failure: "assuming total ordering where none exists, ignoring delayed messages, missing split-brain cases, and producing conclusions not tied to replayed traces"
+  },
+  databases: {
+    domain: "database systems using query plans, transaction logs, indexes, statistics, and reproducible optimizer or isolation-level analysis",
+    artifact: "a query-plan diagnosis report, rewritten SQL file, and benchmark metrics CSV",
+    method: "query-plan inspection, cardinality-estimation analysis, index design, transaction anomaly detection, and repeatable benchmark comparison",
+    data: "SQL schema dumps, sample tables, query workloads, transaction traces, planner outputs, and database version metadata",
+    failure: "optimizing for one sample query only, ignoring isolation anomalies, using non-repeatable timings, and proposing indexes that violate workload constraints"
+  },
+  compilers: {
+    domain: "compilers and static analysis using source programs, intermediate representation dumps, optimization passes, and semantic-preservation tests",
+    artifact: "a compiler-pass patch, IR diff report, and semantic test-results JSON",
+    method: "control-flow graph analysis, data-flow analysis, SSA reasoning, optimization legality checks, and differential testing against reference execution",
+    data: "source fixtures, grammar or IR documentation, expected outputs, compiler flags, and pass-pipeline configuration files",
+    failure: "performing an unsound optimization, mishandling undefined behavior, breaking scoping or type rules, and passing syntactic tests while changing program semantics"
+  },
+  "ml-systems": {
+    domain: "machine learning systems using model-serving traces, feature pipelines, latency budgets, and reproducible offline evaluation",
+    artifact: "a metrics JSON file, drift report, and serving-latency summary",
+    method: "feature validation, calibration analysis, drift detection, latency profiling, batch/online parity checks, and threshold selection",
+    data: "feature snapshots, prediction logs, ground-truth labels, model metadata, service traces, and evaluation configuration files",
+    failure: "leaking labels, optimizing aggregate accuracy while failing slices, ignoring calibration, breaking batch/online parity, and using unstable latency measurements"
+  },
+  "applied-math": {
+    domain: "applied mathematics using numerical methods, boundary conditions, convergence criteria, and reproducible error analysis",
+    artifact: "a numerical solution table, convergence plot data, and error-bound report",
+    method: "discretization, stability analysis, convergence testing, residual computation, and tolerance-based comparison to analytic or high-resolution reference solutions",
+    data: "parameter files, boundary-condition definitions, reference solutions, mesh or grid specifications, and numerical tolerance requirements",
+    failure: "using an unstable discretization, confusing local and global error, failing boundary conditions, and reporting plausible numbers without convergence evidence"
+  },
+  statistics: {
+    domain: "statistics and experimental design using raw observations, treatment assignments, missingness patterns, and reproducible inference checks",
+    artifact: "a statistical analysis report CSV, model diagnostics JSON, and reproducibility notes",
+    method: "power analysis, missing-data handling, model specification, multiple-testing correction, sensitivity analysis, and assumption diagnostics",
+    data: "raw observation tables, treatment metadata, data dictionaries, pre-specified hypotheses, and analysis configuration files",
+    failure: "p-hacking through multiple comparisons, invalid independence assumptions, mishandling missingness, and reporting significant results without diagnostic support"
+  },
+  "scientific-computing": {
+    domain: "scientific computing using simulation inputs, numerical solvers, physical constraints, and reproducible high-precision validation",
+    artifact: "a solver output file, residual-history CSV, and conservation-check JSON",
+    method: "solver configuration, residual tracking, convergence analysis, conservation-law checks, parameter sweeps, and tolerance-based reference comparison",
+    data: "simulation input files, parameter manifests, reference outputs, unit definitions, and package/compiler version notes",
+    failure: "accepting non-converged runs, violating conservation constraints, mixing units, and using nondeterministic solver settings without documenting tolerances"
+  },
+  "formal-methods": {
+    domain: "formal methods using specifications, transition systems, invariants, and reproducible model-checking or proof-assistant artifacts",
+    artifact: "a machine-checkable proof or counterexample trace plus an invariant coverage report",
+    method: "state-space modeling, invariant strengthening, counterexample minimization, temporal-logic checking, and proof obligation validation",
+    data: "formal specifications, model files, property definitions, expected counterexamples or theorem statements, and tool-version metadata",
+    failure: "proving a weaker property than requested, missing liveness cases, relying on informal reasoning, and producing traces that cannot be replayed"
   }
 };
 
@@ -501,6 +574,21 @@ function getTaskFields() {
 
 function packageText(value, fallback) {
   return value || `[${fallback}]`;
+}
+
+function buildSubmissionRubric(fields) {
+  const expertise = expertiseLabel(fields.expertise);
+  return [
+    `Pass only if the submitted prompt is a ${expertise} task grounded in a real professional or academic domain.`,
+    "Pass only if the final objective is stated upfront and asks for a concrete output artifact.",
+    "Pass only if the task requires terminal/computer work such as code, data analysis, simulation, or tool use.",
+    "Pass only if all required resources are named, self-contained, versioned where relevant, and available without hidden access.",
+    "Pass only if the golden solution describes a plausible expert solve path with commands, scripts, checks, and expected outputs.",
+    "Pass only if the verifier checks explicit output artifacts with deterministic pass/fail logic and tolerances or schemas.",
+    "Reject if the task is mainly explanation, opinion, GUI/manual work, methodology checking, obscure trivia, oversized busywork, or an unsolved research problem.",
+    "Reject if the difficulty comes from volume or trickiness instead of domain reasoning, implementation complexity, or verifier-aware edge cases.",
+    "Reject if two qualified reviewers could reasonably disagree about what a correct final answer should look like."
+  ].join("\n");
 }
 
 function getTaskChecks(fields) {
