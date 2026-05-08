@@ -10,7 +10,8 @@ Open `index.html` in a browser. The app saves data in browser local storage and 
 - Extracts likely rules from bullets, numbered lists, and policy wording.
 - Searches saved guidelines.
 - Provides a Prompt Maker that formats your own draft into a complete task package with prompt, resources, golden solution, difficulty explanation, time estimate, verifiers, and optional agent difficulty check.
-- Checks the draft against the visible onboarding rules: computer/terminal requirement, final goal upfront, goal-not-process wording, real-world source inspiration, non-contrived task design, concrete output, complete environment, deterministic verifiers, no LLM-as-judge, solvability, difficulty, and domain expertise.
+- Supports Senior professional, Master's level, and PhD / research level targets.
+- Checks the draft against the visible onboarding rules: computer/terminal requirement, final goal upfront, goal-not-process wording, real-world source inspiration, non-contrived task design, concrete output, complete environment, deterministic verifiers, solvability, difficulty, expertise depth, specialized method, and domain expertise.
 - Finds relevant rules for a pasted onboarding question and creates an answer outline.
 
 ## PDF workflow
@@ -21,7 +22,7 @@ To extract selectable text from a PDF into a local ignored file:
 
 ```powershell
 New-Item -ItemType Directory -Path data -Force
-node tools/extract-pdf-text.mjs "C:\Users\enter\Downloads\Outlier_AI_Selection_Improvement_Experts.pdf" > data\selection-improvement-experts.txt
+node tools/extract-pdf-text.mjs "C:\Users\enter\Downloads\Selection_Improvement_Expert_Guidelines.pdf" > data\selection-improvement-experts.txt
 ```
 
 Then open the text file, paste the extracted guideline text into the Library, and save it as a guide.

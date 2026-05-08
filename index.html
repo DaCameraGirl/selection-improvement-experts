@@ -98,10 +98,18 @@
             </div>
             <div class="task-layout">
               <section class="task-form">
-                <p class="helper-copy">Use this to coach and format your own prompt draft against the Selection Improvement Expert rules. The guidelines prohibit using an LLM to write the prompt for you, so the app checks quality and flags weak, contrived, or underspecified drafts.</p>
+                <p class="helper-copy">Use this to coach and format your own prompt draft against the Selection Improvement Expert rules. The app checks quality and flags weak, contrived, or underspecified drafts.</p>
                 <label>
                   Domain and source inspiration
                   <textarea id="task-domain" placeholder="Example: professional ECG signal-processing task based on an open dataset and known DSP standards."></textarea>
+                </label>
+                <label>
+                  Expertise level target
+                  <select id="task-expertise">
+                    <option value="professional">Senior professional</option>
+                    <option value="masters">Master's level</option>
+                    <option value="phd">PhD / research level</option>
+                  </select>
                 </label>
                 <label>
                   Prompt to give the agent
@@ -117,7 +125,7 @@
                 </label>
                 <label>
                   Difficulty explanation
-                  <textarea id="task-difficulty" placeholder="Explain why this is hard for current frontier models, why domain expertise is required, and why the difficulty is genuine rather than arbitrary."></textarea>
+                  <textarea id="task-difficulty" placeholder="Explain why this is hard, why domain expertise is required, and why the difficulty is genuine rather than arbitrary."></textarea>
                 </label>
                 <label>
                   Professional time estimate
@@ -125,11 +133,11 @@
                 </label>
                 <label>
                   Verifiers description
-                  <textarea id="task-verifiers" placeholder="Describe deterministic checks that accept only correct outputs. Avoid LLM-as-judge, methodology checks, and unverifiable scripts as final answers."></textarea>
+                  <textarea id="task-verifiers" placeholder="Describe deterministic checks that accept only correct outputs. Avoid subjective judging, methodology checks, and unverifiable scripts as final answers."></textarea>
                 </label>
                 <label>
                   Optional agent difficulty check
-                  <textarea id="task-agent-check" placeholder="If tested with Cursor, Claude Code, or a similar terminal agent, summarize what happened and whether failures were due to reasoning/tool/debugging/workflow limits."></textarea>
+                  <textarea id="task-agent-check" placeholder="If tested with a terminal-enabled coding tool, summarize what happened and whether failures were due to reasoning, tool use, debugging, or workflow limits."></textarea>
                 </label>
               </section>
               <section>

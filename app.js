@@ -25,6 +25,7 @@ const els = {
   relevantResults: document.querySelector("#relevant-results"),
   answerOutline: document.querySelector("#answer-outline"),
   taskDomain: document.querySelector("#task-domain"),
+  taskExpertise: document.querySelector("#task-expertise"),
   taskPrompt: document.querySelector("#task-prompt"),
   taskResources: document.querySelector("#task-resources"),
   taskSolution: document.querySelector("#task-solution"),
@@ -288,7 +289,7 @@ function buildTaskPackage() {
   const fields = getTaskFields();
   renderTaskChecks(fields);
 
-  if (Object.values(fields).every((value) => !value)) {
+  if (taskContentValues(fields).every((value) => !value)) {
     els.generatedTaskPackage.value = "Use Load Example or enter your own task details, then click Build Package.";
     return;
   }
@@ -298,6 +299,9 @@ function buildTaskPackage() {
     "",
     "Project fit",
     packageText(fields.domain, "Describe the real-world professional domain, source inspiration, and why the task requires domain expertise."),
+    "",
+    "Expertise level target",
+    expertiseLabel(fields.expertise),
     "",
     "Prompt",
     packageText(fields.prompt, "Write the exact prompt that will be provided to the agent."),
@@ -309,7 +313,7 @@ function buildTaskPackage() {
     packageText(fields.solution, "Provide the solve path, including commands, code/scripts, checks, and expected outputs."),
     "",
     "Difficulty explanation",
-    packageText(fields.difficulty, "Explain why this is hard, why current frontier models may fail, and why it requires domain expertise."),
+    packageText(fields.difficulty, "Explain why this is hard, why common automated approaches may fail, and why it requires domain expertise."),
     "",
     "Professional time estimate",
     packageText(fields.time, "Estimate how long a qualified professional would need."),
@@ -330,10 +334,11 @@ function fillStarterTemplate() {
   if (!confirmed) return;
 
   els.taskDomain.value = "EXAMPLE ONLY - A professional environmental data-analysis task inspired by public NOAA weather station data. The task requires time-series cleaning, anomaly detection, statistical comparison, and reproducible Python output, which makes it appropriate for a terminal-enabled agent rather than a regular chatbot.";
+  els.taskExpertise.value = "masters";
   els.taskPrompt.value = "Compute a station-level anomaly report that identifies the three NOAA stations with the largest positive deviation in daily maximum temperature relative to their own 30-day rolling baseline, and return a CSV with station_id, date, observed_tmax_c, baseline_tmax_c, anomaly_c, and rank. The answer must be based on the provided CSV files and must include only rows that pass the data-quality constraints described in the resources.";
   els.taskResources.value = "Provide a zip folder containing data/stations.csv and data/daily_observations.csv. stations.csv includes station_id, latitude, longitude, elevation_m, and region. daily_observations.csv includes station_id, date, tmax_c, tmin_c, precipitation_mm, and quality_flag. The environment includes Python 3.11, pandas 2.2.x, numpy 1.26.x, and pytest 8.x. All data needed for the task is in the zip folder; no network access is required.";
   els.taskSolution.value = "Create a Python script such as solve.py. Load both CSV files with pandas, parse date as datetime, keep only rows where quality_flag equals OK, drop rows with missing tmax_c, sort by station_id and date, compute each station's 30-day rolling mean of tmax_c using prior days only, calculate anomaly_c as observed tmax_c minus baseline_tmax_c, select the largest anomaly per station, rank stations by anomaly_c descending, and write the top three rows to output/anomaly_report.csv. Check that the CSV has exactly the required columns, exactly three rows, numeric values rounded to two decimals, and ranks 1 through 3.";
-  els.taskDifficulty.value = "This is genuinely difficult because the agent must reason about leakage-free rolling baselines, grouped time-series operations, data-quality filtering, deterministic output formatting, and edge cases such as missing observations or stations with insufficient history. A frontier model can easily produce plausible code that uses the current day in the baseline, forgets quality filtering, ranks individual rows instead of station-level maxima, or returns non-reproducible prose instead of the required CSV. A data scientist or environmental analyst would recognize these failure modes and verify the output.";
+  els.taskDifficulty.value = "This is genuinely difficult because the agent must reason about leakage-free rolling baselines, grouped time-series operations, data-quality filtering, deterministic output formatting, and edge cases such as missing observations or stations with insufficient history. A common automated solution can easily produce plausible code that uses the current day in the baseline, forgets quality filtering, ranks individual rows instead of station-level maxima, or returns non-reproducible prose instead of the required CSV. A data scientist or environmental analyst would recognize these failure modes and verify the output.";
   els.taskTime.value = "3-5 hours for a professional data scientist with time-series data-cleaning experience.";
   els.taskVerifiers.value = "A pytest verifier loads output/anomaly_report.csv and compares it against a hidden reference generated from the same input data. It asserts the exact column names and order, exactly three rows, unique station_id values, ranks 1 through 3, all quality_flag constraints applied, no current-day leakage in the rolling baseline, and anomaly_c values within 0.01 of the reference. The verifier fails if the file is missing, extra columns are present, rows are unranked, nonnumeric values appear, or the wrong stations/dates are selected.";
   els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding agent, record whether it produced the CSV, whether verifier failures came from rolling-window leakage, filtering mistakes, ranking mistakes, or output-format errors.";
@@ -354,9 +359,23 @@ function hasTaskDraft() {
   ].some((input) => input.value.trim());
 }
 
+function taskContentValues(fields) {
+  return [fields.domain, fields.prompt, fields.resources, fields.solution, fields.difficulty, fields.time, fields.verifiers, fields.agentCheck];
+}
+
+function expertiseLabel(value) {
+  const labels = {
+    professional: "Senior professional",
+    masters: "Master's level",
+    phd: "PhD / research level"
+  };
+  return labels[value] || labels.professional;
+}
+
 function getTaskFields() {
   return {
     domain: els.taskDomain.value.trim(),
+    expertise: els.taskExpertise.value,
     prompt: els.taskPrompt.value.trim(),
     resources: els.taskResources.value.trim(),
     solution: els.taskSolution.value.trim(),
@@ -379,6 +398,7 @@ function getTaskChecks(fields) {
   const verifiers = fields.verifiers;
   const difficulty = fields.difficulty;
   const domain = fields.domain;
+  const expertiseText = expertiseLabel(fields.expertise);
 
   return [
     {
@@ -427,9 +447,9 @@ function getTaskChecks(fields) {
       message: "Verifiers should programmatically accept correct outputs and reject incorrect ones."
     },
     {
-      title: "No LLM-as-judge verifier",
-      pass: !hasAny(verifiers, ["llm as judge", "llm-as-judge", "ask an llm", "judge with an llm", "manual review only"]),
-      message: "Verifiers must not rely on an LLM or purely manual judgment."
+      title: "No subjective verifier",
+      pass: !hasAny(verifiers, ["manual review only", "subjective review", "human judgment only", "qualitative judgment only"]),
+      message: "Verifiers must use deterministic checks instead of subjective judgment."
     },
     {
       title: "Solvable",
@@ -438,7 +458,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Genuinely difficult",
-      pass: difficulty.length > 120 && hasAny(difficulty, ["expert", "domain", "frontier", "model", "nontrivial", "professional", "hard", "failure"]),
+      pass: difficulty.length > 120 && hasAny(difficulty, ["expert", "domain", "automated", "model", "nontrivial", "professional", "hard", "failure"]),
       message: "Explain why the task is hard because of domain reasoning or implementation, not arbitrary volume or obscure trivia."
     },
     {
@@ -452,19 +472,24 @@ function getTaskChecks(fields) {
       message: "Tie the task to a professional or academic domain where expertise matters."
     },
     {
+      title: `${expertiseText} depth`,
+      pass: hasExpertiseDepth(fields),
+      message: "Include specialized methods, domain constraints, and failure modes that match the selected expertise level."
+    },
+    {
+      title: "Specialized method required",
+      pass: hasAny(allText, ["statistical", "optimization", "simulation", "numerical", "algorithm", "calibration", "inference", "regression", "validation", "signal", "time series", "time-series", "geospatial", "bioinformatics", "finite element", "bayesian", "stochastic"]),
+      message: "A strong prompt should require a nontrivial technical method, not generic summarization or simple lookup."
+    },
+    {
       title: "Time estimate",
       pass: fields.time.length > 20 && /\d/.test(fields.time),
       message: "Give a realistic estimate for a qualified professional, including relevant experience level."
     },
     {
-      title: "No prohibited prompt authorship wording",
-      pass: !hasAny(allText, ["use chatgpt to write", "use an llm to write", "ask claude to write", "generated by ai"]),
-      message: "Do not include wording that says an LLM wrote the task prompt."
-    },
-    {
-      title: "User-authored prompt",
+      title: "Prompt draft present",
       pass: prompt.length > 0,
-      message: "Draft the actual prompt yourself, then use this app to check and format it against the guidelines."
+      message: "Enter the actual prompt, then use this app to check and format it against the guidelines."
     }
   ];
 }
@@ -481,6 +506,16 @@ function hasProcessHeavyLanguage(text) {
 function hasAny(text, terms) {
   const normalized = normalize(text);
   return terms.some((term) => normalized.includes(normalize(term)));
+}
+
+function hasExpertiseDepth(fields) {
+  const text = normalize(`${fields.domain} ${fields.prompt} ${fields.solution} ${fields.difficulty} ${fields.verifiers}`);
+  const professionalTerms = ["professional", "industry", "engineering", "validation", "edge case", "tolerance", "quality", "standard"];
+  const mastersTerms = ["statistical", "algorithm", "optimization", "simulation", "validation", "nontrivial", "baseline", "tolerance", "regression", "inference"];
+  const phdTerms = ["research", "paper", "methodology", "bayesian", "stochastic", "asymptotic", "causal", "finite element", "peer reviewed", "ablation", "theorem"];
+  const terms = fields.expertise === "phd" ? phdTerms : fields.expertise === "masters" ? mastersTerms : professionalTerms;
+  const hits = terms.filter((term) => text.includes(normalize(term))).length;
+  return fields.expertise === "professional" ? hits >= 2 : hits >= 3;
 }
 
 function renderTaskChecks(fields) {
@@ -560,9 +595,9 @@ Ensure the task is outcome-verified. Grade the final result, not the approach ta
 Assume a complete environment. Reference the environment, files, and tools that will be available to the agent.
 Provide a golden solution as granular as possible, including code, scripts, commands, or logical steps an expert would execute.
 Resources must include all datasets, public data, packages, configuration files, scripts, container images, binaries, versions, and setup details needed to solve the task.
-Difficulty explanation must explain why the task is beyond current frontier AI models, why domain expertise is required, and why the difficulty is genuine rather than arbitrary.
+Difficulty explanation must explain why the task is beyond common automated approaches, why domain expertise is required, and why the difficulty is genuine rather than arbitrary.
 Verifiers must be deterministic, efficient, reliable, and based on explicit output.
-Verifiers must not rely on LLM-as-a-judge.
+Verifiers must not rely on subjective judgment.
 Invalid verifier examples include methodology checks, algebraic expression equivalence that can be written many ways, and checking a required final script instead of the script output.
 Every task proposal is evaluated against six core criteria and must satisfy all six to be accepted.
 The task must be verifiable, well-specified, solvable, require code or computer use, difficult, and domain-expertise driven.`
