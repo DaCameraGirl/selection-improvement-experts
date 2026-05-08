@@ -319,6 +319,19 @@ form {
   align-items: center;
 }
 
+.version-pill {
+  min-height: 40px;
+  border: 1px solid #b7c7c4;
+  border-radius: 6px;
+  background: #eef4f2;
+  color: var(--nav);
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .card-actions button {
   min-height: 34px;
   padding: 0 10px;

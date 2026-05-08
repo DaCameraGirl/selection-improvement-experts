@@ -1,4 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
+const APP_VERSION = "2026-05-08 source-isolation";
 
 const state = {
   guides: [],
@@ -39,6 +40,8 @@ const els = {
   taskChecks: document.querySelector("#task-checks"),
   generatedTaskPackage: document.querySelector("#generated-task-package"),
   fillStarterTemplate: document.querySelector("#fill-starter-template"),
+  clearTaskDraft: document.querySelector("#clear-task-draft"),
+  appVersion: document.querySelector("#app-version"),
   buildTaskPackage: document.querySelector("#build-task-package"),
   copyTaskPackage: document.querySelector("#copy-task-package"),
   exportData: document.querySelector("#export-data"),
@@ -1035,6 +1038,24 @@ function hasTaskDraft() {
   ].some((input) => input.value.trim());
 }
 
+function clearTaskDraft() {
+  [
+    els.taskDomain,
+    els.taskPrompt,
+    els.taskResources,
+    els.taskSolution,
+    els.taskDifficulty,
+    els.taskTime,
+    els.taskVerifiers,
+    els.taskAgentCheck,
+    els.generatedTaskPackage
+  ].forEach((input) => {
+    input.value = "";
+  });
+  renderTaskChecks(getTaskFields());
+  els.taskDomain.focus();
+}
+
 function taskContentValues(fields) {
   return [fields.domain, fields.prompt, fields.resources, fields.solution, fields.difficulty, fields.time, fields.verifiers, fields.agentCheck];
 }
@@ -1467,6 +1488,7 @@ function escapeHtml(text) {
 
 function renderAll() {
   renderGuideList();
+  if (els.appVersion) els.appVersion.textContent = APP_VERSION;
 }
 
 els.tabs.forEach((tab) => tab.addEventListener("click", () => setView(tab.dataset.view)));
@@ -1478,6 +1500,7 @@ els.guideForm.addEventListener("submit", saveGuide);
 els.resetForm.addEventListener("click", resetForm);
 els.analyzeQuestion.addEventListener("click", analyzeQuestion);
 els.fillStarterTemplate.addEventListener("click", fillStarterTemplate);
+els.clearTaskDraft.addEventListener("click", clearTaskDraft);
 els.buildTaskPackage.addEventListener("click", buildTaskPackage);
 els.copyTaskPackage.addEventListener("click", copyTaskPackage);
 els.exportData.addEventListener("click", exportData);
