@@ -525,9 +525,24 @@ function getTaskChecks(fields) {
       message: "Avoid prescribing every step or specific tools unless required by the task."
     },
     {
+      title: "No persona framing",
+      pass: !hasAny(prompt, ["you are a scientist", "you are an engineer", "act as", "pretend you are", "roleplay", "as a data scientist"]),
+      message: "Avoid persona-based framing; state the task objective directly."
+    },
+    {
       title: "Computer or terminal required",
       pass: hasAny(allText, ["python", "script", "terminal", "linux", "command", "code", "data", "simulation", "dataset", "file"]),
       message: "The task must require computer use such as code, scripts, data analysis, files, or terminal commands."
+    },
+    {
+      title: "No GUI-only workflow",
+      pass: !hasAny(prompt, ["click", "screenshot", "browser only", "spreadsheet manually", "use the gui", "drag and drop"]),
+      message: "The task should be answerable through terminal/code/tool usage, not a graphical/manual workflow."
+    },
+    {
+      title: "Not just reasoning",
+      pass: !isReasoningOnly(prompt),
+      message: "Avoid tasks that only ask for explanation, summary, or opinion without producing a verifiable artifact."
     },
     {
       title: "Real-world source inspiration",
@@ -545,14 +560,34 @@ function getTaskChecks(fields) {
       message: "The prompt should request a concrete output artifact or measurable result, not broad advice or explanation."
     },
     {
+      title: "Output graded, not method",
+      pass: !hasAny(prompt, ["must use this exact command", "must use emacs", "must use vim", "must solve by", "must use this method"]) && hasAny(prompt, ["return", "output", "write", "produce", "file", "csv", "json"]),
+      message: "Grade the final result, not the exact approach, unless the method itself is the domain requirement."
+    },
+    {
       title: "Complete environment",
       pass: resources.length > 80 && hasAny(resources, ["dataset", "file", "package", "library", "version", "source", "download", "csv", "json", "python"]),
       message: "List all files, datasets, packages, versions, public sources, and setup artifacts the agent needs."
     },
     {
+      title: "Resource bundle clarity",
+      pass: hasAny(resources, ["zip", "folder", "archive", "data/", "README", "schema", "manifest"]) && hasAny(resources, ["version", "package", "library", "environment", "python"]),
+      message: "Name the provided files/folders, schema or manifest, package versions, and environment assumptions."
+    },
+    {
+      title: "File size caution",
+      pass: !hasAny(resources, ["over 100 mb", ">100mb", "larger than 100 mb", "huge file", "massive file"]),
+      message: "Keep individual resources within project upload limits and avoid oversized artifacts."
+    },
+    {
       title: "Golden solution provided",
       pass: solution.length > 140 && hasAny(solution, ["run", "compute", "check", "output", "script", "command", "compare", "expected"]),
       message: "Provide a granular solve path with commands, scripts, checks, logical steps, and expected output."
+    },
+    {
+      title: "Acceptance criteria clear",
+      pass: hasAny(`${prompt} ${verifiers}`, ["exact", "within", "tolerance", "schema", "columns", "rows", "threshold", "must", "required", "pass", "fail"]),
+      message: "Make the correct answer unambiguous with explicit schema, tolerance, thresholds, or pass/fail conditions."
     },
     {
       title: "Deterministic verifiers",
@@ -563,6 +598,16 @@ function getTaskChecks(fields) {
       title: "No subjective verifier",
       pass: !hasAny(verifiers, ["manual review only", "subjective review", "human judgment only", "qualitative judgment only"]),
       message: "Verifiers must use deterministic checks instead of subjective judgment."
+    },
+    {
+      title: "No methodology-only verifier",
+      pass: !hasAny(verifiers, ["check the method", "verify methodology", "must use the same approach", "inspect the code style", "review the reasoning"]),
+      message: "Verifiers should check outputs and explicit artifacts, not the solver's chosen methodology."
+    },
+    {
+      title: "No script-as-final-answer trap",
+      pass: !hasAny(prompt, ["submit only a script", "return the script only", "final answer is a script"]) || hasAny(verifiers, ["script output", "output file", "generated output", "run the script"]),
+      message: "If a script is required, the verifier should test the script output, not treat the script text as the only answer."
     },
     {
       title: "Solvable",
@@ -614,6 +659,13 @@ function startsWithProcess(text) {
 function hasProcessHeavyLanguage(text) {
   const processSignals = (text.match(/\b(first|then|next|after that|finally|step|run this|use this command|install|open)\b/gi) || []).length;
   return processSignals >= 6;
+}
+
+function isReasoningOnly(text) {
+  const normalized = normalize(text);
+  const reasoningVerbs = ["explain", "summarize", "discuss", "describe", "argue", "compare and contrast", "write an essay"];
+  const artifactTerms = ["csv", "json", "file", "script", "code", "table", "metric", "report", "output", "artifact", "plot", "dataset"];
+  return reasoningVerbs.some((term) => normalized.includes(normalize(term))) && !artifactTerms.some((term) => normalized.includes(normalize(term)));
 }
 
 function hasAny(text, terms) {
