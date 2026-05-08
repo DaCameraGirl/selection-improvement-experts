@@ -544,7 +544,14 @@ const SCENARIO_STYLES = [
     objective: "identify where the migrated outputs diverge from the trusted reference and produce an auditable exception report",
     resource: "before/after extracts, migration mapping tables, reference outputs, and a small set of intentionally malformed edge-case records",
     solution: "compare old and new outputs by stable keys, classify each mismatch by failure type, compute summary rates, and preserve row-level evidence for every rejected or changed record",
-    verifier: "check exact mismatch categories, row counts, reference joins, stable ordering, and whether known malformed records are rejected for the right reason"
+    verifier: "check exact mismatch categories, row counts, reference joins, stable ordering, and whether known malformed records are rejected for the right reason",
+    composePrompt(profile, type, standard) {
+      return [
+        `We need a migration validation pass for ${profile.domain}.`,
+        `Compare the legacy and migrated outputs and produce ${profile.artifact} showing every material divergence, the reason code for the divergence, and the source records needed to audit it.`,
+        `The deliverable should be usable by an engineering review team: ${standard.prompt}`
+      ].join("\n\n");
+    }
   },
   {
     name: "regression triage",
@@ -552,7 +559,15 @@ const SCENARIO_STYLES = [
     objective: "isolate the smallest reproducible regression case and return a machine-readable diagnosis with the failing condition",
     resource: "two versioned output folders, failing logs, configuration diffs, seed values, and expected baseline metrics",
     solution: "re-run the baseline and candidate workflows, bisect configuration differences, compute metric deltas, and produce a minimal failing case with evidence",
-    verifier: "confirm the reported failing case reproduces, the metric delta matches reference tolerance, and unrelated changes are not mislabeled as root causes"
+    verifier: "confirm the reported failing case reproduces, the metric delta matches reference tolerance, and unrelated changes are not mislabeled as root causes",
+    composePrompt(profile, type, standard) {
+      return [
+        `A previously stable ${profile.domain} workflow regressed after a new release.`,
+        `Find the smallest reproducible failing case, explain the failing condition in machine-readable form, and return ${profile.artifact}.`,
+        "The result should separate the root cause from unrelated output drift and include enough evidence for someone else to rerun the failure.",
+        standard.prompt
+      ].join("\n\n");
+    }
   },
   {
     name: "compliance audit",
@@ -560,7 +575,15 @@ const SCENARIO_STYLES = [
     objective: "produce an audit-ready evidence package that traces every final output back to validated inputs and documented exclusions",
     resource: "raw inputs, data dictionary, exclusion rules, expected output schema, audit log template, and package version manifest",
     solution: "validate schemas, apply exclusion rules, record every accepted and rejected input, compute final outputs, and generate traceability metadata",
-    verifier: "check traceability fields, exclusion accounting, exact schema, version metadata, and deterministic recalculation of final values"
+    verifier: "check traceability fields, exclusion accounting, exact schema, version metadata, and deterministic recalculation of final values",
+    composePrompt(profile, type, standard) {
+      return [
+        `Prepare an audit-ready evidence package for ${profile.domain}.`,
+        `Return ${profile.artifact} with traceability from each final output back to validated inputs, documented exclusions, and any assumptions used in the calculation.`,
+        "The output should make it clear which records were accepted, which were rejected, and why.",
+        standard.prompt
+      ].join("\n\n");
+    }
   },
   {
     name: "edge-case benchmark",
@@ -568,7 +591,15 @@ const SCENARIO_STYLES = [
     objective: "generate the required output and a failure-analysis table for edge cases that ordinary happy-path solutions miss",
     resource: "normal fixtures, edge-case fixtures, invalid inputs, reference outputs, and a manifest describing which cases target which failure modes",
     solution: "run the workflow on normal, edge, and invalid fixtures; compute outputs; label failure modes; and summarize which constraints each case exercises",
-    verifier: "assert normal-case correctness, edge-case handling, invalid-input rejection, failure-mode labels, and reproducibility across repeated runs"
+    verifier: "assert normal-case correctness, edge-case handling, invalid-input rejection, failure-mode labels, and reproducibility across repeated runs",
+    composePrompt(profile, type, standard) {
+      return [
+        `Build an edge-case benchmark task for ${profile.domain}.`,
+        `The output should include ${profile.artifact} plus a failure-analysis table that shows which cases target normal behavior, boundary behavior, invalid input handling, and domain-specific failure modes.`,
+        "Make the final artifacts deterministic and easy to grade without reading the solver's reasoning.",
+        standard.prompt
+      ].join("\n\n");
+    }
   },
   {
     name: "operational reconciliation",
@@ -576,7 +607,15 @@ const SCENARIO_STYLES = [
     objective: "reconcile the systems into a final output table with reason codes, confidence flags, and a review queue for unresolved records",
     resource: "two system exports, schema documentation, precedence rules, timestamp metadata, and a set of known reconciliation examples",
     solution: "normalize identifiers, align timestamps, apply precedence rules, classify conflicts, compute final reconciled records, and emit unresolved cases separately",
-    verifier: "check conflict classification, precedence handling, timestamp normalization, exact output schema, and whether known examples receive the expected reason codes"
+    verifier: "check conflict classification, precedence handling, timestamp normalization, exact output schema, and whether known examples receive the expected reason codes",
+    composePrompt(profile, type, standard) {
+      return [
+        `Two trusted operational sources disagree in a ${profile.domain} workflow.`,
+        `Reconcile them into ${profile.artifact}, including final selected values, conflict reason codes, confidence flags, and a separate unresolved-record queue.`,
+        "The deliverable should let a downstream team understand every changed or unresolved record from the output files alone.",
+        standard.prompt
+      ].join("\n\n");
+    }
   }
 ];
 
@@ -593,7 +632,7 @@ function fillStarterTemplate() {
   const sourceSentence = userNotes ? ` Use these source notes and constraints: ${userNotes}` : "";
 
   els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.${sourceSentence}`;
-  els.taskPrompt.value = `Please ${type.verb.toLowerCase()} ${type.focus} for ${profile.domain} ${scenario.situation}. The goal is to ${scenario.objective}. Return ${profile.artifact} plus any supporting evidence files needed to check the result without interpretation. Use the provided resources, apply the domain constraints, and include enough intermediate fields for another reviewer to verify the result. ${standard.prompt}`;
+  els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
   els.taskResources.value = `Provide a self-contained zip folder with ${profile.data}, plus ${scenario.resource}. Include a README describing file schemas, units, coordinate systems or sampling rates where relevant, package versions, and the expected output paths. The environment should include Python 3.11 plus domain-appropriate open-source packages, and no network access should be needed after the resources are supplied. ${standard.resources}`;
   els.taskSolution.value = [
     "A strong solution would be organized as a reproducible terminal workflow rather than a prose answer.",
