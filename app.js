@@ -321,23 +321,27 @@ function buildTaskPackage() {
     "----------------------------------------------",
     packageText(fields.solution, "Provide the solve path, including commands, code/scripts, checks, and expected outputs."),
     "",
-    "COPY BLOCK 6 - Difficulty Explanation",
+    "COPY BLOCK 6 - Golden Solution Rubric",
+    "----------------------------------------------",
+    buildGoldenSolutionRubric(fields),
+    "",
+    "COPY BLOCK 7 - Difficulty Explanation",
     "----------------------------------------------",
     packageText(fields.difficulty, "Explain why this is hard, why common automated approaches may fail, and why it requires domain expertise."),
     "",
-    "COPY BLOCK 7 - Professional Time Estimate",
+    "COPY BLOCK 8 - Professional Time Estimate",
     "----------------------------------------------",
     packageText(fields.time, "Estimate how long a qualified professional would need."),
     "",
-    "COPY BLOCK 8 - Verifiers Description",
+    "COPY BLOCK 9 - Verifiers Description",
     "----------------------------------------------",
     packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
     "",
-    "COPY BLOCK 9 - Submission Rubric",
+    "COPY BLOCK 10 - Submission Rubric",
     "----------------------------------------------",
     buildSubmissionRubric(fields),
     "",
-    "COPY BLOCK 10 - Optional Agent Difficulty Check",
+    "COPY BLOCK 11 - Optional Agent Difficulty Check",
     "----------------------------------------------",
     packageText(fields.agentCheck, "Summarize terminal-agent testing only if you performed it."),
     "",
@@ -659,11 +663,110 @@ const SCENARIO_STYLES = [
   }
 ];
 
+const DOMAIN_DETAILS = {
+  "biomedical-signal": {
+    resources: [
+      "data/raw/mitdb_100_signal.csv, mitdb_101_signal.csv, mitdb_103_signal.csv with columns record_id, sample_index, time_sec, mlII_mv, v5_mv.",
+      "data/reference/beat_annotations.csv with record_id, annotation_sample, annotation_time_sec, beat_symbol, source_record.",
+      "config/filter_change.yaml describing the old and new high-pass, notch, and denoising settings.",
+      "schemas/beat_report.schema.json requiring record_id, beat_index, detected_time_sec, nearest_annotation_time_sec, abs_error_ms, match_status, exclusion_reason.",
+      "verifier_inputs/normal_record_100.csv, edge_noisy_segment_101.csv, invalid_sampling_rate_103.csv, and expected_metrics.json."
+    ],
+    solution: [
+      "Implement solve.py with commands such as python solve.py --input data --config config/filter_change.yaml --out outputs.",
+      "Load each ECG record, verify the 360 Hz sampling rate, check monotonic sample_index values, and compute input checksums before processing.",
+      "Apply the stated cleaning change, detect candidate R peaks, match detections to reference annotations within the declared millisecond tolerance, and flag unmatched detections separately from rejected records.",
+      "Write outputs/beat_validation_report.csv, outputs/validation_metrics.json, outputs/plots/record_overlay.png, and outputs/run_manifest.json.",
+      "The report must expose record_id, sample ranges, filter parameters, beat counts, sensitivity, PPV, false positives, false negatives, exclusion_reason, and source checksum."
+    ],
+    verifiers: [
+      "Assert the 360 Hz metadata is used rather than inferred from row count.",
+      "Check beat matching against hidden reference rows within the stated tolerance.",
+      "Fail if an invalid sampling-rate fixture is accepted or if noisy edge cases lose traceability."
+    ]
+  },
+  "robotics-control": {
+    resources: [
+      "data/routes/route_a_reference.csv and route_b_reference.csv with timestamp_ns, frame_id, x_m, y_m, yaw_rad, v_ref_mps.",
+      "data/logs/controller_run_01.csv and controller_run_02.csv with odom pose, command velocity, actuator saturation flags, and controller mode.",
+      "config/robot_params.yaml, controller_config.yaml, actuator_limits.json, frame_conventions.md, and expected_output_schema.json.",
+      "verifier_inputs/normal_tracking_run.csv, edge_saturation_run.csv, invalid_frame_id_run.csv, and reference_metrics.json."
+    ],
+    solution: [
+      "Implement solve.py that validates frame conventions, timestamp monotonicity, controller parameters, and actuator-limit units before computing metrics.",
+      "Align reference and executed trajectories by timestamp, interpolate only under the allowed gap threshold, and compute cross-track error, heading error, RMS error, max error, settling behavior, and saturation intervals.",
+      "Write outputs/trajectory_error.csv, outputs/metrics.json, outputs/exclusions.csv, and outputs/run_manifest.json.",
+      "Classify each run as accepted, excluded, or review_required with reason codes tied to frame mismatch, missing samples, actuator saturation, or tracking tolerance failure."
+    ],
+    verifiers: [
+      "Assert coordinate-frame conversion and units by checking known transformed points.",
+      "Fail if actuator-limit violations are hidden inside aggregate tracking metrics.",
+      "Compare RMS and max error values to reference tolerances with deterministic ordering."
+    ]
+  },
+  "ml-systems": {
+    resources: [
+      "data/features/batch_features.parquet and online_features.parquet with stable entity_id, event_time, feature_version, and named feature columns.",
+      "data/predictions/batch_predictions.csv, online_predictions.jsonl, labels.csv, slice_definitions.yaml, latency_trace.csv, and model_card.md.",
+      "config/evaluation.yaml with thresholds for parity, drift, calibration, latency percentiles, and slice-level failure rules.",
+      "verifier_inputs/normal_slice.csv, edge_missing_feature.parquet, invalid_label_leakage_case.csv, and expected_metrics.json."
+    ],
+    solution: [
+      "Implement solve.py that joins predictions, labels, features, and slice definitions by stable keys and rejects rows with timestamp or schema violations.",
+      "Compute batch/online parity, feature drift, calibration, slice metrics, latency p50/p95/p99, and threshold breaches.",
+      "Write outputs/metrics.json, outputs/drift_report.csv, outputs/latency_summary.csv, outputs/exceptions.csv, and outputs/run_manifest.json.",
+      "Separate model-quality regressions from feature-pipeline mismatches and serving-latency breaches."
+    ],
+    verifiers: [
+      "Fail if labels are joined before the allowed event time or if leakage fixtures pass.",
+      "Check slice-level metrics, not only aggregate accuracy.",
+      "Assert exact schema and reference metric tolerances for parity, drift, and latency."
+    ]
+  },
+  databases: {
+    resources: [
+      "db/schema.sql, db/sample_data/, workload/reporting_query.sql, plans/explain_before.json, plans/explain_after.json, stats/table_stats_before_after.csv, and db/postgres_version.txt.",
+      "constraints/index_budget.yaml, workload_frequency.csv, expected_output_schema.json, and verifier_inputs/known_bad_plan.json.",
+      "README.md describing row counts, indexes, isolation assumptions, and how to restore the database snapshot."
+    ],
+    solution: [
+      "Implement solve.py or analysis.sql plus a runner that restores the provided snapshot, loads plan JSON, and normalizes plan nodes.",
+      "Compare estimated versus actual cardinalities, join order changes, index usage, sort/hash spill indicators, and timing deltas under repeated runs.",
+      "Write outputs/query_plan_diagnosis.md, outputs/rewrite.sql, outputs/benchmark_metrics.csv, and outputs/root_cause.json.",
+      "Identify the smallest reproducible query or statistics condition that triggers the regression."
+    ],
+    verifiers: [
+      "Check that diagnosis cites exact plan nodes and metric deltas.",
+      "Fail if the rewrite violates the index budget or changes result rows.",
+      "Require repeated timing medians rather than a single non-repeatable run."
+    ]
+  },
+  statistics: {
+    resources: [
+      "data/observations.csv, treatment_assignments.csv, missingness_flags.csv, covariates.csv, hypotheses.yaml, and analysis_plan.md.",
+      "config/model_spec.yaml with estimand, alpha level, clustering rules, missing-data policy, and multiple-testing correction.",
+      "verifier_inputs/normal_panel.csv, edge_all_missing_stratum.csv, invalid_post_treatment_covariate.csv, and expected_estimates.json."
+    ],
+    solution: [
+      "Implement solve.py that validates randomization or treatment timing, missingness rules, covariate timing, and hypothesis IDs.",
+      "Run the specified inference model, diagnostics, sensitivity checks, and multiple-testing correction with deterministic seeds where needed.",
+      "Write outputs/statistical_analysis_report.csv, outputs/model_diagnostics.json, outputs/reproducibility_notes.md, and outputs/exclusions.csv.",
+      "Explain any rejected rows through structured reason codes rather than free-text-only notes."
+    ],
+    verifiers: [
+      "Fail if post-treatment covariates are used or missingness exclusions are unaccounted for.",
+      "Check estimates, confidence intervals, p-values, and correction procedure against reference tolerances.",
+      "Require diagnostics and row counts to reconcile with exclusions."
+    ]
+  }
+};
+
 function fillStarterTemplate() {
   const confirmed = hasTaskDraft() ? confirm("Replace the current draft with a generated domain draft?") : true;
   if (!confirmed) return;
 
-  const profile = DOMAIN_DRAFTS[els.taskDomainSelect.value] || DOMAIN_DRAFTS["biomedical-signal"];
+  const domainKey = els.taskDomainSelect.value;
+  const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["biomedical-signal"];
   const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
   const scenario = pickScenario();
@@ -673,36 +776,100 @@ function fillStarterTemplate() {
 
   els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.${sourceSentence}`;
   els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
-  els.taskResources.value = [
-    "Provide a self-contained zip folder with realistic source-grounded files:",
-    `- Primary source kit: ${profile.sourceKit}.`,
-    `- Scenario-specific evidence: ${scenario.resource}.`,
-    "- README.md with file schemas, units, expected output paths, and any domain assumptions.",
-    "- requirements.txt or environment.yml with exact package versions.",
-    "- tests/ or verifier_inputs/ with at least one normal case, one edge case, and one invalid case.",
-    standard.resources
-  ].join("\n");
-  els.taskSolution.value = [
-    "A strong solution would be organized as a reproducible terminal workflow rather than a prose answer.",
-    "",
-    "1. Create a script such as solve.py that reads the provided resource bundle and validates that every required input file is present.",
-    `2. Parse the domain inputs for ${profile.domain}, normalize identifiers and units, and reject records that violate the stated schema or quality constraints.`,
-    `3. Apply ${profile.method} in the context of the ${scenario.name} scenario. ${scenario.solution}.`,
-    `4. Write ${profile.artifact} to the requested output path with stable column names, deterministic ordering, and enough intermediate fields for verification.`,
-    "5. Emit a QC summary that includes input row counts, rejected records, parameter settings, final metrics, and any tolerance assumptions.",
-    "6. Re-run the workflow from a clean directory and confirm that the same output files and metrics are produced.",
-    "7. Add a lightweight run log or metadata file that records package versions, input checksums, rejected inputs, and final artifact paths.",
-    "8. Check at least one normal case, one edge case, and one intentionally invalid input so the verifier can distinguish robust work from a happy-path-only solution.",
-    "",
-    "Expected artifacts: solve.py or equivalent workflow script, the required output file(s), a small machine-readable QC summary, and reproducibility metadata.",
-    `Important edge cases: ${profile.failure}.`
-  ].join("\n");
+  els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
+  els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
   els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, enterprise-grade edge cases, reproducible computation, and verifier-aware output design rather than from arbitrary volume or obscure trivia.`;
   els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
-  els.taskVerifiers.value = `A deterministic verifier should ${type.verifier} and ${scenario.verifier}. It should assert exact output schema, required files, numeric tolerances, record counts, domain-specific constraints, and reproducibility across repeated runs. It should fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, and outputs that omit required intermediate evidence. ${standard.verifier}`;
+  els.taskVerifiers.value = buildVerifierDraft(domainKey, type, scenario, standard);
   els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding tool, record whether failures came from data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation.";
 
   buildTaskPackage();
+}
+
+function buildResourceDraft(domainKey, profile, scenario, standard) {
+  const details = DOMAIN_DETAILS[domainKey];
+  const domainResources = details ? details.resources : [
+    `data/source_inputs.csv derived from ${profile.sourceKit}.`,
+    "config/task_config.yaml with thresholds, units, and scenario-specific parameters.",
+    "schemas/expected_output.schema.json defining every submitted column or JSON field.",
+    "verifier_inputs/normal_case.csv, verifier_inputs/edge_case.csv, verifier_inputs/invalid_case.csv, and expected_metrics.json."
+  ];
+
+  return [
+    "Provide one self-contained zip folder with this structure:",
+    "",
+    "README.md",
+    "- Describe each file, column schema, unit, coordinate/time convention, expected output path, and exclusion rule.",
+    "- State that the workflow must run without network access after the zip is unpacked.",
+    "",
+    "environment/",
+    "- requirements.txt or environment.yml with exact package versions.",
+    "- version_manifest.json with Python version, package versions, and any tool versions.",
+    "",
+    "Source data and task fixtures:",
+    ...domainResources.map((item) => `- ${item}`),
+    "",
+    "Scenario evidence:",
+    `- ${scenario.resource}.`,
+    "- audit_log_template.csv with fields for input file, checksum, validation status, exclusion reason, output artifact, and rerun timestamp.",
+    "",
+    "Expected output contract:",
+    `- The submitted solution must create ${profile.artifact}.`,
+    "- Include schemas for every required output and one example row or object for each artifact.",
+    "",
+    "Test fixtures:",
+    "- Include one normal case, one edge case, and one intentionally invalid case.",
+    "- Include expected pass/fail reason codes for the verifier fixtures.",
+    "",
+    standard.resources
+  ].join("\n");
+}
+
+function buildGoldenSolutionDraft(domainKey, profile, scenario) {
+  const details = DOMAIN_DETAILS[domainKey];
+  const domainSteps = details ? details.solution : [
+    "Implement solve.py with a command such as python solve.py --input data --config config/task_config.yaml --out outputs.",
+    "Validate required files, schemas, units, identifiers, and checksums before computing final outputs.",
+    `Apply ${profile.method} and record accepted records, rejected records, parameter settings, and intermediate values needed for audit.`,
+    `Write ${profile.artifact}, outputs/qc_summary.json, and outputs/run_manifest.json with deterministic ordering.`
+  ];
+
+  return [
+    "A strong solution would be organized as a reproducible terminal workflow, not a prose-only answer.",
+    "",
+    ...domainSteps.map((step, index) => `${index + 1}. ${step}`),
+    `${domainSteps.length + 1}. Re-run from a clean checkout and confirm that output files, row ordering, checksums, and metrics are identical.`,
+    `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
+    "",
+    "Required evidence in the golden solution:",
+    "- Exact command used to run the workflow.",
+    "- Expected output file paths.",
+    "- Required output columns or JSON fields.",
+    "- Numeric tolerances, thresholds, or schema rules used by the verifier.",
+    "- Known failure modes and how the solution detects them.",
+    "- Input checksums, rejected-input reasons, and package versions.",
+    "",
+    `Important edge cases: ${profile.failure}.`
+  ].join("\n");
+}
+
+function buildVerifierDraft(domainKey, type, scenario, standard) {
+  const details = DOMAIN_DETAILS[domainKey];
+  const domainVerifierChecks = details ? details.verifiers : [
+    "Check required output files, exact schemas, row counts, stable ordering, and numeric tolerances.",
+    "Fail intentionally invalid fixtures with the expected reason code.",
+    "Confirm repeated runs produce identical machine-readable outputs."
+  ];
+
+  return [
+    `A deterministic verifier should ${type.verifier} and ${scenario.verifier}.`,
+    "",
+    "Required verifier behavior:",
+    ...domainVerifierChecks.map((item) => `- ${item}`),
+    "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs.",
+    "- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence.",
+    `- ${standard.verifier}`
+  ].join("\n");
 }
 
 function pickScenario() {
@@ -779,6 +946,29 @@ function buildSubmissionRubric(fields) {
     "Reject if the task is mainly explanation, opinion, GUI/manual work, methodology checking, obscure trivia, oversized busywork, or an unsolved research problem.",
     "Reject if the difficulty comes from volume or trickiness instead of domain reasoning, implementation complexity, or verifier-aware edge cases.",
     "Reject if two qualified reviewers could reasonably disagree about what a correct final answer should look like."
+  ].join("\n");
+}
+
+function buildGoldenSolutionRubric(fields) {
+  return [
+    "The golden solution should pass only if it proves the task is solvable and gives a qualified reviewer enough detail to reproduce the answer.",
+    "",
+    "Golden solution must include:",
+    "- A runnable command or workflow entry point such as solve.py, make, pytest, or a documented shell command.",
+    "- Exact expected output paths and file names.",
+    "- Required output columns, JSON fields, or schema references.",
+    "- The core domain computation steps, not generic phrases like process the data or apply analysis.",
+    "- Acceptance thresholds, tolerances, or deterministic comparison rules.",
+    "- Normal, edge-case, and invalid-input handling.",
+    "- Traceability fields such as input checksums, source record IDs, row counts, rejected records, and package versions.",
+    "- A repeatability check from a clean checkout.",
+    "",
+    "Reject the golden solution if:",
+    "- It only says to inspect, analyze, summarize, or validate without naming concrete artifacts.",
+    "- It depends on a human or an LLM to decide whether the final answer is correct.",
+    "- It checks the method instead of checking the produced output.",
+    "- It leaves the correct answer ambiguous or does not define the expected output contract.",
+    "- It is mostly boilerplate that could apply to any domain."
   ].join("\n");
 }
 
@@ -864,6 +1054,16 @@ function getTaskChecks(fields) {
       message: "Name the provided files/folders, schema or manifest, package versions, and environment assumptions."
     },
     {
+      title: "Named resource files",
+      pass: countMatches(resources, /\b[\w/-]+\.(csv|json|jsonl|yaml|yml|md|txt|parquet|sql|py|geojson|gff3|fa|fasta|pcap|log|edn|tla|als)\b/gi) >= 5,
+      message: "Name concrete files such as data inputs, configs, schemas, manifests, and verifier fixtures."
+    },
+    {
+      title: "No vague resource placeholders",
+      pass: !hasAny(resources, ["realistic source-grounded files", "domain-appropriate", "where relevant", "etc.", "and anything", "some files", "real life examples"]),
+      message: "Avoid placeholder resource language that could read as generated or underspecified."
+    },
+    {
       title: "File size caution",
       pass: !hasAny(resources, ["over 100 mb", ">100mb", "larger than 100 mb", "huge file", "massive file"]),
       message: "Keep individual resources within project upload limits and avoid oversized artifacts."
@@ -872,6 +1072,21 @@ function getTaskChecks(fields) {
       title: "Golden solution provided",
       pass: solution.length > 140 && hasAny(solution, ["run", "compute", "check", "output", "script", "command", "compare", "expected"]),
       message: "Provide a granular solve path with commands, scripts, checks, logical steps, and expected output."
+    },
+    {
+      title: "Golden solution has runnable workflow",
+      pass: hasAny(solution, ["python solve.py", "pytest", "make", "run.sh", "command"]) && hasAny(solution, ["outputs/", "output path", "expected output"]),
+      message: "The golden solution should include a concrete command or entry point and expected output paths."
+    },
+    {
+      title: "Golden solution is verifier-ready",
+      pass: hasAny(solution, ["schema", "columns", "json fields", "tolerance", "threshold", "reason code"]) && hasAny(solution, ["normal case", "edge case", "invalid case", "rejected"]),
+      message: "The golden solution should state output contract details, tolerances, and normal/edge/invalid case handling."
+    },
+    {
+      title: "Golden solution not boilerplate",
+      pass: !hasAny(solution, ["domain inputs", "domain constraints", "as appropriate", "where relevant", "etc.", "realistic", "supporting evidence files"]),
+      message: "Avoid generic golden-solution wording that could apply to any task."
     },
     {
       title: "Acceptance criteria clear",
@@ -965,6 +1180,10 @@ function isReasoningOnly(text) {
 function hasAny(text, terms) {
   const normalized = normalize(text);
   return terms.some((term) => normalized.includes(normalize(term)));
+}
+
+function countMatches(text, regex) {
+  return (String(text || "").match(regex) || []).length;
 }
 
 function hasExpertiseDepth(fields) {
