@@ -349,6 +349,7 @@ function buildTaskPackage() {
 
 const DOMAIN_DRAFTS = {
   "biomedical-signal": {
+    brief: "Validate beat-detection results for selected PhysioNet ECG records after a signal-cleaning pipeline change",
     domain: "biomedical signal processing using public ECG or PPG waveform data, clinical signal-quality constraints, and reproducible Python analysis",
     artifact: "a CSV report and validation plot",
     method: "wavelet denoising, notch filtering, peak detection, beat-level feature extraction, and tolerance-based validation against reference annotations",
@@ -357,6 +358,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "PhysioNet MIT-BIH Arrhythmia Database records 100, 101, and 103 exported as records.csv, annotations.csv, sampling_metadata.json, and a README with the 360 Hz sampling rate and signal-unit notes"
   },
   "climate-geospatial": {
+    brief: "Audit county-level heat anomaly outputs built from NOAA station data and boundary files",
     domain: "climate and geospatial analytics using station observations, raster grids, coordinate transforms, and reproducible regional aggregation",
     artifact: "a GeoJSON layer and a CSV anomaly table",
     method: "spatial joins, CRS normalization, temporal baseline construction, raster sampling, and uncertainty-aware regional aggregation",
@@ -365,6 +367,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "NOAA GHCN Daily station observations, a TIGER/Line county boundary GeoJSON, station_metadata.csv, daily_observations.csv, county_boundaries.geojson, and crs_notes.md"
   },
   "computational-biology": {
+    brief: "Review promoter motif hits after a genome annotation update changed candidate loci",
     domain: "computational biology using sequence data, public gene annotations, reproducible alignment-derived features, and biologically meaningful constraints",
     artifact: "a ranked TSV of candidate loci and a machine-readable QC summary",
     method: "sequence parsing, motif scanning, multiple-testing correction, genomic interval joins, and reference-based validation",
@@ -373,6 +376,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "Ensembl or NCBI RefSeq chromosome slice exports packaged as genome_slice.fa, annotations.gff3, sample_manifest.csv, jaspar_motifs.tsv, and coordinate_conventions.md"
   },
   "quant-finance": {
+    brief: "Reconcile portfolio risk metrics after a corporate-action adjustment changed historical returns",
     domain: "quantitative finance using market microstructure data, corporate-action adjustments, and reproducible risk metric computation",
     artifact: "a portfolio risk report in CSV and JSON",
     method: "return normalization, volatility estimation, drawdown analysis, factor exposure regression, and out-of-sample validation",
@@ -381,6 +385,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "Stooq or Nasdaq Data Link daily OHLCV exports for selected tickers, Fama-French factor CSVs, corporate_actions.csv, holdings.csv, and trading_calendar.csv"
   },
   "materials-science": {
+    brief: "Screen crystal structures for duplicate or invalid candidates before a property-ranking handoff",
     domain: "materials science using crystallographic structure files, composition descriptors, and reproducible property-screening logic",
     artifact: "a ranked materials table and structure-level validation summary",
     method: "CIF parsing, stoichiometry checks, descriptor generation, symmetry-aware filtering, and threshold-based property ranking",
@@ -389,6 +394,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "Crystallography Open Database CIF samples, cod_metadata.csv, reference_properties.csv, pymatgen_version.txt, and structure_id_mapping.csv"
   },
   "power-systems": {
+    brief: "Rank N-1 contingency violations for a MATPOWER-style test case after solver settings changed",
     domain: "power systems engineering using load-flow cases, bus/branch tables, generator constraints, and reproducible contingency analysis",
     artifact: "a contingency ranking CSV and voltage-violation report",
     method: "AC or DC load-flow computation, N-1 contingency screening, constraint checking, and tolerance-based comparison to reference cases",
@@ -397,6 +403,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "MATPOWER case files such as case14 and case30 exported as bus.csv, branch.csv, gen.csv, load_profile.csv, base_mva.json, and solver_config.yaml"
   },
   "cyber-forensics": {
+    brief: "Reconcile Zeek network events with endpoint process logs for a suspected phishing intrusion",
     domain: "cybersecurity forensics using packet captures, endpoint logs, file hashes, and reproducible incident-timeline reconstruction",
     artifact: "a JSON incident timeline and IOC table",
     method: "PCAP parsing, timestamp normalization, session reconstruction, hash matching, and rule-based event correlation",
@@ -405,6 +412,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "Stratosphere IPS CTU-style PCAP slices or Malware-Traffic-Analysis exercise logs packaged as traffic.pcap, zeek_conn.log, zeek_dns.log, edr_events.jsonl, known_hashes.csv, and timezone_notes.md"
   },
   "robotics-control": {
+    brief: "Audit a mobile robot trajectory controller using run logs from warehouse test routes",
     domain: "robotics and control using trajectory logs, actuator limits, controller parameters, and reproducible stability or tracking analysis",
     artifact: "a metrics JSON file and trajectory-error CSV",
     method: "state-estimation checks, controller-response simulation, tracking-error computation, and constraint violation detection",
@@ -413,6 +421,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "ROS bag-derived trajectory CSVs, robot_params.yaml, reference_path.csv, controller_config.yaml, actuator_limits.json, and frame_conventions.md"
   },
   econometrics: {
+    brief: "Reproduce a treatment-effect report after an update changed panel cleaning rules",
     domain: "econometrics and policy analysis using panel data, treatment timing, fixed effects, and reproducible robustness checks",
     artifact: "a regression summary CSV and robustness-check JSON",
     method: "panel cleaning, difference-in-differences estimation, clustered standard errors, placebo tests, and pre-trend diagnostics",
@@ -421,6 +430,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "World Bank or IPUMS-style panel extracts packaged as panel_outcomes.csv, treatment_timing.csv, covariates.csv, data_dictionary.md, and pretrend_windows.json"
   },
   "computational-linguistics": {
+    brief: "Analyze label-level parser errors after a tokenizer version changed corpus boundaries",
     domain: "computational linguistics using annotated corpora, morphology or syntax labels, and reproducible corpus-level evaluation",
     artifact: "an error-analysis table and metrics JSON",
     method: "corpus parsing, stratified metric computation, agreement analysis, tokenization checks, and label-level confusion analysis",
@@ -429,6 +439,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "Universal Dependencies treebank samples packaged as train.conllu, test.conllu, label_schema.md, split_manifest.json, tokenizer_version.txt, and gold_metrics.json"
   },
   "software-engineering": {
+    brief: "Triage a real repository regression where a fix may have broken an existing public API contract",
     domain: "software engineering using real repository history, failing regression tests, API compatibility constraints, and reproducible build artifacts",
     artifact: "a patch file, test report, and compatibility summary JSON",
     method: "static analysis, targeted refactoring, regression-test minimization, dependency graph inspection, and behavioral compatibility checks",
@@ -437,6 +448,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "a pinned open-source repository snapshot with bug_repro.md, failing_tests.txt, api_contract.md, package-lock.json or poetry.lock, regression_fixtures/, and expected_behavior.json"
   },
   "computer-science": {
+    brief: "Build adversarial test coverage for an algorithm implementation with strict complexity constraints",
     domain: "computer science algorithms using formal input constraints, asymptotic requirements, generated adversarial cases, and reproducible correctness testing",
     artifact: "an implementation file, complexity note, and adversarial test-results JSON",
     method: "algorithm design, proof-informed invariant checking, randomized stress testing, edge-case generation, and asymptotic performance validation",
@@ -445,6 +457,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "problem_statement.md, constraints.json, seed_generator.py, public_cases.jsonl, adversarial_cases.jsonl, reference_outputs.jsonl, and runtime_budget.json"
   },
   "distributed-systems": {
+    brief: "Replay distributed event histories to find a consistency violation under partition timing changes",
     domain: "distributed systems using event traces, consistency invariants, network partition scenarios, and reproducible simulation logs",
     artifact: "a consistency-violation report and replayable trace summary JSON",
     method: "trace replay, happens-before reconstruction, invariant checking, quorum analysis, and deterministic fault-injection simulation",
@@ -453,6 +466,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "Jepsen-style event histories packaged as history.edn or history.jsonl, node_configs.yaml, partition_windows.csv, invariant_spec.md, and expected_counterexamples.json"
   },
   databases: {
+    brief: "Diagnose why a reporting query regressed after planner statistics and index changes",
     domain: "database systems using query plans, transaction logs, indexes, statistics, and reproducible optimizer or isolation-level analysis",
     artifact: "a query-plan diagnosis report, rewritten SQL file, and benchmark metrics CSV",
     method: "query-plan inspection, cardinality-estimation analysis, index design, transaction anomaly detection, and repeatable benchmark comparison",
@@ -461,6 +475,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "TPC-H or Join Order Benchmark-inspired schema.sql, sample_data/, workload.sql, explain_plans_before.json, explain_plans_after.json, transaction_traces.csv, and postgres_version.txt"
   },
   compilers: {
+    brief: "Check whether a compiler optimization pass preserves semantics on targeted source fixtures",
     domain: "compilers and static analysis using source programs, intermediate representation dumps, optimization passes, and semantic-preservation tests",
     artifact: "a compiler-pass patch, IR diff report, and semantic test-results JSON",
     method: "control-flow graph analysis, data-flow analysis, SSA reasoning, optimization legality checks, and differential testing against reference execution",
@@ -469,6 +484,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "LLVM-lit-style fixtures or small language programs packaged as tests/input/, expected_stdout/, ir_before.ll, pass_pipeline.txt, grammar.md, and compiler_flags.txt"
   },
   "ml-systems": {
+    brief: "Audit batch-versus-online prediction drift after a feature pipeline migration",
     domain: "machine learning systems using model-serving traces, feature pipelines, latency budgets, and reproducible offline evaluation",
     artifact: "a metrics JSON file, drift report, and serving-latency summary",
     method: "feature validation, calibration analysis, drift detection, latency profiling, batch/online parity checks, and threshold selection",
@@ -477,6 +493,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "OpenML-style tabular snapshot or model-serving logs packaged as features.parquet, labels.csv, prediction_logs.jsonl, model_card.md, slice_definitions.yaml, and latency_trace.csv"
   },
   "applied-math": {
+    brief: "Validate convergence and boundary-condition handling for a numerical solver output",
     domain: "applied mathematics using numerical methods, boundary conditions, convergence criteria, and reproducible error analysis",
     artifact: "a numerical solution table, convergence plot data, and error-bound report",
     method: "discretization, stability analysis, convergence testing, residual computation, and tolerance-based comparison to analytic or high-resolution reference solutions",
@@ -485,6 +502,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "parameter_config.yaml, boundary_conditions.json, reference_solution.csv, mesh_levels/, tolerance_spec.json, and analytic_case_notes.md"
   },
   statistics: {
+    brief: "Investigate why a treatment-effect analysis changed after missing-data handling was updated",
     domain: "statistics and experimental design using raw observations, treatment assignments, missingness patterns, and reproducible inference checks",
     artifact: "a statistical analysis report CSV, model diagnostics JSON, and reproducibility notes",
     method: "power analysis, missing-data handling, model specification, multiple-testing correction, sensitivity analysis, and assumption diagnostics",
@@ -493,6 +511,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "Kaggle/UCI-style raw observations packaged as observations.csv, treatment_assignments.csv, missingness_flags.csv, hypotheses.yaml, and analysis_plan.md"
   },
   "scientific-computing": {
+    brief: "Verify a solver run against conservation and residual targets after parameter changes",
     domain: "scientific computing using simulation inputs, numerical solvers, physical constraints, and reproducible high-precision validation",
     artifact: "a solver output file, residual-history CSV, and conservation-check JSON",
     method: "solver configuration, residual tracking, convergence analysis, conservation-law checks, parameter sweeps, and tolerance-based reference comparison",
@@ -501,6 +520,7 @@ const DOMAIN_DRAFTS = {
     sourceKit: "solver_inputs/, parameters.yaml, unit_definitions.md, reference_outputs.csv, residual_targets.json, compiler_version.txt, and deterministic_seed.txt"
   },
   "formal-methods": {
+    brief: "Replay a model-checking counterexample and verify that the stated invariant is strong enough",
     domain: "formal methods using specifications, transition systems, invariants, and reproducible model-checking or proof-assistant artifacts",
     artifact: "a machine-checkable proof or counterexample trace plus an invariant coverage report",
     method: "state-space modeling, invariant strengthening, counterexample minimization, temporal-logic checking, and proof obligation validation",
@@ -536,21 +556,21 @@ const TYPE_DRAFTS = {
 const STANDARD_DRAFTS = {
   enterprise: {
     label: "Enterprise production",
-    prompt: "Treat the output as something another team would consume in a production handoff: stable file names, explicit schemas, reproducible runs, clear failure handling, and audit-friendly intermediate outputs.",
+    prompt: "Make the handoff production-ready: stable file paths, explicit schemas, rerunnable commands, and clear failure handling.",
     resources: "Include CI-style test instructions, a lockfile or version manifest, sample and edge-case inputs, expected output schemas, and operational notes for rerunning the workflow from a clean checkout.",
     verifier: "The verifier should behave like a CI gate: deterministic, repeatable, schema-aware, tolerant only where specified, and strict about missing artifacts, unstable ordering, and regression cases.",
     rubric: "Enterprise pass criteria: reproducible from clean checkout, documented schemas, stable artifacts, operational edge cases, clear failure modes, and verifier behavior suitable for a CI gate."
   },
   regulated: {
     label: "Regulated / audited",
-    prompt: "Treat the output as an audited deliverable: preserve traceability from each input to each output, record assumptions, make exclusions explicit, and produce evidence that can be independently reviewed.",
+    prompt: "Make the handoff audit-ready: trace each output back to inputs, document assumptions, and account for exclusions.",
     resources: "Include a data dictionary, provenance notes, allowed exclusions, package versions, audit log expectations, and examples of valid and invalid records.",
     verifier: "The verifier should check traceability, required audit fields, exclusion accounting, exact schema, deterministic calculations, and tolerance rules.",
     rubric: "Regulated pass criteria: traceable inputs, documented assumptions, auditable exclusions, deterministic calculations, and independently reviewable evidence."
   },
   research: {
     label: "Research benchmark",
-    prompt: "Treat the output as a benchmark-quality research artifact: include baselines, ablations or sensitivity checks where appropriate, strict evaluation metrics, and reproducibility notes.",
+    prompt: "Make the handoff benchmark-ready: include baseline comparisons, strict metrics, and reproducibility notes.",
     resources: "Include benchmark splits, baseline outputs, seed values, metric definitions, reference configs, and notes that prevent leakage or invalid comparison.",
     verifier: "The verifier should check metric definitions, split integrity, seed reproducibility, baseline comparison, tolerance bands, and required ablation or sensitivity outputs.",
     rubric: "Research pass criteria: valid benchmark setup, leakage prevention, meaningful baselines, reproducible metrics, and clear failure analysis."
@@ -567,7 +587,7 @@ const SCENARIO_STYLES = [
     verifier: "check exact mismatch categories, row counts, reference joins, stable ordering, and whether known malformed records are rejected for the right reason",
     composePrompt(profile, type, standard) {
       return [
-        `We need a migration validation pass for ${profile.domain}.`,
+        `We need a migration validation pass: ${profile.brief}.`,
         `Compare the legacy and migrated outputs and produce ${profile.artifact} showing every material divergence, the reason code for the divergence, and the source records needed to audit it.`,
         `The deliverable should be usable by an engineering review team: ${standard.prompt}`
       ].join("\n\n");
@@ -582,7 +602,7 @@ const SCENARIO_STYLES = [
     verifier: "confirm the reported failing case reproduces, the metric delta matches reference tolerance, and unrelated changes are not mislabeled as root causes",
     composePrompt(profile, type, standard) {
       return [
-        `A previously stable ${profile.domain} workflow regressed after a new release.`,
+        `A previously stable workflow regressed: ${profile.brief}.`,
         `Find the smallest reproducible failing case, explain the failing condition in machine-readable form, and return ${profile.artifact}.`,
         "The result should separate the root cause from unrelated output drift and include enough evidence for someone else to rerun the failure.",
         standard.prompt
@@ -598,7 +618,7 @@ const SCENARIO_STYLES = [
     verifier: "check traceability fields, exclusion accounting, exact schema, version metadata, and deterministic recalculation of final values",
     composePrompt(profile, type, standard) {
       return [
-        `Prepare an audit-ready evidence package for ${profile.domain}.`,
+        `Prepare an audit-ready evidence package: ${profile.brief}.`,
         `Return ${profile.artifact} with traceability from each final output back to validated inputs, documented exclusions, and any assumptions used in the calculation.`,
         "The output should make it clear which records were accepted, which were rejected, and why.",
         standard.prompt
@@ -614,7 +634,7 @@ const SCENARIO_STYLES = [
     verifier: "assert normal-case correctness, edge-case handling, invalid-input rejection, failure-mode labels, and reproducibility across repeated runs",
     composePrompt(profile, type, standard) {
       return [
-        `Build an edge-case benchmark task for ${profile.domain}.`,
+        `Build an edge-case benchmark: ${profile.brief}.`,
         `The output should include ${profile.artifact} plus a failure-analysis table that shows which cases target normal behavior, boundary behavior, invalid input handling, and domain-specific failure modes.`,
         "Make the final artifacts deterministic and easy to grade without reading the solver's reasoning.",
         standard.prompt
@@ -630,7 +650,7 @@ const SCENARIO_STYLES = [
     verifier: "check conflict classification, precedence handling, timestamp normalization, exact output schema, and whether known examples receive the expected reason codes",
     composePrompt(profile, type, standard) {
       return [
-        `Two trusted operational sources disagree in a ${profile.domain} workflow.`,
+        `Two trusted operational sources disagree: ${profile.brief}.`,
         `Reconcile them into ${profile.artifact}, including final selected values, conflict reason codes, confidence flags, and a separate unresolved-record queue.`,
         "The deliverable should let a downstream team understand every changed or unresolved record from the output files alone.",
         standard.prompt
