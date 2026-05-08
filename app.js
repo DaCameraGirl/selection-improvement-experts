@@ -665,6 +665,10 @@ const SCENARIO_STYLES = [
 
 const DOMAIN_DETAILS = {
   "biomedical-signal": {
+    sources: [
+      "PhysioNet MIT-BIH Arrhythmia Database v1.0.0: https://physionet.org/content/mitdb/1.0.0/",
+      "PhysioNet file directory for records such as 100, 101, and 103: https://physionet.org/files/mitdb/1.0.0/"
+    ],
     resources: [
       "data/raw/mitdb_100_signal.csv, mitdb_101_signal.csv, mitdb_103_signal.csv with columns record_id, sample_index, time_sec, mlII_mv, v5_mv.",
       "data/reference/beat_annotations.csv with record_id, annotation_sample, annotation_time_sec, beat_symbol, source_record.",
@@ -683,6 +687,83 @@ const DOMAIN_DETAILS = {
       "Assert the 360 Hz metadata is used rather than inferred from row count.",
       "Check beat matching against hidden reference rows within the stated tolerance.",
       "Fail if an invalid sampling-rate fixture is accepted or if noisy edge cases lose traceability."
+    ]
+  },
+  "computational-biology": {
+    sources: [
+      "Ensembl human GRCh38 downloads: https://www.ensembl.org/info/data/ftp/index.html",
+      "JASPAR CORE transcription-factor binding profiles: https://jaspar.elixir.no/docs/",
+      "Bioconductor JASPAR2024 data package: https://bioconductor.org/packages/JASPAR2024/"
+    ],
+    resources: [
+      "data/genome_slice.fa containing chr7:55,000,000-55,120,000 from GRCh38 with sequence IDs matching coordinate_conventions.md.",
+      "data/annotations.gff3 with gene, transcript, exon, and promoter_window features using 1-based closed genomic coordinates.",
+      "data/jaspar_motifs.tsv with motif_id, motif_name, pwm_json, min_score, strand_policy, and expected_family.",
+      "data/reference_hits.tsv with a small curated set of expected motif hits for normal, boundary, reverse-strand, and invalid-coordinate cases.",
+      "schemas/candidate_loci.schema.json and schemas/qc_summary.schema.json defining ranked_loci.tsv and qc_summary.json.",
+      "verifier_inputs/normal_promoter.fa, edge_reverse_strand_boundary.gff3, invalid_off_by_one_annotation.gff3, and expected_candidate_loci.tsv."
+    ],
+    solution: [
+      "Implement solve.py with a command such as python solve.py --fasta data/genome_slice.fa --gff data/annotations.gff3 --motifs data/jaspar_motifs.tsv --out outputs.",
+      "Validate FASTA identifiers, GFF3 coordinate conventions, promoter-window bounds, motif score thresholds, and strand policy before scanning.",
+      "Extract promoter windows, scan both strands only where allowed, compute motif scores, join hits to gene/transcript annotations, and apply the configured multiple-testing correction.",
+      "Write outputs/ranked_loci.tsv, outputs/qc_summary.json, outputs/failure_analysis.tsv, outputs/rejected_inputs.tsv, and outputs/run_manifest.json.",
+      "The ranked TSV must include candidate_id, seq_id, gene_id, transcript_id, motif_id, strand, start_1based, end_1based, raw_score, adjusted_p_value, rank, source_file, and failure_mode_target."
+    ],
+    verifiers: [
+      "Assert 1-based GFF3 coordinates are converted correctly when slicing the FASTA sequence.",
+      "Fail if reverse-strand motif hits are dropped or if invalid promoter windows are silently clipped.",
+      "Check ranked_loci.tsv, qc_summary.json, and failure_analysis.tsv against hidden reference rows and expected reason codes."
+    ]
+  },
+  "computer-science": {
+    sources: [
+      "Self-contained benchmark source: include the full problem statement, generated fixtures, seeds, and reference outputs in the zip.",
+      "If inspired by a public benchmark or repository, cite the exact URL, commit, release, or paper DOI in README.md."
+    ],
+    resources: [
+      "problem/problem_statement.md describing an interval-query algorithm with n, q, value ranges, expected output format, and asymptotic target.",
+      "problem/constraints.json with maximum n, maximum q, memory_limit_mb, time_limit_ms, and forbidden_complexity_classes.",
+      "generators/seed_generator.py and generators/adversarial_case_generator.py with fixed seeds and documented case families.",
+      "cases/public_cases.jsonl, cases/adversarial_cases.jsonl, cases/migration_before_outputs.jsonl, and cases/migration_after_outputs.jsonl.",
+      "schemas/solution_output.schema.json, schemas/test_results.schema.json, and verifier_inputs/expected_divergences.json."
+    ],
+    solution: [
+      "Implement solve.py or src/solution.py plus python run_cases.py --cases cases --out outputs/test_results.json.",
+      "Validate input constraints, generate deterministic adversarial cases, run legacy and migrated outputs, and classify divergences by stable case_id.",
+      "Prove or justify the asymptotic bound in outputs/complexity_note.md using invariants tied to the implemented data structure.",
+      "Write outputs/solution.py, outputs/test_results.json, outputs/divergence_report.json, outputs/complexity_note.md, and outputs/run_manifest.json.",
+      "The divergence report must include case_id, generator_seed, input_size, expected_output, actual_output, mismatch_type, and minimal_repro_case."
+    ],
+    verifiers: [
+      "Fail if the implementation passes public cases but exceeds the declared asymptotic target on generated adversarial cases.",
+      "Check exact mismatch categories and minimal reproducer IDs against expected_divergences.json.",
+      "Run repeated seeded case generation and assert stable outputs, runtime budget compliance, and schema validity."
+    ]
+  },
+  "applied-math": {
+    sources: [
+      "Self-contained numerical benchmark source: include the analytic case notes, reference solution, mesh files, tolerance spec, and solver configuration in the zip.",
+      "If adapted from a public paper or textbook benchmark, cite the exact paper DOI, equation number, and boundary-condition definition in README.md."
+    ],
+    resources: [
+      "config/parameter_config.yaml with equation_id, coefficient values, grid sizes, solver tolerances, and random_seed if used.",
+      "config/boundary_conditions.json defining Dirichlet and Neumann conditions with units and boundary labels.",
+      "data/reference_solution.csv from a high-resolution or analytic reference with x, t, u_reference, and reference_error_bound columns.",
+      "data/mesh_levels/mesh_32.csv, mesh_64.csv, mesh_128.csv, and mesh_256.csv with node_id, x, dx, and boundary_label.",
+      "schemas/numerical_solution.schema.json, schemas/convergence.schema.json, schemas/error_report.schema.json, and verifier_inputs/unstable_boundary_case.yaml."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --params config/parameter_config.yaml --bc config/boundary_conditions.json --mesh data/mesh_levels --out outputs.",
+      "Validate boundary labels, mesh monotonicity, coefficient units, solver tolerances, and reference-solution alignment before computing errors.",
+      "Run the solver for each mesh level, compute residual norms, boundary residuals, L2/Linf errors, observed convergence rate, and stability flags.",
+      "Write outputs/numerical_solution.csv, outputs/convergence_data.csv, outputs/error_bound_report.json, outputs/regression_diagnosis.json, and outputs/run_manifest.json.",
+      "The regression diagnosis must name the smallest mesh/configuration pair that reproduces the failing boundary or convergence condition."
+    ],
+    verifiers: [
+      "Check observed convergence rates and residuals against reference tolerances for each mesh level.",
+      "Fail if boundary conditions are satisfied only approximately outside the declared tolerance or if local/global error is mislabeled.",
+      "Assert that the reported minimal failing case reproduces from the provided parameters."
     ]
   },
   "robotics-control": {
@@ -771,7 +852,7 @@ function fillStarterTemplate() {
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
   const scenario = pickScenario();
   const expertise = expertiseLabel(els.taskExpertise.value).toLowerCase();
-  const userNotes = els.taskDomain.value.trim();
+  const userNotes = cleanSourceNotes(els.taskDomain.value.trim());
   const sourceSentence = userNotes ? ` Use these source notes and constraints: ${userNotes}` : "";
 
   els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.${sourceSentence}`;
@@ -797,6 +878,9 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
 
   return [
     "Provide one self-contained zip folder with this structure:",
+    "",
+    "Public source references:",
+    ...resourceSourcesFor(details, profile).map((item) => `- ${item}`),
     "",
     "README.md",
     "- Describe each file, column schema, unit, coordinate/time convention, expected output path, and exclusion rule.",
@@ -825,6 +909,14 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
   ].join("\n");
 }
 
+function resourceSourcesFor(details, profile) {
+  if (details && Array.isArray(details.sources) && details.sources.length) return details.sources;
+  return [
+    `Source basis: ${profile.sourceKit}.`,
+    "README.md must name the exact public dataset, repository, paper, standard, or self-contained benchmark source used for the task."
+  ];
+}
+
 function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   const details = DOMAIN_DETAILS[domainKey];
   const domainSteps = details ? details.solution : [
@@ -851,6 +943,28 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
     "",
     `Important edge cases: ${profile.failure}.`
   ].join("\n");
+}
+
+function cleanSourceNotes(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return "";
+  const generatedSignals = [
+    "generated prompt draft",
+    "resources needed to solve the task",
+    "golden solution",
+    "difficulty explanation",
+    "professional time estimate",
+    "verifiers description",
+    "source notes or constraints",
+    "task in computational biology",
+    "task in computer science algorithms",
+    "task in applied mathematics",
+    "task in biomedical signal processing",
+    "task in robotics and control",
+    "task in machine learning systems"
+  ];
+  if (hasAny(trimmed, generatedSignals)) return "";
+  return trimmed;
 }
 
 function buildVerifierDraft(domainKey, type, scenario, standard) {
