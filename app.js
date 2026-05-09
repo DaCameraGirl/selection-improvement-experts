@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-08 airtight-cs";
+const APP_VERSION = "2026-05-08 text-links";
 
 const state = {
   guides: [],
@@ -1012,7 +1012,7 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
     "Provide one self-contained zip folder with this structure:",
     "",
     "Public source references:",
-    ...resourceSourcesFor(details, profile).map((item) => `- ${item}`),
+    ...resourceSourcesFor(details, profile).map((item) => `- ${formatSourceLink(item)}`),
     "",
     "README.md",
     "- Describe each file, column schema, unit, coordinate/time convention, expected output path, and exclusion rule.",
@@ -1047,6 +1047,20 @@ function resourceSourcesFor(details, profile) {
     `Source basis: ${profile.sourceKit}.`,
     "README.md must name the exact public dataset, repository, paper, standard, or self-contained benchmark source used for the task."
   ];
+}
+
+function formatSourceLink(source) {
+  const text = String(source || "");
+  const urlMatch = text.match(/https?:\/\/\S+/);
+  if (!urlMatch) return text;
+
+  const url = urlMatch[0].replace(/[),.;]+$/, "");
+  const prefix = text.slice(0, urlMatch.index).trim();
+  const suffix = text.slice(urlMatch.index + urlMatch[0].length);
+  const label = prefix.endsWith(":") ? prefix.slice(0, -1).trim() : prefix;
+
+  if (!label) return `${text.slice(0, urlMatch.index)}${url}${suffix}`;
+  return `[${label}](${url})${suffix}`;
 }
 
 function buildGoldenSolutionDraft(domainKey, profile, scenario) {

@@ -154,6 +154,13 @@ button:hover,
   color: #bdcac8;
 }
 
+.stats-note {
+  margin: -14px 0 0;
+  color: #bdcac8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .storage-actions {
   margin-top: auto;
   display: grid;
@@ -178,6 +185,40 @@ button:hover,
 .workspace {
   min-width: 0;
   padding: 24px;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.workspace-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 0.78fr) minmax(280px, 0.52fr);
+  gap: 24px;
+  align-items: end;
+  padding: 4px 2px 0;
+}
+
+.workspace-intro h2 {
+  margin: 0;
+  max-width: 780px;
+  font-size: clamp(30px, 4vw, 52px);
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.workspace-intro p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.workspace-intro .eyebrow {
+  margin-bottom: 8px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .topbar {
@@ -185,7 +226,11 @@ button:hover,
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
   align-items: end;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+  padding: 14px;
+  border: 1px solid rgba(216, 220, 218, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .search-box,
@@ -253,7 +298,7 @@ textarea {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 16px;
 }
 
@@ -395,6 +440,10 @@ summary {
   color: var(--muted);
   line-height: 1.45;
   font-size: 14px;
+  padding: 12px 14px;
+  border-left: 4px solid var(--accent);
+  background: #fff8f4;
+  border-radius: 6px;
 }
 
 .task-form textarea {
@@ -514,8 +563,13 @@ legend {
   .split,
   .answer-grid,
   .task-layout,
-  .topbar {
+  .topbar,
+  .workspace-intro {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-intro {
+    gap: 10px;
   }
 }
 

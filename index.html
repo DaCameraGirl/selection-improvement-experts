@@ -13,7 +13,7 @@
           <div class="brand-mark" aria-hidden="true">SI</div>
           <div>
             <h1>Selection Improvement Experts</h1>
-            <p>Onboarding study workspace</p>
+            <p>Task guideline workspace</p>
           </div>
         </div>
 
@@ -26,13 +26,14 @@
         <div class="stats">
           <div>
             <span id="stat-guides">0</span>
-            <small>Guides</small>
+            <small>Saved docs</small>
           </div>
           <div>
             <span id="stat-rules">0</span>
-            <small>Rules</small>
+            <small>Searchable rules</small>
           </div>
         </div>
+        <p class="stats-note">These are counts only. Saved docs are guideline pages; searchable rules are the lines pulled from them.</p>
 
         <div class="storage-actions">
           <button id="export-data" type="button">Export</button>
@@ -45,19 +46,27 @@
       </aside>
 
       <main class="workspace">
+        <header class="workspace-intro">
+          <div>
+            <p class="eyebrow">Static GitHub Pages tool</p>
+            <h2>Build stronger selection tasks from saved rules.</h2>
+          </div>
+          <p>Keep guideline notes searchable, draft worker-facing task packages, and check onboarding-style questions without leaving the browser.</p>
+        </header>
+
         <section class="topbar" aria-label="Search">
           <div class="search-box">
-            <label for="search">Search guidelines</label>
-            <input id="search" type="search" placeholder="Type a policy, keyword, or project term" autocomplete="off" />
+            <label for="search">Find guideline rules</label>
+            <input id="search" type="search" placeholder="Search policies, keywords, or project terms" autocomplete="off" />
           </div>
-          <button id="sample-data" type="button">Load starter guide</button>
+          <button id="sample-data" type="button">Load Starter Guide</button>
         </section>
 
         <section class="view is-visible" id="view-library">
           <div class="split">
             <form id="guide-form" class="panel" autocomplete="off">
               <div class="panel-header">
-                <h2>Add Guidelines</h2>
+                <h2>Save Guidelines</h2>
                 <button id="reset-form" type="button" title="Reset form">Reset</button>
               </div>
               <input type="hidden" id="guide-id" />
@@ -71,7 +80,7 @@
               </label>
               <label>
                 Guideline text
-                <textarea id="guide-body" required placeholder="Paste the onboarding guidelines here. Use headings, bullets, numbered rules, or examples."></textarea>
+                <textarea id="guide-body" required placeholder="Paste guideline text, examples, rubrics, or rejection rules."></textarea>
               </label>
               <button class="primary" type="submit">Save guide</button>
             </form>
@@ -91,7 +100,7 @@
             <div class="panel-header">
               <h2>Prompt Maker</h2>
               <div class="inline-actions">
-                <span id="app-version" class="version-pill">airtight-cs</span>
+                <span id="app-version" class="version-pill">text-links</span>
                 <button id="fill-starter-template" type="button">Generate Draft</button>
                 <button id="clear-task-draft" type="button">Clear Draft</button>
                 <button id="build-task-package" class="primary" type="button">Build Package</button>
@@ -100,7 +109,7 @@
             </div>
             <div class="task-layout">
               <section class="task-form">
-                <p class="helper-copy">Use this as the worker submission builder. Generate a draft, edit it to match your real source material, then use the checks to catch weak, contrived, or underspecified parts before submitting. Current generator must show Public source references and Six Core Criteria Evidence sections.</p>
+                <p class="helper-copy">Generate a worker submission draft, replace any generic details with real source material, then use the checks to catch weak resources, vague outputs, or unverifiable grading.</p>
 
                 <label>
                   Expertise level target
@@ -159,12 +168,12 @@
 
                 <label>
                   Source notes or constraints
-                  <textarea id="task-domain" placeholder="Optional: add a dataset, paper, standard, repository, file names, or constraints you want the generated draft to use."></textarea>
+                  <textarea id="task-domain" placeholder="Optional: name the dataset, paper, standard, repository, files, or constraints the draft should honor."></textarea>
                 </label>
 
                 <label>
                   Generated prompt draft
-                  <textarea id="task-prompt" placeholder="Click Generate Draft, then edit the prompt so it matches your actual source material and task idea."></textarea>
+                  <textarea id="task-prompt" placeholder="Generate a draft, then edit it to match the actual source package and task goal."></textarea>
                 </label>
 
                 <label>
@@ -174,7 +183,7 @@
 
                 <label>
                   Golden solution
-                  <textarea id="task-solution" placeholder="Describe the solution path as granularly as possible. Include actual commands, code/script names, or logical steps an expert would execute."></textarea>
+                  <textarea id="task-solution" placeholder="Describe the expert solve path with commands, script names, checks, and expected outputs."></textarea>
                 </label>
 
                 <label>
@@ -189,12 +198,12 @@
 
                 <label>
                   Verifiers description
-                  <textarea id="task-verifiers" placeholder="Describe deterministic checks that accept only correct outputs. Avoid subjective judging, methodology checks, and unverifiable scripts as final answers."></textarea>
+                  <textarea id="task-verifiers" placeholder="Describe deterministic checks for output files, schemas, tolerances, fixtures, and failure cases."></textarea>
                 </label>
 
                 <label>
                   Optional agent difficulty check
-                  <textarea id="task-agent-check" placeholder="If tested with a terminal-enabled coding tool, summarize what happened and whether failures were due to reasoning, tool use, debugging, or workflow limits."></textarea>
+                  <textarea id="task-agent-check" placeholder="If tested with a terminal coding tool, summarize the run and where it failed."></textarea>
                 </label>
               </section>
 
@@ -216,7 +225,7 @@
             </div>
             <label>
               Onboarding question or scenario
-              <textarea id="question-input" placeholder="Paste an onboarding question or scenario. The helper will find matching guideline notes and build an answer outline."></textarea>
+              <textarea id="question-input" placeholder="Paste a question or scenario. The helper will find matching guideline notes and draft an answer outline."></textarea>
             </label>
             <div class="answer-grid">
               <section>
@@ -253,6 +262,6 @@
       </article>
     </template>
 
-    <script src="app.js?v=20260508-airtight-cs"></script>
+    <script src="app.js?v=20260508-text-links"></script>
   </body>
 </html>
