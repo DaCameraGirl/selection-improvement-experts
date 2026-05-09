@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 quant-check";
+const APP_VERSION = "2026-05-09 prompt-grammar";
 
 const state = {
   guides: [],
@@ -58,6 +58,10 @@ function uid() {
 
 function normalize(text) {
   return String(text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function toBriefNoun(brief) {
+  return brief.replace(/^(validate|audit|review|reconcile|screen|rank|replay|triage|build|diagnose|check|verify|investigate|analyze)\s+/i, "");
 }
 
 function tokenize(text) {
@@ -642,7 +646,7 @@ const SCENARIO_STYLES = [
     verifier: "check exact mismatch categories, row counts, reference joins, stable ordering, and whether known malformed records are rejected for the right reason",
     composePrompt(profile, type, standard) {
       return [
-        `Produce ${profile.artifact} validating the results of ${profile.brief}.`,
+        `Produce ${profile.artifact} validating the results of ${toBriefNoun(profile.brief)}.`,
         `The report must identify every material divergence between legacy and migrated outputs, include a reason code for each divergence, and preserve the source records needed to audit it.`,
         standard.prompt
       ].join("\n\n");
@@ -657,7 +661,7 @@ const SCENARIO_STYLES = [
     verifier: "confirm the reported failing case reproduces, the metric delta matches reference tolerance, and unrelated changes are not mislabeled as root causes",
     composePrompt(profile, type, standard) {
       return [
-        `Isolate the smallest reproducible failure case in ${profile.brief} and return ${profile.artifact}.`,
+        `Isolate the smallest reproducible failure case in ${toBriefNoun(profile.brief)} and return ${profile.artifact}.`,
         `The diagnosis must identify the root cause in machine-readable form, separate it from unrelated output drift, and include enough evidence for an independent engineer to rerun and confirm the failure.`,
         standard.prompt
       ].join("\n\n");
@@ -672,7 +676,7 @@ const SCENARIO_STYLES = [
     verifier: "check traceability fields, exclusion accounting, exact schema, version metadata, and deterministic recalculation of final values",
     composePrompt(profile, type, standard) {
       return [
-        `Produce ${profile.artifact} with full traceability for ${profile.brief}.`,
+        `Produce ${profile.artifact} with full traceability for ${toBriefNoun(profile.brief)}.`,
         `Each final output must be traceable back to its validated input record, documented exclusion rule, or calculation assumption. Make it explicit which records were accepted, which were rejected, and why.`,
         standard.prompt
       ].join("\n\n");
@@ -687,7 +691,7 @@ const SCENARIO_STYLES = [
     verifier: "assert normal-case correctness, edge-case handling, invalid-input rejection, failure-mode labels, and reproducibility across repeated runs",
     composePrompt(profile, type, standard) {
       return [
-        `Build a deterministic edge-case benchmark for ${profile.brief} and produce ${profile.artifact}.`,
+        `Build a deterministic edge-case benchmark for ${toBriefNoun(profile.brief)} and produce ${profile.artifact}.`,
         `Include a failure-analysis table covering normal behavior, boundary conditions, invalid-input handling, and domain-specific failure modes. Every artifact must be verifiable from output files alone without reading the solver's reasoning.`,
         standard.prompt
       ].join("\n\n");
@@ -702,7 +706,7 @@ const SCENARIO_STYLES = [
     verifier: "check conflict classification, precedence handling, timestamp normalization, exact output schema, and whether known examples receive the expected reason codes",
     composePrompt(profile, type, standard) {
       return [
-        `Reconcile ${profile.brief} and produce ${profile.artifact}.`,
+        `Reconcile ${toBriefNoun(profile.brief)} and produce ${profile.artifact}.`,
         `The output must include a reason code for each conflict decision, a confidence flag for each row, and a separate queue for unresolved records. A downstream team must be able to audit every changed or unresolved record from the output files alone.`,
         standard.prompt
       ].join("\n\n");
@@ -1760,7 +1764,7 @@ function hasExpertiseDepth(fields) {
   const text = normalize(`${fields.domain} ${fields.prompt} ${fields.solution} ${fields.difficulty} ${fields.verifiers}`);
   const professionalTerms = ["professional", "industry", "engineering", "validation", "edge case", "tolerance", "quality", "standard"];
   const mastersTerms = ["statistical", "algorithm", "optimization", "simulation", "validation", "nontrivial", "baseline", "tolerance", "regression", "inference"];
-  const phdTerms = ["research", "paper", "methodology", "bayesian", "stochastic", "asymptotic", "causal", "finite element", "peer reviewed", "ablation", "theorem"];
+  const phdTerms = ["research", "paper", "methodolog", "bayesian", "stochastic", "asymptotic", "causal", "finite element", "peer reviewed", "ablation", "theorem"];
   const terms = fields.expertise === "phd" ? phdTerms : fields.expertise === "masters" ? mastersTerms : professionalTerms;
   const hits = terms.filter((term) => text.includes(normalize(term))).length;
   return fields.expertise === "professional" ? hits >= 2 : hits >= 3;
