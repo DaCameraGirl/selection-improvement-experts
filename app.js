@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 clickable-links";
+const APP_VERSION = "2026-05-09 quant-check";
 
 const state = {
   guides: [],
@@ -642,9 +642,9 @@ const SCENARIO_STYLES = [
     verifier: "check exact mismatch categories, row counts, reference joins, stable ordering, and whether known malformed records are rejected for the right reason",
     composePrompt(profile, type, standard) {
       return [
-        `We need a migration validation pass: ${profile.brief}.`,
-        `Compare the legacy and migrated outputs and produce ${profile.artifact} showing every material divergence, the reason code for the divergence, and the source records needed to audit it.`,
-        `The deliverable should be usable by an engineering review team. ${standard.prompt}`
+        `Produce ${profile.artifact} validating the results of ${profile.brief}.`,
+        `The report must identify every material divergence between legacy and migrated outputs, include a reason code for each divergence, and preserve the source records needed to audit it.`,
+        standard.prompt
       ].join("\n\n");
     }
   },
@@ -657,9 +657,9 @@ const SCENARIO_STYLES = [
     verifier: "confirm the reported failing case reproduces, the metric delta matches reference tolerance, and unrelated changes are not mislabeled as root causes",
     composePrompt(profile, type, standard) {
       return [
-        `A previously stable workflow regressed: ${profile.brief}.`,
-        `Find the smallest reproducible failing case, explain the failing condition in machine-readable form, and return ${profile.artifact}.`,
-        `The result should separate the root cause from unrelated output drift and include enough evidence for someone else to rerun the failure. ${standard.prompt}`
+        `Isolate the smallest reproducible failure case in ${profile.brief} and return ${profile.artifact}.`,
+        `The diagnosis must identify the root cause in machine-readable form, separate it from unrelated output drift, and include enough evidence for an independent engineer to rerun and confirm the failure.`,
+        standard.prompt
       ].join("\n\n");
     }
   },
@@ -672,9 +672,9 @@ const SCENARIO_STYLES = [
     verifier: "check traceability fields, exclusion accounting, exact schema, version metadata, and deterministic recalculation of final values",
     composePrompt(profile, type, standard) {
       return [
-        `Prepare an audit-ready evidence package: ${profile.brief}.`,
-        `Return ${profile.artifact} with traceability from each final output back to validated inputs, documented exclusions, and any assumptions used in the calculation.`,
-        `The output should make it clear which records were accepted, which were rejected, and why. ${standard.prompt}`
+        `Produce ${profile.artifact} with full traceability for ${profile.brief}.`,
+        `Each final output must be traceable back to its validated input record, documented exclusion rule, or calculation assumption. Make it explicit which records were accepted, which were rejected, and why.`,
+        standard.prompt
       ].join("\n\n");
     }
   },
@@ -687,9 +687,9 @@ const SCENARIO_STYLES = [
     verifier: "assert normal-case correctness, edge-case handling, invalid-input rejection, failure-mode labels, and reproducibility across repeated runs",
     composePrompt(profile, type, standard) {
       return [
-        `Build an edge-case benchmark: ${profile.brief}.`,
-        `The output should include ${profile.artifact} plus a failure-analysis table that shows which cases target normal behavior, boundary behavior, invalid input handling, and domain-specific failure modes.`,
-        `Make the final artifacts deterministic and easy to grade without reading the solver's reasoning. ${standard.prompt}`
+        `Build a deterministic edge-case benchmark for ${profile.brief} and produce ${profile.artifact}.`,
+        `Include a failure-analysis table covering normal behavior, boundary conditions, invalid-input handling, and domain-specific failure modes. Every artifact must be verifiable from output files alone without reading the solver's reasoning.`,
+        standard.prompt
       ].join("\n\n");
     }
   },
@@ -702,9 +702,9 @@ const SCENARIO_STYLES = [
     verifier: "check conflict classification, precedence handling, timestamp normalization, exact output schema, and whether known examples receive the expected reason codes",
     composePrompt(profile, type, standard) {
       return [
-        `Two trusted operational sources disagree: ${profile.brief}.`,
-        `Reconcile them into ${profile.artifact}, including final selected values, conflict reason codes, confidence flags, and a separate unresolved-record queue.`,
-        `The deliverable should let a downstream team understand every changed or unresolved record from the output files alone. ${standard.prompt}`
+        `Reconcile ${profile.brief} and produce ${profile.artifact}.`,
+        `The output must include a reason code for each conflict decision, a confidence flag for each row, and a separate queue for unresolved records. A downstream team must be able to audit every changed or unresolved record from the output files alone.`,
+        standard.prompt
       ].join("\n\n");
     }
   }
@@ -1254,7 +1254,7 @@ function fillStarterTemplate() {
   els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}`;
   els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
   els.taskVerifiers.value = buildVerifierDraft(domainKey, type, scenario, standard);
-  els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding tool, record whether failures came from data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation.";
+  els.taskAgentCheck.value = "Required before submission: test against a frontier model (e.g. Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed — data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation. Submissions where a frontier model fully solves the task will be rejected.";
 
   buildTaskPackage();
 }
@@ -1702,6 +1702,11 @@ function getTaskChecks(fields) {
       title: "Time estimate",
       pass: fields.time.length > 20 && /\d/.test(fields.time),
       message: "Give a realistic estimate for a qualified professional, including relevant experience level."
+    },
+    {
+      title: "Quantitative criteria in prompt",
+      pass: /\d/.test(prompt) && hasAny(prompt, ["hz", "ms", "seconds", "minutes", "db", "nm", "mm", "kb", "mb", "gb", "rows", "columns", "%", "percent", "±", "+/-", "tolerance", "threshold", "within", "at least", "no more than", "exactly", "accuracy", "precision", "recall", "f1", "rmse", "mae", "r²", "pvalue", "p-value", "confidence", "interval", "basis point", "bps", "tokens", "bits", "bytes"]),
+      message: "Include at least one concrete number with a unit or threshold (e.g. '60 Hz', 'within 5 ms', '±0.001') so the acceptance bar is unambiguous."
     },
     {
       title: "Prompt draft present",

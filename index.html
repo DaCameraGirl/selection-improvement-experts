@@ -202,8 +202,8 @@
                 </label>
 
                 <label>
-                  Optional agent difficulty check
-                  <textarea id="task-agent-check" placeholder="If tested with a terminal coding tool, summarize the run and where it failed."></textarea>
+                  Frontier model test (required before submission)
+                  <textarea id="task-agent-check" placeholder="Test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected."></textarea>
                 </label>
               </section>
 
@@ -263,6 +263,6 @@
       </article>
     </template>
 
-    <script src="app.js?v=20260509-clickable-links"></script>
+    <script src="app.js?v=20260509-quant-check"></script>
   </body>
 </html>
