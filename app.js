@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 code-templates";
+const APP_VERSION = "2026-05-09 tb3-guides";
 
 const state = {
   guides: [],
@@ -2361,57 +2361,112 @@ function clearData() {
 }
 
 function loadSampleData() {
-  const sample = {
-    id: uid(),
-    title: "Visible Selection Improvement Expert Rubric",
-    tags: "worker submission, task design, terminal, verifiers, quality criteria",
-    body: `Tasks must require a computer to be answered, such as data analysis, numerical simulation, code, files, terminal commands, or tool usage.
-Prompts must be answerable using a Linux terminal, for example with Python scripts or tool usage.
-Do not make GUI-only workflows.
-Do not make just-reasoning questions.
-Tasks must involve actual computation, coding, or tool use.
-Agents should be evaluated as workflow performers, not just answer generators.
-Strong tasks require the agent to understand the goal, choose an approach, execute commands, inspect results, and revise when something fails.
-Tasks should force meaningful iteration.
-Tasks should be difficult, real-world, verifiable professional tasks in your domain.
-Most successful tasks use prior professional or academic projects as inspiration.
-All data required for the task must be available from sources without usage restrictions.
-Tasks must have objective, verifiable answers with well-specified output formats.
-Tasks should take a long time for a professional in the field to perform.
-State the final goal upfront. The best instructions are brief, with the objective stated clearly in the first sentences.
-Focus on the goal, not the process. Do not enumerate every step or prescribe specific tools.
-Keep it concise. The best tasks can be described in one to three paragraphs.
-Avoid persona-based framing.
-Do not include sentences that will not be used for solving the problem.
-Leave nothing ambiguous. Every acceptance criterion that the verifier will check must be stated or clearly inferable.
+  const guides = [
+    {
+      id: uid(),
+      title: "TB3 — Six Core Criteria (must pass all six)",
+      tags: "six criteria, verifiable, well-specified, solvable, code, difficult, domain expertise, rejection",
+      body: `Every task proposal must satisfy all six core criteria or it will be rejected.
+VERIFIABLE: The task must have an objective, deterministic answer. A verifier script must be able to programmatically accept a correct submission and reject an incorrect one without human judgment.
+WELL-SPECIFIED: Every acceptance criterion the verifier will check must be stated or clearly inferable from the prompt. Leave nothing ambiguous. Name every required output file, schema, tolerance, and threshold.
+SOLVABLE: The task must have a known correct answer and a clear expert path to reach it. Do not submit unsolved research problems or tasks with no established correct solution.
+REQUIRES CODE OR COMPUTER USE: The task must require a Linux terminal, scripts, data analysis, simulation, file operations, or tool usage. GUI-only workflows and pure reasoning questions are rejected.
+DIFFICULT: Difficulty must come from domain reasoning, implementation judgment, edge-case handling, or verifier-aware design. Not from high compute, large tedious volumes, obscure trivia, adversarial tricks, or hidden information.
+DOMAIN-EXPERTISE DRIVEN: The task must be grounded in a real professional or academic domain where expertise genuinely matters. A non-expert should not be able to guess a correct solution.`
+    },
+    {
+      id: uid(),
+      title: "TB3 — Prompt Writing Rules",
+      tags: "prompt, goal upfront, concise, one to three paragraphs, no persona, no steps, framing, outcome, terminal",
+      body: `State the final goal upfront. The best prompts open with the desired output or result, not a method or background.
+Keep it concise. The best tasks fit in one to three focused paragraphs. If you need more, the task is probably overspecified.
+Focus on the goal, not the process. Do not enumerate every step or prescribe specific tools unless the method itself is the domain requirement.
+Avoid persona-based framing. Do not ask the agent to act as a doctor, scientist, or expert — just state the task objective directly.
+Do not include sentences that will not be used for solving the problem. Every sentence must earn its place.
+Leave nothing ambiguous. Every acceptance criterion the verifier checks must be stated or clearly inferable.
 Ensure the task is outcome-verified. Grade the final result, not the approach taken.
-Do not force a specific tool or command unless the method itself is part of the domain requirement.
-Assume a complete environment. Reference the environment, files, and tools that will be available to the agent.
-Resources must list all databases, public datasets, open-source packages, configuration files, simulation inputs, container images, custom scripts, pre-built binaries, and setup details needed to solve the task.
-Name every artifact and describe what it contains.
-Include version numbers for packages and tools.
-Upload resources as zip files when needed.
+Do not force a specific tool or command unless the method is itself the domain requirement.
+Include at least one concrete number with a unit or threshold so the acceptance bar is unambiguous — for example within 5 ms, sensitivity above 0.97, or tolerance of plus or minus 0.001.
+Avoid prompts that read like homework, tutorials, toy examples, or made-up data exercises.
+Prompts must require computer use such as code, scripts, data analysis, files, or terminal commands.
+Do not make tasks that only ask for explanation, summary, or opinion without producing a verifiable artifact.`
+    },
+    {
+      id: uid(),
+      title: "TB3 — Resources and Environment Rules",
+      tags: "resources, zip, data, packages, versions, environment, public data, no credentials, files, named artifacts",
+      body: `All data required for the task must be available from sources without usage restrictions, credentials, or hidden access.
+Resources must list all databases, public datasets, open-source packages, configuration files, simulation inputs, scripts, binaries, and setup details needed to solve the task.
+Name every artifact and describe what it contains — schema, units, coordinate conventions, expected output path, and exclusion rules.
+Include exact version numbers for packages, tools, and language runtimes.
+Upload resources as a single self-contained zip folder. The workflow must run without network access after the zip is unpacked.
+Include a README describing each file, column schema, unit, expected output path, and exclusion rule.
+Include an environment file such as requirements.txt or environment.yml with exact package versions, plus a version_manifest.json.
 Individual resource files must stay within project upload limits.
-Provide a golden solution as granular as possible, including code, scripts, commands, or logical steps an expert would execute.
-Resources must include all datasets, public data, packages, configuration files, scripts, container images, binaries, versions, and setup details needed to solve the task.
-The golden solution should be implementable by someone who knows exactly what to do in a few hours at most.
-Difficulty explanation must explain why the task is beyond common automated approaches, why domain expertise is required, and why the difficulty is genuine rather than arbitrary.
-Difficulty should not come from high compute requirements, large tedious volumes, obscure trivia, adversarial tricks, or an unknown/open-ended answer.
-Optional agent difficulty checks are supporting evidence only and do not replace the formal difficulty validation.
-Professional time estimates should be realistic for a qualified professional and scoped down if work volume, rather than intellectual difficulty, makes it too long.
-Verifiers must be deterministic, efficient, reliable, and based on explicit output.
-Verifiers must not rely on subjective judgment.
+Include verifier fixture files: at least one normal case, one edge case, and one intentionally invalid case.
+Include expected pass and fail reason codes for the verifier fixtures.
+Include an audit_log_template with fields for input file, checksum, validation status, exclusion reason, output artifact, and rerun timestamp.`
+    },
+    {
+      id: uid(),
+      title: "TB3 — Golden Solution Rules",
+      tags: "golden solution, solve path, commands, scripts, runnable, verifier ready, output contract, traceability",
+      body: `Provide a golden solution as granular as possible, including code, scripts, commands, or logical steps an expert would execute.
+The golden solution must include a runnable command or workflow entry point such as solve.py, make, pytest, or a documented shell command.
+Include exact expected output paths and file names.
+Include required output columns, JSON fields, or schema references.
+Include the core domain computation steps — not generic phrases like process the data or apply analysis.
+Include acceptance thresholds, tolerances, or deterministic comparison rules.
+Describe normal, edge-case, and invalid-input handling.
+Include traceability fields such as input checksums, source record IDs, row counts, rejected records, and package versions.
+Include a repeatability check from a clean checkout confirming that output files, row ordering, checksums, and metrics are identical across runs.
+Reject any golden solution that only says to inspect, analyze, summarize, or validate without naming concrete artifacts.
+Reject any golden solution that depends on a human or an LLM to decide whether the final answer is correct.
+Reject any golden solution that checks the method instead of the produced output.
+The golden solution should be implementable by someone who knows exactly what to do in a few hours at most.`
+    },
+    {
+      id: uid(),
+      title: "TB3 — Verifier Rules",
+      tags: "verifier, deterministic, no LLM, no subjective, schema, tolerance, pass fail, CI gate, output files, reject",
+      body: `Verifiers must be deterministic, efficient, reliable, and based on explicit output files and artifacts.
+Verifiers must not rely on subjective judgment or call an LLM to decide correctness.
 Verifiers must pass a correct solution and reject an incorrect one.
 Simple verifiers are often better than elaborate ones.
-Verifiers should be based on explicit output files and artifacts, not hidden conversation or subjective interpretation.
-Types of checks to consider include logic and accuracy, technical compliance, regressions and quality, and performance or parity.
-Invalid verifier examples include methodology checks, algebraic expression equivalence that can be written many ways, and checking a required final script instead of the script output.
-Every task proposal is evaluated against six core criteria and must satisfy all six to be accepted.
-The task must be verifiable, well-specified, solvable, require code or computer use, difficult, and domain-expertise driven.`
-  };
+The verifier should behave like a CI gate: deterministic, repeatable, schema-aware, tolerant only where the task spec says to be tolerant, and strict about missing artifacts, unstable ordering, and regression cases.
+Types of checks to consider: logic and accuracy, technical compliance, regressions and quality, and performance or parity.
+Invalid verifier examples: methodology checks, algebraic expression equivalence that can be written many ways, and checking a required final script instead of the script output.
+The verifier must check explicit output artifacts — not hidden conversation or reasoning.
+The verifier must fail if any required output file is missing.
+The verifier must fail if output schema does not match the declared spec.
+The verifier must fail if numeric outputs exceed declared tolerances.
+The verifier must fail if invalid-input fixtures are accepted instead of rejected.
+The verifier must fail if outputs are non-deterministic across repeated runs.
+Do not use a methodology-only verifier that checks how the solver worked instead of what it produced.
+Do not use a script-as-final-answer verifier that treats script text as the answer instead of testing script output.`
+    },
+    {
+      id: uid(),
+      title: "TB3 — Difficulty and Domain Rules",
+      tags: "difficulty, domain expertise, time estimate, hard, genuine, not artificial, not trivia, senior professional, masters, phd",
+      body: `Difficulty must come from domain reasoning, implementation judgment, edge-case handling, or verifier-aware design — not from volume, obscure trivia, adversarial tricks, or an unknown answer.
+Difficulty should not come from high compute requirements, large tedious data volumes, tricky wording, or hidden information.
+Difficulty explanation must explain why the task is beyond common automated approaches, why domain expertise is required, and why the difficulty is genuine rather than arbitrary.
+A weak solution must be able to look plausible while still failing — this is the hallmark of genuine difficulty.
+The task must be grounded in a real professional or academic domain where expertise genuinely matters.
+Include specialized methods, domain constraints, and failure modes that match the selected expertise level.
+A strong prompt must require a nontrivial technical method, not generic summarization or simple lookup.
+Optional agent difficulty checks using frontier models such as Claude, GPT-4o, or Gemini Ultra are supporting evidence only. They do not replace formal difficulty validation.
+Frontier model test: test against a frontier model with full terminal access before submission. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected.
+Professional time estimates should be realistic for a qualified professional: 3 to 6 hours for senior professional, 5 to 9 hours for master's level, 8 to 16 hours for PhD or research level.
+Scope down the time estimate if work volume rather than intellectual difficulty is what makes it long.`
+    }
+  ];
 
-  state.guides.unshift(sample);
+  const existing = new Set(state.guides.map((g) => g.title));
+  guides.forEach((g) => { if (!existing.has(g.title)) state.guides.unshift(g); });
   save();
+  setView("library");
   renderAll();
 }
 
