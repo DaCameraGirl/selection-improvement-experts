@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 direct-downloads";
+const APP_VERSION = "2026-05-09 natural-tone";
 
 const state = {
   guides: [],
@@ -666,10 +666,11 @@ const SCENARIO_STYLES = [
     solution: "compare old and new outputs by stable keys, classify each mismatch by failure type, compute summary rates, and preserve row-level evidence for every rejected or changed record",
     verifier: "check exact mismatch categories, row counts, reference joins, stable ordering, and whether known malformed records are rejected for the right reason",
     composePrompt(profile, type, standard) {
+      const noun = toBriefNoun(profile.brief);
+      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
       return [
-        `Produce ${profile.artifact} validating the results of ${toBriefNoun(profile.brief)}.`,
-        profile.threshold,
-        `The report must identify every material divergence between legacy and migrated outputs, include a reason code for each divergence, and preserve the source records needed to audit it.`,
+        `A production migration of ${noun} has completed, but nobody has confirmed the migrated outputs actually match the legacy reference. The pipeline is paused and the team needs sign-off before it can go live.`,
+        `What's needed is ${profile.artifact}${thr}, with a reason code on every divergence and the original source records preserved so any disagreement can be audited independently.`,
         standard.prompt
       ].filter(Boolean).join("\n\n");
     }
@@ -682,10 +683,11 @@ const SCENARIO_STYLES = [
     solution: "re-run the baseline and candidate workflows, bisect configuration differences, compute metric deltas, and produce a minimal failing case with evidence",
     verifier: "confirm the reported failing case reproduces, the metric delta matches reference tolerance, and unrelated changes are not mislabeled as root causes",
     composePrompt(profile, type, standard) {
+      const noun = toBriefNoun(profile.brief);
+      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
       return [
-        `Isolate the smallest reproducible failure case in ${toBriefNoun(profile.brief)} and return ${profile.artifact}.`,
-        profile.threshold,
-        `The diagnosis must identify the root cause in machine-readable form, separate it from unrelated output drift, and include enough evidence for an independent engineer to rerun and confirm the failure.`,
+        `Something in a recent release broke ${noun} — metrics that were stable before the change have shifted, and the team cannot push a hotfix until the failure is pinned to a specific, reproducible cause.`,
+        `The deliverable is ${profile.artifact}${thr}: the root cause identified in machine-readable form, cleanly separated from unrelated drift, with enough evidence that an independent engineer can pull the same inputs and reproduce the failure from scratch.`,
         standard.prompt
       ].filter(Boolean).join("\n\n");
     }
@@ -698,10 +700,11 @@ const SCENARIO_STYLES = [
     solution: "validate schemas, apply exclusion rules, record every accepted and rejected input, compute final outputs, and generate traceability metadata",
     verifier: "check traceability fields, exclusion accounting, exact schema, version metadata, and deterministic recalculation of final values",
     composePrompt(profile, type, standard) {
+      const noun = toBriefNoun(profile.brief);
+      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
       return [
-        `Produce ${profile.artifact} with full traceability for ${toBriefNoun(profile.brief)}.`,
-        profile.threshold,
-        `Each final output must be traceable back to its validated input record, documented exclusion rule, or calculation assumption. Make it explicit which records were accepted, which were rejected, and why.`,
+        `An upcoming audit of ${noun} has flagged a gap: the outputs exist but there is no documented chain connecting each final value to its validated input, applied exclusion rule, or calculation assumption. The auditor needs that chain before sign-off.`,
+        `The required deliverable is ${profile.artifact}${thr}, where every accepted record, every rejection, and every exclusion rule invoked is documented — nothing in the final outputs should be unexplained.`,
         standard.prompt
       ].filter(Boolean).join("\n\n");
     }
@@ -714,10 +717,11 @@ const SCENARIO_STYLES = [
     solution: "run the workflow on normal, edge, and invalid fixtures; compute outputs; label failure modes; and summarize which constraints each case exercises",
     verifier: "assert normal-case correctness, edge-case handling, invalid-input rejection, failure-mode labels, and reproducibility across repeated runs",
     composePrompt(profile, type, standard) {
+      const noun = toBriefNoun(profile.brief);
+      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
       return [
-        `Build a deterministic edge-case benchmark for ${toBriefNoun(profile.brief)} and produce ${profile.artifact}.`,
-        profile.threshold,
-        `Include a failure-analysis table covering normal behavior, boundary conditions, invalid-input handling, and domain-specific failure modes. Every artifact must be verifiable from output files alone without reading the solver's reasoning.`,
+        `The current test suite for ${noun} only exercises the happy path — boundary conditions and malformed inputs are silently passing, and those silent failures have been reaching production downstream.`,
+        `What the team needs is a deterministic edge-case benchmark: ${profile.artifact}${thr}, along with a failure-analysis table that covers normal behavior, boundary conditions, invalid-input handling, and the domain-specific failure modes that expert reviewers actually care about. Every conclusion must be verifiable from the output files alone — no digging through solver logs.`,
         standard.prompt
       ].filter(Boolean).join("\n\n");
     }
@@ -730,10 +734,11 @@ const SCENARIO_STYLES = [
     solution: "normalize identifiers, align timestamps, apply precedence rules, classify conflicts, compute final reconciled records, and emit unresolved cases separately",
     verifier: "check conflict classification, precedence handling, timestamp normalization, exact output schema, and whether known examples receive the expected reason codes",
     composePrompt(profile, type, standard) {
+      const noun = toBriefNoun(profile.brief);
+      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
       return [
-        `Reconcile ${toBriefNoun(profile.brief)} and produce ${profile.artifact}.`,
-        profile.threshold,
-        `The output must include a reason code for each conflict decision, a confidence flag for each row, and a separate queue for unresolved records. A downstream team must be able to audit every changed or unresolved record from the output files alone.`,
+        `Two trusted operational systems are returning conflicting records for ${noun}, and a downstream team is stuck — they cannot proceed until there is a single authoritative version of the data with a documented rationale for every conflict decision.`,
+        `The required output is ${profile.artifact}${thr}: a reason code on each conflict decision, a confidence flag per row, and a separate review queue for unresolved records that the downstream team can work through directly.`,
         standard.prompt
       ].filter(Boolean).join("\n\n");
     }
@@ -1461,6 +1466,7 @@ function resourceSourcesFor(details, profile) {
 
 function formatSourceLink(source) {
   const text = String(source || "");
+  if (/\[[^\]]+\]\(https?:\/\/[^)]+\)/.test(text)) return text;
   const urlMatch = text.match(/https?:\/\/\S+/);
   if (!urlMatch) return text;
 
