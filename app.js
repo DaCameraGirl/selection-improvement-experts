@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-08 text-links";
+const APP_VERSION = "2026-05-09 clickable-links";
 
 const state = {
   guides: [],
@@ -39,6 +39,7 @@ const els = {
   taskAgentCheck: document.querySelector("#task-agent-check"),
   taskChecks: document.querySelector("#task-checks"),
   generatedTaskPackage: document.querySelector("#generated-task-package"),
+  generatedTaskPreview: document.querySelector("#generated-task-preview"),
   fillStarterTemplate: document.querySelector("#fill-starter-template"),
   clearTaskDraft: document.querySelector("#clear-task-draft"),
   appVersion: document.querySelector("#app-version"),
@@ -291,12 +292,37 @@ function analyzeQuestion() {
   `;
 }
 
+function convertLinksToAnchors(line) {
+  const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+  let result = "";
+  let lastIndex = 0;
+  let match;
+  while ((match = mdLinkRegex.exec(line)) !== null) {
+    result += escapeHtml(line.slice(lastIndex, match.index));
+    result += `<a href="${escapeHtml(match[2])}" target="_blank" rel="noopener noreferrer">${escapeHtml(match[1])}</a>`;
+    lastIndex = match.index + match[0].length;
+  }
+  result += escapeHtml(line.slice(lastIndex));
+  return result;
+}
+
+function renderPackagePreview(text) {
+  if (!els.generatedTaskPreview) return;
+  if (!text.trim()) {
+    els.generatedTaskPreview.innerHTML = '<span class="preview-empty">Fill the fields and build a task package.</span>';
+    return;
+  }
+  const html = text.split("\n").map(convertLinksToAnchors).join("\n");
+  els.generatedTaskPreview.innerHTML = `<pre>${html}</pre>`;
+}
+
 function buildTaskPackage() {
   const fields = getTaskFields();
   renderTaskChecks(fields);
 
   if (taskContentValues(fields).every((value) => !value)) {
     els.generatedTaskPackage.value = "Use Generate Draft or enter your own task details, then click Build Package.";
+    renderPackagePreview("");
     return;
   }
 
@@ -364,6 +390,7 @@ function buildTaskPackage() {
     "----------------------------------------------",
     getTaskChecks(fields).map((check) => `${check.pass ? "PASS" : "NEEDS WORK"} - ${check.title}: ${check.message}`).join("\n")
   ].join("\n");
+  renderPackagePreview(els.generatedTaskPackage.value);
 }
 
 const DOMAIN_DRAFTS = {
@@ -1167,6 +1194,7 @@ function clearTaskDraft() {
   ].forEach((input) => {
     input.value = "";
   });
+  renderPackagePreview("");
   renderTaskChecks(getTaskFields());
   els.taskDomain.focus();
 }
@@ -1349,7 +1377,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "No vague resource placeholders",
-      pass: !hasAny(resources, ["realistic source-grounded files", "domain-appropriate", "where relevant", "etc.", "and anything", "some files", "real life examples"]),
+      pass: !hasAny(resources, ["realistic source-grounded files", "domain-appropriate", "where relevant", "etc.", "and anything", "some files", "real life examples", "supporting evidence", "use provided resources", "as appropriate", "relevant materials"]),
       message: "Avoid placeholder resource language that could read as generated or underspecified."
     },
     {

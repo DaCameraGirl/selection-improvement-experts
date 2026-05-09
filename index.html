@@ -211,7 +211,8 @@
                 <h3>Guideline Checks</h3>
                 <div id="task-checks" class="checklist"></div>
                 <h3>Generated Submission Package</h3>
-                <textarea id="generated-task-package" class="generated-prompt" readonly placeholder="Fill the fields and build a task package."></textarea>
+                <div id="generated-task-preview" class="generated-preview" aria-label="Generated Submission Package"><span class="preview-empty">Fill the fields and build a task package.</span></div>
+                <textarea id="generated-task-package" class="is-hidden" readonly aria-hidden="true"></textarea>
               </section>
             </div>
           </div>
@@ -262,6 +263,6 @@
       </article>
     </template>
 
-    <script src="app.js?v=20260508-text-links"></script>
+    <script src="app.js?v=20260509-clickable-links"></script>
   </body>
 </html>

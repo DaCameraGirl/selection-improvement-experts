@@ -488,6 +488,39 @@ legend {
   white-space: pre-wrap;
 }
 
+.generated-preview {
+  min-height: 430px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  padding: 11px 12px;
+  line-height: 1.45;
+  font-size: 14px;
+  overflow-y: auto;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.generated-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+}
+
+.generated-preview a {
+  color: var(--blue);
+  word-break: break-all;
+}
+
+.generated-preview a:hover {
+  color: var(--accent);
+}
+
+.preview-empty {
+  color: var(--muted);
+}
+
 .checklist {
   display: grid;
   gap: 8px;
