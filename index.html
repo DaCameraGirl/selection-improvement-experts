@@ -21,6 +21,7 @@
           <button class="tab is-active" data-view="library" type="button">Library</button>
           <button class="tab" data-view="prompt" type="button">Prompt Maker</button>
           <button class="tab" data-view="answer" type="button">Answer Helper</button>
+          <button class="tab" data-view="templates" type="button">Code Templates</button>
         </nav>
 
         <div class="stats">
@@ -243,6 +244,35 @@
       </main>
     </div>
 
+    <section class="view" id="view-templates">
+      <div class="panel wide-panel">
+        <div class="panel-header">
+          <h2>Code Templates</h2>
+          <div class="inline-actions">
+            <span id="template-context" class="version-pill">generate a draft first</span>
+            <button id="refresh-templates" type="button">Sync from Prompt Maker</button>
+          </div>
+        </div>
+        <p class="helper-copy">Starter scaffolds for the domain and scenario last generated in Prompt Maker. Fill every TODO, replace placeholder paths with your real data paths, and drop these into your zip as the basis for the actual solve.py and verify.py you submit.</p>
+        <div class="template-layout">
+          <section class="template-pane">
+            <div class="template-pane-header">
+              <h3>solve.py</h3>
+              <button id="copy-solve-py" type="button">Copy</button>
+            </div>
+            <pre id="template-solve-py" class="code-block"><span class="preview-empty">Go to Prompt Maker, hit Generate Draft, then come back here.</span></pre>
+          </section>
+          <section class="template-pane">
+            <div class="template-pane-header">
+              <h3>verify.py</h3>
+              <button id="copy-verify-py" type="button">Copy</button>
+            </div>
+            <pre id="template-verify-py" class="code-block"><span class="preview-empty">Go to Prompt Maker, hit Generate Draft, then come back here.</span></pre>
+          </section>
+        </div>
+      </div>
+    </section>
+
     <template id="guide-card-template">
       <article class="guide-card">
         <header>
@@ -263,6 +293,6 @@
       </article>
     </template>
 
-    <script src="app.js?v=20260509-checks-clean"></script>
+    <script src="app.js?v=20260509-code-templates"></script>
   </body>
 </html>

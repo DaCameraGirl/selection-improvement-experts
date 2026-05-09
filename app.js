@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 checks-clean";
+const APP_VERSION = "2026-05-09 code-templates";
 
 const state = {
   guides: [],
@@ -1379,6 +1379,381 @@ const DOMAIN_DETAILS = {
   }
 };
 
+const DOMAIN_CODE = {
+  "biomedical-signal": {
+    imports: ["import wfdb", "import numpy as np", "import scipy.signal as sig", "import matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt"],
+    config: "config/filter_change.yaml",
+    coreTodo: ["sig_data, fields = wfdb.rdsamp(str(record_path)); assert fields['fs'] == SAMPLE_RATE_HZ", "Apply bandpass 0.5–40 Hz and 60 Hz notch filter using sig.butter + sig.filtfilt", "peaks, _ = sig.find_peaks(ecg, distance=int(0.2 * SAMPLE_RATE_HZ))", "Match each peak to nearest annotation within ±TOLERANCE_MS ms; label TP/FP/FN", "Compute sensitivity = TP/(TP+FN), PPV = TP/(TP+FP) per record"]
+  },
+  "climate-geospatial": {
+    imports: ["import xarray as xr", "import geopandas as gpd", "import numpy as np", "import rasterio\nfrom rasterio.warp import reproject, Resampling"],
+    config: "config/analysis_config.yaml",
+    coreTodo: ["ds = xr.open_dataset(path); assert ds.rio.crs is not None", "Reproject to common CRS and align spatial extents", "Mask fill-value / NaN pixels and document exclusion rationale", "Compute anomalies, trends, or spatial statistics on valid pixels", "Export with coordinate metadata and source checksum"]
+  },
+  "computational-biology": {
+    imports: ["import pandas as pd", "import numpy as np", "from Bio import SeqIO, AlignIO"],
+    config: "config/pipeline_config.yaml",
+    coreTodo: ["Parse FASTA/VCF/BAM and validate record lengths, alphabet, and ID uniqueness", "Run core algorithm (alignment, annotation, or variant calling)", "Compute per-record quality metrics and coverage statistics", "Flag records below QC thresholds with reason codes", "Write results with source record IDs and CIGAR/INFO fields for traceability"]
+  },
+  "quant-finance": {
+    imports: ["import pandas as pd", "import numpy as np", "import scipy.stats as stats"],
+    config: "config/risk_config.yaml",
+    coreTodo: ["Load returns series and validate trading-calendar alignment (no gaps, no weekends)", "Check for look-ahead bias: features must use only data available at t-1", "Compute VaR, CVaR, Sharpe ratio, and max drawdown with correct annualisation", "Apply regime filters; exclude halted/suspended periods and document reasons", "Compare metrics to reference thresholds with declared tolerance bands"]
+  },
+  "materials-science": {
+    imports: ["import pandas as pd", "import numpy as np", "from pymatgen.core import Structure"],
+    config: "config/analysis_config.yaml",
+    coreTodo: ["Parse CIF/POSCAR and validate lattice parameters, space group, and species", "Compute target property (band gap, formation energy, elastic constants)", "Cross-reference against Materials Project or ICSD reference entries", "Flag structures outside tolerance with reason codes", "Export with material_id and mp_id for traceability"]
+  },
+  "power-systems": {
+    imports: ["import pandapower as pp", "import pandas as pd", "import numpy as np"],
+    config: "config/contingency_config.yaml",
+    coreTodo: ["net = pp.from_mpc('case.m'); validate per-unit consistency (base_mva, base_kv)", "Check slack bus assignment and generator dispatch feasibility", "Run N-1 AC load flow for each contingency; record post-contingency voltages and flows", "Flag buses outside V_MIN_PU–V_MAX_PU and branches exceeding thermal limit", "Rank contingencies by worst-case severity and export violation table"]
+  },
+  "cyber-forensics": {
+    imports: ["import pandas as pd", "import hashlib", "import re", "from pathlib import Path"],
+    config: "config/forensics_config.yaml",
+    coreTodo: ["Compute SHA-256 checksums of all evidence files before any analysis", "Parse log timestamps to UTC; validate monotonicity and host-identifier consistency", "Correlate events by timestamp and common identifiers (IP, user, hash)", "Classify indicators by MITRE ATT&CK tactic or custom taxonomy", "Preserve chain of custody: source file, hash, analyst, timestamp for every finding"]
+  },
+  "robotics-control": {
+    imports: ["import pandas as pd", "import numpy as np", "import scipy.interpolate as interp"],
+    config: "config/controller_config.yaml",
+    coreTodo: ["Load trajectory CSV; validate frame_id consistency and timestamp monotonicity", "Align reference and executed trajectories by timestamp using nearest-neighbour join", "Compute cross-track error, heading error, and RMS tracking error per waypoint", "Check actuator torque against ±ACTUATOR_TOL_PCT of declared limits", "Classify each run: accepted / excluded / review_required with reason code"]
+  },
+  "econometrics": {
+    imports: ["import pandas as pd", "import numpy as np", "import statsmodels.api as sm", "from scipy import stats"],
+    config: "config/model_config.yaml",
+    coreTodo: ["Load panel data; validate entity_id × time_id uniqueness and balanced panel", "Test for unit root / stationarity before regression (ADF or KPSS)", "Fit specified model (OLS, IV, DiD, RD) with HAC or clustered standard errors", "Run pre-registered placebo and robustness checks; record F-stats and p-values", "Export coefficient table, residuals, and diagnostic plots with source record IDs"]
+  },
+  "computational-linguistics": {
+    imports: ["import pandas as pd", "import numpy as np", "from conllu import parse_incr"],
+    config: "config/eval_config.yaml",
+    coreTodo: ["Parse CoNLL-U with parse_incr; validate token counts and head-index bounds (0 to n)", "Verify tokenizer version matches label_schema.md; detect boundary leaks across sentences", "Compute UAS, LAS, and token-level F1 stratified by UPOS, DEPREL, and genre", "Build label confusion matrix and compute top-5 error type frequencies", "Export eval_metrics.json, error_analysis.csv, and token_boundary_warnings.csv"]
+  },
+  "software-engineering": {
+    imports: ["import subprocess", "import json", "import re", "from pathlib import Path"],
+    config: "config/test_config.yaml",
+    coreTodo: ["Apply patch: subprocess.run(['git', 'apply', 'fix.patch'], cwd=repo, check=True)", "Run test suite: result = subprocess.run(['pytest', '--tb=short', '-q'], capture_output=True)", "Parse pytest output for pass/fail counts and failed test IDs", "Check public API signatures in contracts/api_contract.md have not changed", "Export changed_files, symbols_touched, tests_run, failing_before, passing_after to JSON"]
+  },
+  "computer-science": {
+    imports: ["import json", "import subprocess", "import time", "from pathlib import Path"],
+    config: "config/constraints.json",
+    coreTodo: ["Load adversarial cases from cases/adversarial_cases.jsonl", "For each case: t0 = time.perf_counter(); run solution; elapsed = time.perf_counter() - t0", "Assert elapsed < TIME_LIMIT_S and output matches expected_output", "Verify asymptotic bound: time scales as O(n log n) not O(n²) across case sizes", "Record case_id, input_size, expected_output, actual_output, runtime_s in report"]
+  },
+  "distributed-systems": {
+    imports: ["import pandas as pd", "import json", "import re", "from pathlib import Path"],
+    config: "config/system_config.yaml",
+    coreTodo: ["Parse distributed trace logs and extract span_id, parent_id, service, latency_ms", "Reconstruct request trees; validate parent_id references and detect orphan spans", "Compute p50/p95/p99 latency and error rates per service and per endpoint", "Detect clock skew (timestamps outside ±CLOCK_SKEW_MS), dropped spans, and ordering violations", "Export trace_summary.csv, anomaly_table.csv, and latency_histogram.json"]
+  },
+  "databases": {
+    imports: ["import sqlite3", "import pandas as pd", "import json", "from pathlib import Path"],
+    config: "config/query_config.yaml",
+    coreTodo: ["Connect to fixture database: conn = sqlite3.connect(db_path)", "Execute each query from workload.sql and capture plan (EXPLAIN QUERY PLAN) and runtime", "Compare actual result set to expected_output row-by-row with tolerance for floats", "Flag full-table scans on tables with row_count > SCAN_THRESHOLD", "Export query_id, plan_hash, actual_rows, expected_rows, runtime_ms, pass_fail"]
+  },
+  "compilers": {
+    imports: ["import subprocess", "import json", "import re", "from pathlib import Path"],
+    config: "config/compiler_config.yaml",
+    coreTodo: ["Compile: result = subprocess.run([COMPILER, *FLAGS, source_file], capture_output=True)", "Run binary with sanitizers (ASAN, UBSAN) and capture stdout, stderr, and exit code", "Compare stdout to expected_output exactly (or within declared tolerance for floats)", "Parse diagnostics and classify warnings by category (unused, shadow, sign-compare, etc.)", "Flag undefined-behaviour or sanitizer errors as hard failures"]
+  },
+  "ml-systems": {
+    imports: ["import pandas as pd", "import numpy as np", "import json", "from pathlib import Path"],
+    config: "config/evaluation.yaml",
+    coreTodo: ["Join predictions, labels, and features by stable entity_id and event_time; reject timestamp violations", "Assert event_time of label > event_time of features (no label leakage)", "Compute batch/online parity, PSI drift, ECE calibration, AUC, and slice-level metrics", "Load latency_trace.csv and assert p99 <= LATENCY_P99_MS", "Write metrics.json, drift_report.csv, latency_summary.csv, and exceptions.csv"]
+  },
+  "ai-governance": {
+    imports: ["import pandas as pd", "import numpy as np", "import json", "from pathlib import Path"],
+    config: "config/audit_config.yaml",
+    coreTodo: ["Load model outputs and demographic metadata; validate join keys and completeness", "Compute demographic parity, equalized odds, and calibration per group", "Flag groups where gap exceeds FAIRNESS_THRESHOLD; include confidence intervals", "Document included, excluded, and unresolvable records with reason codes", "Export group_metrics.csv, disparity_report.json, and exclusion_audit.csv"]
+  },
+  "applied-math": {
+    imports: ["import numpy as np", "import scipy.linalg as la", "import scipy.integrate as integrate", "import pandas as pd"],
+    config: "config/problem_config.yaml",
+    coreTodo: ["Load problem parameters and validate ranges, initial conditions, and boundary conditions", "Implement numerical method (RK45, conjugate gradient, eigendecomposition, etc.)", "Compute residuals: assert norm(A @ x - b) < TOLERANCE or ODE residual < TOLERANCE", "Verify convergence: record iteration counts and residual norms at each step", "Export solution_values.csv, residual_history.csv, and solver_diagnostics.json"]
+  },
+  "statistics": {
+    imports: ["import pandas as pd", "import numpy as np", "import scipy.stats as stats", "import statsmodels.api as sm"],
+    config: "config/experiment_config.yaml",
+    coreTodo: ["Load experiment data; validate sample sizes and randomisation records", "Test MCAR assumption; document informative censoring if present", "Run pre-registered test with Bonferroni/BH correction for multiple comparisons", "Compute effect size (Cohen's d or ω²) and power analysis", "Export test_results.json with p-values, CIs, effect sizes, and assumption-check outputs"]
+  },
+  "scientific-computing": {
+    imports: ["import numpy as np", "import scipy.integrate as integrate", "import scipy.sparse as sparse", "import pandas as pd"],
+    config: "config/solver_config.yaml",
+    coreTodo: ["Load mesh/grid and validate boundary conditions and domain dimensions", "Set up and run numerical solver (FEM, FVM, or spectral method)", "Check conservation laws and residuals after each time step", "Compare solution to reference values at validation points: assert |err| < TOLERANCE", "Export solution fields, residuals, and solver diagnostics to outputs/"]
+  },
+  "formal-methods": {
+    imports: ["import subprocess", "import json", "from pathlib import Path"],
+    config: "config/tool_config.yaml",
+    coreTodo: ["Parse config/tool_config.yaml for tool_name, tool_version, and model_check_command", "Run: result = subprocess.run(model_check_command.split(), capture_output=True, timeout=300)", "Parse stdout for 'Model checking completed', 'Invariant violated', or counterexample trace", "Validate reproduced counterexample trace length against expected_counterexample.json", "Export model_check_result.json, counterexample_trace.json, and invariant_coverage.csv"]
+  }
+};
+
+let lastTemplateState = null;
+
+function extractOutputFilenames(domainKey) {
+  const details = DOMAIN_DETAILS[domainKey];
+  if (!details || !details.solution) return ["run_manifest.json"];
+  const found = new Set();
+  details.solution.forEach((step) => {
+    const matches = step.match(/outputs\/[\w./-]+\.\w+/g);
+    if (matches) matches.forEach((m) => found.add(m.replace("outputs/", "")));
+  });
+  found.delete("run_manifest.json");
+  return [...found, "run_manifest.json"];
+}
+
+function generateSolvePy(domainKey, profile, scenario) {
+  const code = DOMAIN_CODE[domainKey] || DOMAIN_CODE["biomedical-signal"];
+  const outputFiles = extractOutputFilenames(domainKey);
+  const importBlock = code.imports.join("\n");
+  const coreComments = code.coreTodo.map((s) => `    #   ${s}`).join("\n");
+  const outputFilesConst = outputFiles.map((f) => `    "${f}",`).join("\n");
+  const thrComment = (profile.threshold || "see task spec for thresholds").replace(/\.$/, "");
+  return `#!/usr/bin/env python3
+"""
+solve.py  —  ${profile.domain}
+Scenario : ${scenario.name}
+Artifact : ${profile.artifact}
+Run      : python solve.py --input data --config ${code.config} --out outputs
+"""
+import argparse, json, hashlib, sys
+from pathlib import Path
+import pandas as pd
+${importBlock}
+
+# ── acceptance thresholds (from task spec) ────────────────────────────────────
+# ${thrComment}
+# TODO: convert to named constants, e.g.:
+# TOLERANCE_MS = 15
+# SENSITIVITY_MIN = 0.97
+
+REQUIRED_OUTPUT_FILES = [
+${outputFilesConst}
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+def file_checksum(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+
+
+def validate_inputs(input_dir: Path, config: dict) -> list:
+    """
+    Validate every required input file before computation.
+    Returns list of accepted record dicts; raises ValueError on violations.
+    """
+    records = []
+    # TODO: iterate required inputs, validate schema / units / identifiers
+    # Example:
+    # for fname in [...]:
+    #     p = input_dir / fname
+    #     if not p.exists(): raise FileNotFoundError(f"missing: {p}")
+    #     records.append({"path": p, "checksum": file_checksum(p)})
+    return records
+
+
+def compute(records: list, config: dict) -> dict:
+    """
+    Core algorithm: ${profile.method}
+
+    Key steps:
+${coreComments}
+    """
+    results = {"rows": [], "metrics": {}, "checksums": {}, "accepted": 0, "excluded": 0}
+    # TODO: implement domain algorithm
+    return results
+
+
+def write_outputs(results: dict, out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # TODO: write each required output file:
+    # pd.DataFrame(results["rows"]).to_csv(out_dir / "report.csv", index=False)
+    # (out_dir / "metrics.json").write_text(json.dumps(results["metrics"], indent=2))
+    manifest = {
+        "solver": "solve.py",
+        "input_checksums": results.get("checksums", {}),
+        "records_accepted": results.get("accepted", 0),
+        "records_excluded": results.get("excluded", 0),
+        "status": "ok",
+    }
+    (out_dir / "run_manifest.json").write_text(json.dumps(manifest, indent=2))
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--input", default="data")
+    p.add_argument("--config", default="${code.config}")
+    p.add_argument("--out", default="outputs")
+    args = p.parse_args()
+    config_path = Path(args.config)
+    config = json.loads(config_path.read_text()) if config_path.exists() else {}
+    records = validate_inputs(Path(args.input), config)
+    results = compute(records, config)
+    write_outputs(results, Path(args.out))
+    print(f"outputs written to {args.out}/")
+
+
+if __name__ == "__main__":
+    main()
+`;
+}
+
+function generateVerifyPy(domainKey, profile) {
+  const outputFiles = extractOutputFilenames(domainKey);
+  const filesConst = outputFiles.map((f) => `    "${f}",`).join("\n");
+  const thrComment = (profile.threshold || "see task spec").replace(/\.$/, "");
+  return `#!/usr/bin/env python3
+"""
+verify.py  —  deterministic verifier scaffold
+Domain   : ${profile.domain}
+Artifact : ${profile.artifact}
+
+Run  : python verify.py --out outputs --expected verifier_inputs/expected_metrics.json
+Exit : 0 = all checks passed  |  1 = one or more checks failed
+
+RULE: this verifier must NEVER call an LLM or make subjective decisions.
+      Every check must be deterministic and schema-driven.
+"""
+import json, sys
+from pathlib import Path
+import pandas as pd
+
+# ── thresholds (must match task spec exactly) ─────────────────────────────────
+# ${thrComment}
+# TODO: set as named constants:
+# TOLERANCE_MS = 15
+# SENSITIVITY_MIN = 0.97
+
+REQUIRED_OUTPUT_FILES = [
+${filesConst}
+]
+
+
+# ── check helpers ─────────────────────────────────────────────────────────────
+
+def fail(msg: str) -> bool:
+    print(f"  FAIL  {msg}")
+    return False
+
+
+def ok(msg: str) -> bool:
+    print(f"  PASS  {msg}")
+    return True
+
+
+def check_files_exist(out: Path) -> bool:
+    return all(
+        ok(f"file exists: {f}") if (out / f).exists() else fail(f"missing: {f}")
+        for f in REQUIRED_OUTPUT_FILES
+    )
+
+
+def check_schema(df: "pd.DataFrame", required_cols: list, label: str) -> bool:
+    missing = [c for c in required_cols if c not in df.columns]
+    return ok(f"schema ok: {label}") if not missing else fail(
+        f"schema {label} — missing columns: {missing}"
+    )
+
+
+def check_metric(actual, expected, tolerance, label: str) -> bool:
+    diff = abs(float(actual) - float(expected))
+    if diff <= tolerance:
+        return ok(f"{label}: {actual} (expected {expected} \\u00b1{tolerance})")
+    return fail(f"{label}: {actual} outside tolerance (expected {expected} \\u00b1{tolerance})")
+
+
+def check_invalid_rejected(out: Path, fixture_id: str, expected_reason: str) -> bool:
+    """Assert an invalid-input fixture appears in exclusions.csv with the correct reason code."""
+    excl = out / "exclusions.csv"
+    if not excl.exists():
+        return fail(f"exclusions.csv missing — cannot verify {fixture_id} was rejected")
+    df = pd.read_csv(excl).astype(str)
+    id_col = next((c for c in df.columns if c in ("record_id", "source", "file", "input")), None)
+    if id_col is None:
+        return fail("exclusions.csv has no recognised ID column (tried record_id, source, file, input)")
+    rows = df[df[id_col].str.contains(fixture_id, na=False)]
+    if rows.empty:
+        return fail(f"{fixture_id} not found in exclusions.csv")
+    reason = str(rows.iloc[0].get("exclusion_reason", rows.iloc[0].get("reason", "")))
+    return ok(f"{fixture_id} correctly rejected") if expected_reason.lower() in reason.lower() else fail(
+        f"{fixture_id} rejected with wrong reason: {reason!r}"
+    )
+
+
+# ── verifier body ─────────────────────────────────────────────────────────────
+
+def main():
+    import argparse
+    p = argparse.ArgumentParser()
+    p.add_argument("--out", default="outputs")
+    p.add_argument("--expected", default="verifier_inputs/expected_metrics.json")
+    args = p.parse_args()
+    out = Path(args.out)
+    expected_path = Path(args.expected)
+    expected = json.loads(expected_path.read_text()) if expected_path.exists() else {}
+
+    print(f"\\nVerifying outputs in {out}/")
+    print("\\u2500" * 56)
+    results = []
+
+    # 1. required files present
+    results.append(check_files_exist(out))
+
+    # 2. schema checks
+    # TODO: load each CSV and call check_schema() with required column list
+    # Example:
+    # if (out / "report.csv").exists():
+    #     df = pd.read_csv(out / "report.csv")
+    #     results.append(check_schema(df, ["record_id", "value", "status"], "report.csv"))
+
+    # 3. metric tolerance checks
+    # TODO: load metrics JSON and call check_metric() for each threshold
+    # Example:
+    # if (out / "metrics.json").exists():
+    #     m = json.loads((out / "metrics.json").read_text())
+    #     results.append(check_metric(m["sensitivity"], expected.get("sensitivity", 0.97), 0.005, "sensitivity"))
+
+    # 4. invalid-input rejection
+    # TODO: confirm the invalid fixture was rejected with the right reason code
+    # results.append(check_invalid_rejected(out, "invalid_sampling_rate", "sampling_rate"))
+
+    # 5. run manifest status
+    mf_path = out / "run_manifest.json"
+    if mf_path.exists():
+        mf = json.loads(mf_path.read_text())
+        results.append(ok("run_manifest ok") if mf.get("status") == "ok" else fail("run_manifest status != ok"))
+    else:
+        results.append(fail("run_manifest.json missing"))
+
+    print("\\u2500" * 56)
+    passed = sum(bool(r) for r in results)
+    total = len(results)
+    if all(results):
+        print(f"\\n  ALL {total} CHECKS PASSED")
+        sys.exit(0)
+    else:
+        print(f"\\n  {total - passed} / {total} CHECK(S) FAILED")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+`;
+}
+
+function renderCodeTemplates() {
+  if (!lastTemplateState) return;
+  const { domainKey, profile, scenario } = lastTemplateState;
+  const solvePy = generateSolvePy(domainKey, profile, scenario);
+  const verifyPy = generateVerifyPy(domainKey, profile);
+  const solveEl = document.querySelector("#template-solve-py");
+  const verifyEl = document.querySelector("#template-verify-py");
+  const ctxEl = document.querySelector("#template-context");
+  if (solveEl) solveEl.textContent = solvePy;
+  if (verifyEl) verifyEl.textContent = verifyPy;
+  if (ctxEl) ctxEl.textContent = `${profile.domain} · ${scenario.name}`;
+}
+
 function fillStarterTemplate() {
   const confirmed = hasTaskDraft() ? confirm("Replace the current draft with a generated domain draft?") : true;
   if (!confirmed) return;
@@ -1390,6 +1765,7 @@ function fillStarterTemplate() {
   const scenario = pickScenario();
   const expertise = expertiseLabel(els.taskExpertise.value).toLowerCase();
 
+  lastTemplateState = { domainKey, profile, scenario };
   els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.`;
   els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
@@ -2054,7 +2430,22 @@ function renderAll() {
   if (els.appVersion) els.appVersion.textContent = APP_VERSION;
 }
 
-els.tabs.forEach((tab) => tab.addEventListener("click", () => setView(tab.dataset.view)));
+els.tabs.forEach((tab) => tab.addEventListener("click", () => {
+  setView(tab.dataset.view);
+  if (tab.dataset.view === "templates") renderCodeTemplates();
+}));
+const refreshTemplatesBtn = document.querySelector("#refresh-templates");
+if (refreshTemplatesBtn) refreshTemplatesBtn.addEventListener("click", renderCodeTemplates);
+const copySolvePyBtn = document.querySelector("#copy-solve-py");
+if (copySolvePyBtn) copySolvePyBtn.addEventListener("click", () => {
+  const el = document.querySelector("#template-solve-py");
+  if (el && el.textContent) navigator.clipboard.writeText(el.textContent).then(() => { copySolvePyBtn.textContent = "Copied!"; setTimeout(() => { copySolvePyBtn.textContent = "Copy"; }, 1800); });
+});
+const copyVerifyPyBtn = document.querySelector("#copy-verify-py");
+if (copyVerifyPyBtn) copyVerifyPyBtn.addEventListener("click", () => {
+  const el = document.querySelector("#template-verify-py");
+  if (el && el.textContent) navigator.clipboard.writeText(el.textContent).then(() => { copyVerifyPyBtn.textContent = "Copied!"; setTimeout(() => { copyVerifyPyBtn.textContent = "Copy"; }, 1800); });
+});
 els.search.addEventListener("input", (event) => {
   state.query = event.target.value;
   renderGuideList();
