@@ -984,21 +984,249 @@ const DOMAIN_DETAILS = {
     ]
   },
   statistics: {
+    sources: [
+      "UCI Machine Learning Repository: https://archive.ics.uci.edu/",
+      "OpenML datasets and benchmark tasks: https://www.openml.org/search?type=data"
+    ],
     resources: [
       "data/observations.csv, treatment_assignments.csv, missingness_flags.csv, covariates.csv, hypotheses.yaml, and analysis_plan.md.",
-      "config/model_spec.yaml with estimand, alpha level, clustering rules, missing-data policy, and multiple-testing correction.",
-      "verifier_inputs/normal_panel.csv, edge_all_missing_stratum.csv, invalid_post_treatment_covariate.csv, and expected_estimates.json."
+      "config/model_spec.yaml with estimand, alpha level, clustering rules, missing-data policy, and multiple-testing correction method.",
+      "schemas/statistical_report.schema.json and schemas/model_diagnostics.schema.json.",
+      "verifier_inputs/normal_panel.csv, edge_all_missing_stratum.csv, invalid_post_treatment_covariate.csv, and expected_estimates.json with point estimates, CIs, and p-values."
     ],
     solution: [
-      "Implement solve.py that validates randomization or treatment timing, missingness rules, covariate timing, and hypothesis IDs.",
-      "Run the specified inference model, diagnostics, sensitivity checks, and multiple-testing correction with deterministic seeds where needed.",
+      "Implement solve.py with python solve.py --observations data/observations.csv --timing data/treatment_assignments.csv --covariates data/covariates.csv --config config/model_spec.yaml --out outputs.",
+      "Validate treatment timing, check for post-treatment covariate contamination, enforce missing-data policy, and run pre-trend diagnostics before estimating effects.",
+      "Run the specified inference model with deterministic seeds, compute clustered standard errors, perform sensitivity analyses, and apply the declared multiple-testing correction.",
       "Write outputs/statistical_analysis_report.csv, outputs/model_diagnostics.json, outputs/reproducibility_notes.md, and outputs/exclusions.csv.",
-      "Explain any rejected rows through structured reason codes rather than free-text-only notes."
+      "The report must include estimand, coefficient, se_clustered, ci_lower, ci_upper, p_value, corrected_p_value, n_obs, exclusion_reason, and assumption_check_results."
     ],
     verifiers: [
-      "Fail if post-treatment covariates are used or missingness exclusions are unaccounted for.",
-      "Check estimates, confidence intervals, p-values, and correction procedure against reference tolerances.",
-      "Require diagnostics and row counts to reconcile with exclusions."
+      "Fail if post-treatment covariates are used as controls or if treatment timing is contaminated by future outcome values.",
+      "Check point estimates, clustered SEs, and pre-trend test statistics against expected_estimates.json within declared tolerances.",
+      "Require diagnostics and exclusion row counts to reconcile with the full observation count."
+    ]
+  },
+  "climate-geospatial": {
+    sources: [
+      "NOAA GHCN-Daily archive: https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/archive/",
+      "US Census Bureau TIGER/Line Shapefiles (county boundaries): https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html"
+    ],
+    resources: [
+      "data/station_metadata.csv with station_id, latitude, longitude, elevation_m, state_fips, county_fips, and record_start_year.",
+      "data/daily_observations.csv with station_id, date, tmax_tenth_c, tmin_tenth_c, prcp_tenth_mm, quality_flag, and source_flag.",
+      "data/county_boundaries.geojson from TIGER/Line with GEOID, NAME, ALAND, and AWATER in EPSG:4326.",
+      "config/anomaly_config.yaml with baseline_start, baseline_end, target_start, target_end, min_station_coverage, aggregation_method, and crs.",
+      "schemas/heat_anomaly.schema.json, schemas/station_qc.schema.json, and verifier_inputs/normal_county.csv, edge_sparse_stations.csv, invalid_crs_mismatch.geojson, expected_anomalies.json."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --stations data/daily_observations.csv --metadata data/station_metadata.csv --boundaries data/county_boundaries.geojson --config config/anomaly_config.yaml --out outputs.",
+      "Validate CRS consistency between station coordinates and boundary file, check baseline period completeness, and reject stations below the minimum coverage threshold with documented reason codes.",
+      "Compute per-station baselines, spatially join to county polygons in the correct CRS, aggregate county-level anomalies, and propagate coverage-weighted uncertainty.",
+      "Write outputs/heat_anomaly_by_county.csv, outputs/heat_anomaly.geojson, outputs/station_qc_report.csv, outputs/coverage_warnings.json, and outputs/run_manifest.json.",
+      "The anomaly CSV must include county_geoid, county_name, baseline_mean_c, target_mean_c, anomaly_c, station_count, coverage_fraction, spatial_method, and exclusion_reason."
+    ],
+    verifiers: [
+      "Fail if station coordinates are joined to county boundaries in a non-WGS84 CRS without explicit reprojection.",
+      "Check anomaly values and coverage fractions against expected_anomalies.json within declared tolerance.",
+      "Fail if the sparse-station edge case silently drops counties instead of emitting a documented exclusion_reason."
+    ]
+  },
+  "quant-finance": {
+    sources: [
+      "Stooq daily OHLCV data archive: https://stooq.com/db/h/",
+      "Kenneth French Data Library (Fama-French factors): https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html"
+    ],
+    resources: [
+      "data/ohlcv/prices_raw.csv with ticker, date, open, high, low, close, volume, and adj_close, plus data/corporate_actions.csv with split_ratio, dividend, ex_date, and ticker.",
+      "data/factors/ff3_daily.csv with date, mkt_rf, smb, hml, and rf from the Fama-French library.",
+      "data/portfolio/holdings.csv with ticker, weight, entry_date, exit_date, and strategy_id, plus trading_calendar.csv with date and market_open flag.",
+      "config/risk_config.yaml with annualization_factor, rolling_window_days, drawdown_method, factor_model, and return_type.",
+      "schemas/risk_report.schema.json, schemas/factor_exposure.schema.json, and verifier_inputs/normal_portfolio.csv, edge_split_on_rebalance.csv, invalid_lookahead_adj.csv, expected_risk_metrics.json."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --prices data/ohlcv/prices_raw.csv --actions data/corporate_actions.csv --factors data/factors/ff3_daily.csv --holdings data/portfolio/holdings.csv --config config/risk_config.yaml --out outputs.",
+      "Apply corporate-action adjustments in reverse chronological order, validate no future split factors leak into past returns, and align returns to trading-calendar business days only.",
+      "Compute log returns, rolling volatility, max drawdown, Sharpe ratio, and Fama-French factor exposure regressions using strictly out-of-sample windows.",
+      "Write outputs/portfolio_risk_report.csv, outputs/factor_exposures.json, outputs/return_series.csv, outputs/drawdown_series.csv, and outputs/run_manifest.json.",
+      "The risk report must include period_start, period_end, annualized_return, annualized_vol, sharpe_ratio, max_drawdown, factor_betas, factor_r2, and exclusion_reason."
+    ],
+    verifiers: [
+      "Fail if adj_close-derived returns diverge from manually adjusted close returns by more than the declared tolerance.",
+      "Assert that rolling windows and factor regression windows use only past observations with no look-ahead.",
+      "Check Sharpe ratio, max drawdown, and factor betas against expected_risk_metrics.json within declared tolerances."
+    ]
+  },
+  "materials-science": {
+    sources: [
+      "Crystallography Open Database (COD): https://www.crystallography.net/cod/",
+      "COD FTP structure access: https://www.crystallography.net/cod/ftp.html"
+    ],
+    resources: [
+      "data/structures/ with cif_001.cif through cif_020.cif from COD, plus cod_metadata.csv with cod_id, formula, space_group, a_angstrom, b_angstrom, c_angstrom, and source_url.",
+      "data/reference_properties.csv with cod_id, band_gap_ev, formation_energy_ev_atom, density_g_cm3, and measurement_source.",
+      "config/screening_config.yaml with target_property, threshold, symmetry_tolerance, oxidation_state_method, and duplicate_tolerance_angstrom.",
+      "schemas/ranked_materials.schema.json, schemas/structure_qc.schema.json, and verifier_inputs/normal_oxide.cif, edge_duplicate_structure.cif, invalid_oxidation_state.cif, expected_rankings.json."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --structures data/structures --metadata data/cod_metadata.csv --properties data/reference_properties.csv --config config/screening_config.yaml --out outputs.",
+      "Parse each CIF with pymatgen or ASE, validate stoichiometry, detect duplicate structures within the configured lattice-parameter tolerance, and assign oxidation states using the specified method.",
+      "Filter by target property threshold, compute composition descriptors (electronegativity variance, volume per atom), and rank passing structures by the target property.",
+      "Write outputs/ranked_materials.csv, outputs/structure_qc_report.csv, outputs/duplicates.json, outputs/rejected_structures.csv, and outputs/run_manifest.json.",
+      "The ranked CSV must include cod_id, formula, space_group, target_property_value, rank, descriptor_values, duplicate_of, and exclusion_reason."
+    ],
+    verifiers: [
+      "Fail if duplicate structures with different cod_ids are both included in the ranked output.",
+      "Check that invalid oxidation state fixtures produce exclusion_reason entries rather than silently passing.",
+      "Assert top-5 ranking order and property values against expected_rankings.json within declared tolerances."
+    ]
+  },
+  "power-systems": {
+    sources: [
+      "MATPOWER case files and documentation: https://matpower.org/docs/",
+      "MATPOWER GitHub repository: https://github.com/MATPOWER/matpower"
+    ],
+    resources: [
+      "data/case/bus.csv, branch.csv, gen.csv, and gencost.csv from a MATPOWER-format test case with column names matching MATPOWER bus/branch/gen matrix conventions.",
+      "data/load/load_profile.csv with hour, bus_id, pd_pu, and qd_pu for 24 representative load hours.",
+      "config/contingency_config.yaml with base_mva, solver, v_min_pu, v_max_pu, thermal_limit_pu, and contingency_set listing N-1 branch outages.",
+      "schemas/contingency_report.schema.json, schemas/voltage_profile.schema.json, and verifier_inputs/normal_case14.csv, edge_islanding_branch.csv, invalid_per_unit_mismatch.csv, expected_violations.json."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --case data/case --load data/load/load_profile.csv --config config/contingency_config.yaml --out outputs.",
+      "Validate per-unit consistency between bus base_kv and branch ratings, check slack bus assignment, and verify generator dispatch feasibility before running contingency screening.",
+      "Run N-1 AC or DC load flow for each contingency, record post-contingency voltages, branch flows, and thermal violations, and rank contingencies by worst-case severity score.",
+      "Write outputs/contingency_ranking.csv, outputs/voltage_profile.csv, outputs/thermal_violations.csv, outputs/infeasible_cases.json, and outputs/run_manifest.json.",
+      "The contingency ranking must include contingency_id, outaged_branch, worst_voltage_pu, worst_thermal_loading_pu, violation_count, and severity_score."
+    ],
+    verifiers: [
+      "Fail if branch ratings are compared in MW without converting from per-unit using the correct base_mva.",
+      "Check post-contingency voltage and thermal violation counts against expected_violations.json within declared tolerances.",
+      "Fail if the islanding edge case produces a converged result instead of an infeasible or island-flagged output."
+    ]
+  },
+  "cyber-forensics": {
+    sources: [
+      "Stratosphere IPS CTU-13 dataset: https://www.stratosphereips.org/datasets-ctu13",
+      "Malware-Traffic-Analysis PCAP training exercises: https://malware-traffic-analysis.net/training-exercises.html"
+    ],
+    resources: [
+      "data/pcap/traffic.pcap sliced to the relevant session window (max 50 MB), data/logs/zeek_conn.log with ts, uid, id.orig_h, id.resp_h, id.resp_p, proto, service, duration, orig_bytes, resp_bytes, conn_state.",
+      "data/logs/zeek_dns.log with ts, uid, query, qtype_name, answers, and ttl, plus data/logs/edr_events.jsonl with event_time, host, pid, process_name, event_type, and sha256.",
+      "data/ioc/known_hashes.csv with sha256, verdict, family, and source, plus data/timezone_notes.md describing capture timezone and log timestamp convention.",
+      "config/correlation_config.yaml with time_window_sec, beacon_min_connections, dns_tunnel_entropy_threshold, and ioc_match_policy.",
+      "schemas/incident_timeline.schema.json, schemas/ioc_table.schema.json, and verifier_inputs/normal_session.jsonl, edge_timezone_offset.jsonl, invalid_benign_hash_collision.jsonl, expected_iocs.json."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --pcap data/pcap/traffic.pcap --zeek data/logs --ioc data/ioc/known_hashes.csv --config config/correlation_config.yaml --out outputs.",
+      "Normalize all timestamps to UTC using timezone_notes.md, parse PCAP sessions, correlate Zeek conn and dns records by uid and time window, and match process hashes against the IOC list.",
+      "Identify beaconing by inter-arrival regularity, detect DNS tunneling by payload entropy, and reconstruct the kill-chain timeline with evidence from at least two independent log sources.",
+      "Write outputs/incident_timeline.json, outputs/ioc_table.csv, outputs/session_summary.csv, outputs/rejected_events.csv, and outputs/run_manifest.json.",
+      "The timeline must include event_id, event_time_utc, host, process, event_type, evidence_source, ioc_match, confidence, and correlation_uid."
+    ],
+    verifiers: [
+      "Fail if timestamps from PCAP and EDR logs are correlated without UTC normalization.",
+      "Check that IOC matches cite evidence from at least two independent sources and that benign hash collisions produce a false_positive flag rather than a true_positive.",
+      "Assert timeline event count, IOC entries, and key correlation UIDs against expected_iocs.json."
+    ]
+  },
+  econometrics: {
+    sources: [
+      "World Bank Open Data: https://data.worldbank.org/",
+      "IPUMS International microdata (non-restricted variables for demonstration): https://international.ipums.org/international/"
+    ],
+    resources: [
+      "data/panel_outcomes.csv with unit_id, period, and outcome, plus data/treatment_timing.csv with unit_id, treatment_period, and treatment_status.",
+      "data/covariates.csv with unit_id, period, and pre-treatment covariate columns, plus data/data_dictionary.md describing units, source, and any top-coding or imputation rules.",
+      "config/model_spec.yaml with estimand, fe_spec (unit, time, or two-way), cluster_variable, alpha_level, missing_data_policy, and multiple_testing_correction.",
+      "verifier_inputs/normal_balanced_panel.csv, edge_staggered_rollout.csv, invalid_post_treatment_covariate.csv, and expected_estimates.json with point estimates, confidence intervals, and p-values."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --outcomes data/panel_outcomes.csv --timing data/treatment_timing.csv --covariates data/covariates.csv --config config/model_spec.yaml --out outputs.",
+      "Validate treatment timing, detect post-treatment covariate contamination, construct the balanced or staggered DiD panel, and run pre-trend diagnostics before estimating effects.",
+      "Run the specified estimator (TWFE, stacked DiD, or Callaway-Sant'Anna), compute clustered standard errors, perform placebo tests, and apply the declared multiple-testing correction.",
+      "Write outputs/treatment_effect_estimates.csv, outputs/pre_trend_diagnostics.json, outputs/placebo_results.csv, outputs/exclusions.csv, and outputs/run_manifest.json.",
+      "The estimates CSV must include estimand, coefficient, se_clustered, ci_lower, ci_upper, p_value, corrected_p_value, n_units, n_periods, and exclusion_reason."
+    ],
+    verifiers: [
+      "Fail if post-treatment covariates are included as controls or if treatment timing is contaminated by future outcome values.",
+      "Check point estimates, clustered SEs, and pre-trend test statistics against expected_estimates.json within declared tolerances.",
+      "Fail if the staggered-rollout edge case applies a vanilla TWFE estimator without flagging heterogeneous treatment timing."
+    ]
+  },
+  "computational-linguistics": {
+    sources: [
+      "Universal Dependencies treebanks: https://universaldependencies.org/",
+      "Universal Dependencies GitHub repository: https://github.com/UniversalDependencies"
+    ],
+    resources: [
+      "data/train.conllu and data/test.conllu in CoNLL-U format with ID, FORM, LEMMA, UPOS, XPOS, FEATS, HEAD, DEPREL, DEPS, and MISC columns.",
+      "data/label_schema.md documenting the UPOS and DEPREL tagset, ambiguous categories, and known tokenizer boundary rules for the selected language.",
+      "config/eval_config.yaml with tokenizer_version, metrics (UAS, LAS, or F1), stratification_fields, and gold_standard_source.",
+      "data/split_manifest.json with train_ids, test_ids, gold_token_count, and genre annotations, plus data/gold_metrics.json with expected UAS and LAS scores.",
+      "verifier_inputs/normal_sentence.conllu, edge_multiword_token.conllu, invalid_mismatched_head.conllu, and expected_error_analysis.json."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --train data/train.conllu --test data/test.conllu --config config/eval_config.yaml --out outputs.",
+      "Validate CoNLL-U token counts, check for head-index out-of-bounds, verify tokenizer version matches label_schema.md, and detect cross-sentence dependency references before evaluation.",
+      "Compute UAS, LAS, and token-level F1 stratified by UPOS, DEPREL, sentence length, and genre, and generate a label-level confusion matrix.",
+      "Write outputs/eval_metrics.json, outputs/error_analysis.csv, outputs/confusion_matrix.csv, outputs/token_boundary_warnings.csv, and outputs/run_manifest.json.",
+      "The error analysis must include sentence_id, token_id, gold_head, pred_head, gold_deprel, pred_deprel, error_type, and contributing_factor."
+    ],
+    verifiers: [
+      "Fail if multi-word tokens are split or merged differently from the gold standard, changing token counts.",
+      "Check UAS, LAS, and top-5 error type frequencies against expected_error_analysis.json within declared tolerance.",
+      "Fail if invalid_mismatched_head.conllu is accepted as parseable instead of producing a validation error."
+    ]
+  },
+  "scientific-computing": {
+    sources: [
+      "Self-contained solver benchmark source: include all input files, parameter manifests, reference outputs, and tool version notes in the zip.",
+      "If adapted from a textbook benchmark or published test case, cite the DOI, equation number, boundary conditions, and expected convergence rate in README.md."
+    ],
+    resources: [
+      "solver_inputs/problem_definition.json with equation_type, domain_bounds, initial_conditions, source_term, and expected_conservation_quantities.",
+      "solver_inputs/parameters.yaml with solver_type, dt, dx, max_iterations, tolerance, and deterministic_seed.",
+      "data/reference_outputs.csv from a high-resolution or validated reference with time, position, u_ref, and reference_residual columns.",
+      "config/unit_definitions.md and config/residual_targets.json with per-quantity tolerance bounds.",
+      "verifier_inputs/normal_converged_case.yaml, edge_near_critical_dt.yaml, invalid_conservation_violation.yaml, and expected_convergence.json."
+    ],
+    solution: [
+      "Implement solve.py with python solve.py --problem solver_inputs/problem_definition.json --params solver_inputs/parameters.yaml --out outputs.",
+      "Validate input units, check CFL condition or stability criterion before advancing, enforce deterministic seed for any stochastic components, and track residuals at every declared checkpoint.",
+      "Run the solver to convergence or max_iterations, compute conservation-law residuals, L2 error versus reference, observed convergence rate across refinements, and memory and CPU footprint.",
+      "Write outputs/solution.csv, outputs/residual_history.csv, outputs/conservation_check.json, outputs/convergence_report.json, and outputs/run_manifest.json.",
+      "The convergence report must include refinement_level, dt, dx, l2_error, observed_rate, conservation_residual, solver_iterations, and stability_flag."
+    ],
+    verifiers: [
+      "Fail if the near-critical dt case produces a result without a stability_flag in the convergence report.",
+      "Check L2 error, observed convergence rate, and conservation residuals against expected_convergence.json within declared tolerances.",
+      "Assert that the invalid conservation-violation fixture triggers a rejected run rather than a silently incorrect output."
+    ]
+  },
+  "formal-methods": {
+    sources: [
+      "TLA+ tools and specifications by Leslie Lamport: https://lamport.azurewebsites.net/tla/tla.html",
+      "Alloy Analyzer: https://alloytools.org/"
+    ],
+    resources: [
+      "specs/model.tla or specs/model.als with the full system specification, invariant definitions, liveness properties, and fairness conditions.",
+      "specs/properties.md documenting each safety and liveness property, its informal statement, formal encoding, known counterexample families, and expected model-checker output.",
+      "config/tool_config.yaml with tool_name, tool_version, scope_bounds or symmetry_reduction settings, and model_check_command.",
+      "data/expected_counterexample.json with state_sequence, violated_property, minimal_trace_length, and reproduction_command.",
+      "verifier_inputs/valid_invariant.tla, edge_weakened_invariant.tla, invalid_missing_fairness.tla, and run_model_check.sh."
+    ],
+    solution: [
+      "Run run_model_check.sh or implement check.py using the exact tool_config.yaml command, capture stdout and stderr, and record the model checker exit code and timing.",
+      "Validate that the specification parses without errors, that all declared invariants are referenced in the check command, and that fairness conditions match the liveness properties in properties.md.",
+      "Reproduce the expected counterexample by re-running with the same scope bounds and confirm trace length and violated property match expected_counterexample.json exactly.",
+      "Strengthen or correct the invariant as specified, re-run the model checker, and verify the previously failing property now holds within the same scope.",
+      "Write outputs/model_check_result.json, outputs/counterexample_trace.json, outputs/invariant_coverage.csv, outputs/strengthened_spec.tla, and outputs/run_manifest.json."
+    ],
+    verifiers: [
+      "Fail if the weakened-invariant fixture passes the model checker instead of producing a counterexample.",
+      "Check that the reproduced counterexample trace length and violated property match expected_counterexample.json exactly.",
+      "Fail if the missing-fairness fixture produces a liveness-property PASS instead of a model-checker warning or failure."
     ]
   }
 };
