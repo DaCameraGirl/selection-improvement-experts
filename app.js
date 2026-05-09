@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 natural-tone";
+const APP_VERSION = "2026-05-09 checks-clean";
 
 const state = {
   guides: [],
@@ -667,7 +667,7 @@ const SCENARIO_STYLES = [
     verifier: "check exact mismatch categories, row counts, reference joins, stable ordering, and whether known malformed records are rejected for the right reason",
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
-      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
+      const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
       return [
         `A production migration of ${noun} has completed, but nobody has confirmed the migrated outputs actually match the legacy reference. The pipeline is paused and the team needs sign-off before it can go live.`,
         `What's needed is ${profile.artifact}${thr}, with a reason code on every divergence and the original source records preserved so any disagreement can be audited independently.`,
@@ -684,7 +684,7 @@ const SCENARIO_STYLES = [
     verifier: "confirm the reported failing case reproduces, the metric delta matches reference tolerance, and unrelated changes are not mislabeled as root causes",
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
-      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
+      const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
       return [
         `Something in a recent release broke ${noun} — metrics that were stable before the change have shifted, and the team cannot push a hotfix until the failure is pinned to a specific, reproducible cause.`,
         `The deliverable is ${profile.artifact}${thr}: the root cause identified in machine-readable form, cleanly separated from unrelated drift, with enough evidence that an independent engineer can pull the same inputs and reproduce the failure from scratch.`,
@@ -701,7 +701,7 @@ const SCENARIO_STYLES = [
     verifier: "check traceability fields, exclusion accounting, exact schema, version metadata, and deterministic recalculation of final values",
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
-      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
+      const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
       return [
         `An upcoming audit of ${noun} has flagged a gap: the outputs exist but there is no documented chain connecting each final value to its validated input, applied exclusion rule, or calculation assumption. The auditor needs that chain before sign-off.`,
         `The required deliverable is ${profile.artifact}${thr}, where every accepted record, every rejection, and every exclusion rule invoked is documented — nothing in the final outputs should be unexplained.`,
@@ -718,7 +718,7 @@ const SCENARIO_STYLES = [
     verifier: "assert normal-case correctness, edge-case handling, invalid-input rejection, failure-mode labels, and reproducibility across repeated runs",
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
-      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
+      const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
       return [
         `The current test suite for ${noun} only exercises the happy path — boundary conditions and malformed inputs are silently passing, and those silent failures have been reaching production downstream.`,
         `What the team needs is a deterministic edge-case benchmark: ${profile.artifact}${thr}, along with a failure-analysis table that covers normal behavior, boundary conditions, invalid-input handling, and the domain-specific failure modes that expert reviewers actually care about. Every conclusion must be verifiable from the output files alone — no digging through solver logs.`,
@@ -735,7 +735,7 @@ const SCENARIO_STYLES = [
     verifier: "check conflict classification, precedence handling, timestamp normalization, exact output schema, and whether known examples receive the expected reason codes",
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
-      const thr = profile.threshold ? ` — ${profile.threshold}` : "";
+      const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
       return [
         `Two trusted operational systems are returning conflicting records for ${noun}, and a downstream team is stuck — they cannot proceed until there is a single authoritative version of the data with a documented rationale for every conflict decision.`,
         `The required output is ${profile.artifact}${thr}: a reason code on each conflict decision, a confidence flag per row, and a separate review queue for unresolved records that the downstream team can work through directly.`,
@@ -1731,12 +1731,12 @@ function getTaskChecks(fields) {
     },
     {
       title: "Not toy or classroom-style",
-      pass: !hasAny(allText, ["toy example", "simple example", "hello world", "classroom", "homework", "beginner", "basic tutorial", "contrived", "made up data"]),
+      pass: !hasAny(prompt + " " + difficulty, ["toy example", "simple example", "hello world", "classroom", "homework", "beginner exercise", "basic tutorial", "contrived", "made up data"]),
       message: "Avoid prompts that read like homework, tutorials, toy examples, or made-up data exercises."
     },
     {
       title: "Specific objective output",
-      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create"]) && hasAny(prompt, ["csv", "json", "file", "table", "report", "metric", "score", "plot", "artifact", "output"]),
+      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create", "deliverable", "what is needed", "what the team needs", "required output", "required deliverable", "needed is", "team needs"]) && hasAny(prompt, ["csv", "json", "file", "table", "report", "metric", "score", "plot", "artifact", "output"]),
       message: "The prompt should request a concrete output artifact or measurable result, not broad advice or explanation."
     },
     {
