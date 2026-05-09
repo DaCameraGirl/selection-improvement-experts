@@ -1018,7 +1018,12 @@ function fillStarterTemplate() {
   els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
-  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.`;
+  const expertiseDepthSuffix = {
+    professional: " The solution must meet production-quality standards: correct validation under edge cases, tolerance-aware comparisons, and engineering-grade reproducibility.",
+    masters: " A correct solution requires careful algorithm selection, statistical validation, optimization under domain constraints, and baseline comparison rather than naive implementation.",
+    phd: " PhD-level solutions require methodological rigor, systematic research-level analysis, asymptotic or statistical justification of key design choices, and principled handling of edge cases."
+  }[els.taskExpertise.value] || "";
+  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}`;
   els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
   els.taskVerifiers.value = buildVerifierDraft(domainKey, type, scenario, standard);
   els.taskAgentCheck.value = "Optional: If tested with a terminal-enabled coding tool, record whether failures came from data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation.";
