@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 prompt-grammar";
+const APP_VERSION = "2026-05-09 quant-thresholds";
 
 const state = {
   guides: [],
@@ -405,7 +405,8 @@ const DOMAIN_DRAFTS = {
     method: "wavelet denoising, notch filtering, peak detection, beat-level feature extraction, and tolerance-based validation against reference annotations",
     data: "MIT-BIH-style waveform segments, annotation files, sampling-rate metadata, and a channel manifest",
     failure: "filter leakage, incorrect sampling-rate conversion, false peak matching, and accepting visually plausible but clinically invalid beat intervals",
-    sourceKit: "PhysioNet MIT-BIH Arrhythmia Database records 100, 101, and 103 exported as records.csv, annotations.csv, sampling_metadata.json, and a README with the 360 Hz sampling rate and signal-unit notes"
+    sourceKit: "PhysioNet MIT-BIH Arrhythmia Database records 100, 101, and 103 exported as records.csv, annotations.csv, sampling_metadata.json, and a README with the 360 Hz sampling rate and signal-unit notes",
+    threshold: "Beat detections must match reference annotations within ±15 ms at 360 Hz; sensitivity must be ≥ 0.97 and positive predictive value ≥ 0.96 across all supplied records."
   },
   "climate-geospatial": {
     brief: "Audit county-level heat anomaly outputs built from NOAA station data and boundary files",
@@ -414,7 +415,8 @@ const DOMAIN_DRAFTS = {
     method: "spatial joins, CRS normalization, temporal baseline construction, raster sampling, and uncertainty-aware regional aggregation",
     data: "station CSV files, a region boundary GeoJSON, gridded NetCDF or GeoTIFF data, and metadata describing units and coordinate reference systems",
     failure: "mixing coordinate systems, leaking target-period values into baselines, mishandling missing stations, and producing maps that cannot be verified numerically",
-    sourceKit: "NOAA GHCN Daily station observations, a TIGER/Line county boundary GeoJSON, station_metadata.csv, daily_observations.csv, county_boundaries.geojson, and crs_notes.md"
+    sourceKit: "NOAA GHCN Daily station observations, a TIGER/Line county boundary GeoJSON, station_metadata.csv, daily_observations.csv, county_boundaries.geojson, and crs_notes.md",
+    threshold: "County anomaly values must match the reference within ±0.1 °C; spatial joins must produce zero orphaned stations; coordinate reprojection error must not exceed 50 m."
   },
   "computational-biology": {
     brief: "Review promoter motif hits after a genome annotation update changed candidate loci",
@@ -423,7 +425,8 @@ const DOMAIN_DRAFTS = {
     method: "sequence parsing, motif scanning, multiple-testing correction, genomic interval joins, and reference-based validation",
     data: "FASTA sequences, GFF/GTF annotations, sample metadata, and a known reference motif table",
     failure: "off-by-one genomic coordinates, strand errors, invalid multiple-testing correction, and biologically implausible candidates",
-    sourceKit: "Ensembl or NCBI RefSeq chromosome slice exports packaged as genome_slice.fa, annotations.gff3, sample_manifest.csv, jaspar_motifs.tsv, and coordinate_conventions.md"
+    sourceKit: "Ensembl or NCBI RefSeq chromosome slice exports packaged as genome_slice.fa, annotations.gff3, sample_manifest.csv, jaspar_motifs.tsv, and coordinate_conventions.md",
+    threshold: "Motif hit coordinates must match the reference within ±5 bp; false-discovery rate after Benjamini-Hochberg correction must not exceed 0.05; zero strand-assignment errors permitted."
   },
   "quant-finance": {
     brief: "Reconcile portfolio risk metrics after a corporate-action adjustment changed historical returns",
@@ -432,7 +435,8 @@ const DOMAIN_DRAFTS = {
     method: "return normalization, volatility estimation, drawdown analysis, factor exposure regression, and out-of-sample validation",
     data: "OHLCV price files, corporate-action tables, factor-return files, and a portfolio holdings file",
     failure: "look-ahead bias, unadjusted splits, incorrect annualization, unstable regression windows, and unverifiable prose-only risk conclusions",
-    sourceKit: "Stooq or Nasdaq Data Link daily OHLCV exports for selected tickers, Fama-French factor CSVs, corporate_actions.csv, holdings.csv, and trading_calendar.csv"
+    sourceKit: "Stooq or Nasdaq Data Link daily OHLCV exports for selected tickers, Fama-French factor CSVs, corporate_actions.csv, holdings.csv, and trading_calendar.csv",
+    threshold: "Annualized volatility must match the reference within ±0.2%; maximum drawdown must agree within ±0.5 percentage points; factor betas must be within ±0.01 across all 252-day rolling windows."
   },
   "materials-science": {
     brief: "Screen crystal structures for duplicate or invalid candidates before a property-ranking handoff",
@@ -441,7 +445,8 @@ const DOMAIN_DRAFTS = {
     method: "CIF parsing, stoichiometry checks, descriptor generation, symmetry-aware filtering, and threshold-based property ranking",
     data: "CIF files, a composition metadata CSV, reference property measurements, and package/version notes for pymatgen or ASE",
     failure: "invalid oxidation-state assumptions, duplicate structures, unit mistakes, and rankings that ignore crystal symmetry constraints",
-    sourceKit: "Crystallography Open Database CIF samples, cod_metadata.csv, reference_properties.csv, pymatgen_version.txt, and structure_id_mapping.csv"
+    sourceKit: "Crystallography Open Database CIF samples, cod_metadata.csv, reference_properties.csv, pymatgen_version.txt, and structure_id_mapping.csv",
+    threshold: "No duplicate structures within a symmetry tolerance of 0.01 Å; predicted band-gap values must agree with reference within ±0.05 eV; zero invalid oxidation-state assignments permitted."
   },
   "power-systems": {
     brief: "Rank N-1 contingency violations for a MATPOWER-style test case after solver settings changed",
@@ -450,7 +455,8 @@ const DOMAIN_DRAFTS = {
     method: "AC or DC load-flow computation, N-1 contingency screening, constraint checking, and tolerance-based comparison to reference cases",
     data: "bus, branch, generator, and load tables plus base-MVA metadata and solver package versions",
     failure: "per-unit conversion errors, slack-bus mishandling, ignored thermal limits, and non-reproducible solver settings",
-    sourceKit: "MATPOWER case files such as case14 and case30 exported as bus.csv, branch.csv, gen.csv, load_profile.csv, base_mva.json, and solver_config.yaml"
+    sourceKit: "MATPOWER case files such as case14 and case30 exported as bus.csv, branch.csv, gen.csv, load_profile.csv, base_mva.json, and solver_config.yaml",
+    threshold: "Bus voltage magnitudes must remain within 0.95–1.05 p.u.; branch loadings exceeding 100% of thermal limit must be flagged within ±0.1 MVA tolerance; N-1 violation rankings must be reproducible across runs."
   },
   "cyber-forensics": {
     brief: "Reconcile Zeek network events with endpoint process logs for a suspected phishing intrusion",
@@ -459,7 +465,8 @@ const DOMAIN_DRAFTS = {
     method: "PCAP parsing, timestamp normalization, session reconstruction, hash matching, and rule-based event correlation",
     data: "PCAP files, endpoint event logs, hash allow/block lists, and schema documentation for event fields",
     failure: "timezone drift, conflating benign retries with compromise, missing correlated events, and relying on screenshots instead of parsed evidence",
-    sourceKit: "Stratosphere IPS CTU-style PCAP slices or Malware-Traffic-Analysis exercise logs packaged as traffic.pcap, zeek_conn.log, zeek_dns.log, edr_events.jsonl, known_hashes.csv, and timezone_notes.md"
+    sourceKit: "Stratosphere IPS CTU-style PCAP slices or Malware-Traffic-Analysis exercise logs packaged as traffic.pcap, zeek_conn.log, zeek_dns.log, edr_events.jsonl, known_hashes.csv, and timezone_notes.md",
+    threshold: "All session timestamps must be normalized to UTC ±1 s; IOC recall must be 100% on the supplied known-compromise fixture; zero benign sessions may be mislabeled as compromise in the normal-traffic fixture."
   },
   "robotics-control": {
     brief: "Audit a mobile robot trajectory controller using run logs from warehouse test routes",
@@ -468,7 +475,8 @@ const DOMAIN_DRAFTS = {
     method: "state-estimation checks, controller-response simulation, tracking-error computation, and constraint violation detection",
     data: "trajectory logs, robot parameter YAML, reference path files, and controller configuration files",
     failure: "frame-transform mistakes, unstable discretization, hidden actuator-limit violations, and metrics that reward smooth but inaccurate paths",
-    sourceKit: "ROS bag-derived trajectory CSVs, robot_params.yaml, reference_path.csv, controller_config.yaml, actuator_limits.json, and frame_conventions.md"
+    sourceKit: "ROS bag-derived trajectory CSVs, robot_params.yaml, reference_path.csv, controller_config.yaml, actuator_limits.json, and frame_conventions.md",
+    threshold: "Trajectory tracking error must not exceed 0.05 m RMS over all test routes; actuator torque must stay within ±10% of declared limits; controller settling time must be under 2 s for each waypoint."
   },
   econometrics: {
     brief: "Reproduce a treatment-effect report after an update changed panel cleaning rules",
@@ -477,7 +485,8 @@ const DOMAIN_DRAFTS = {
     method: "panel cleaning, difference-in-differences estimation, clustered standard errors, placebo tests, and pre-trend diagnostics",
     data: "panel outcome data, treatment timing tables, covariate files, and a data dictionary",
     failure: "bad treatment timing, wrong fixed effects, unclustered errors, post-treatment controls, and conclusions not tied to computed estimates",
-    sourceKit: "World Bank or IPUMS-style panel extracts packaged as panel_outcomes.csv, treatment_timing.csv, covariates.csv, data_dictionary.md, and pretrend_windows.json"
+    sourceKit: "World Bank or IPUMS-style panel extracts packaged as panel_outcomes.csv, treatment_timing.csv, covariates.csv, data_dictionary.md, and pretrend_windows.json",
+    threshold: "Treatment-effect point estimates must reproduce the reference within ±0.001; clustered standard errors must match within ±0.005; pre-trend coefficients must be jointly insignificant at α = 0.10."
   },
   "computational-linguistics": {
     brief: "Analyze label-level parser errors after a tokenizer version changed corpus boundaries",
@@ -486,7 +495,8 @@ const DOMAIN_DRAFTS = {
     method: "corpus parsing, stratified metric computation, agreement analysis, tokenization checks, and label-level confusion analysis",
     data: "annotated text files, label schema documentation, train/test split manifests, and tokenizer version notes",
     failure: "label leakage, token-boundary drift, invalid averaging, and unsupported linguistic conclusions",
-    sourceKit: "Universal Dependencies treebank samples packaged as train.conllu, test.conllu, label_schema.md, split_manifest.json, tokenizer_version.txt, and gold_metrics.json"
+    sourceKit: "Universal Dependencies treebank samples packaged as train.conllu, test.conllu, label_schema.md, split_manifest.json, tokenizer_version.txt, and gold_metrics.json",
+    threshold: "Token-level F1 must match the gold reference within ±0.5 percentage points; label confusion counts must be exact integer matches on the test split; zero cross-split token boundary leaks permitted."
   },
   "software-engineering": {
     brief: "Triage a real repository regression where a fix may have broken an existing public API contract",
@@ -495,7 +505,8 @@ const DOMAIN_DRAFTS = {
     method: "static analysis, targeted refactoring, regression-test minimization, dependency graph inspection, and behavioral compatibility checks",
     data: "a repository snapshot, failing test logs, API documentation, dependency lockfiles, and benchmark fixtures",
     failure: "fixing symptoms instead of root causes, breaking public APIs, hiding failures with brittle test changes, and missing edge-case regressions",
-    sourceKit: "a pinned open-source repository snapshot with bug_repro.md, failing_tests.txt, api_contract.md, package-lock.json or poetry.lock, regression_fixtures/, and expected_behavior.json"
+    sourceKit: "a pinned open-source repository snapshot with bug_repro.md, failing_tests.txt, api_contract.md, package-lock.json or poetry.lock, regression_fixtures/, and expected_behavior.json",
+    threshold: "100% of regression tests passing on the baseline commit must pass after the patch; zero public function signatures, return types, or error codes may change; all 3 fixture cases must pass the verifier."
   },
   "computer-science": {
     brief: "Build adversarial test coverage for an algorithm implementation with strict complexity constraints",
@@ -504,7 +515,8 @@ const DOMAIN_DRAFTS = {
     method: "algorithm design, proof-informed invariant checking, randomized stress testing, edge-case generation, and asymptotic performance validation",
     data: "problem specification files, seedable case generators, hidden reference outputs, and performance budget metadata",
     failure: "passing small examples with an exponential solution, mishandling boundary conditions, relying on unstable heuristics, and giving an implementation with no verifiable complexity behavior",
-    sourceKit: "problem_statement.md, constraints.json, seed_generator.py, public_cases.jsonl, adversarial_cases.jsonl, reference_outputs.jsonl, and runtime_budget.json"
+    sourceKit: "problem_statement.md, constraints.json, seed_generator.py, public_cases.jsonl, adversarial_cases.jsonl, reference_outputs.jsonl, and runtime_budget.json",
+    threshold: "Implementation must solve all adversarial cases within a 2-second time limit at n = 100,000; output values must exactly match the reference for all public cases; O(n²) or worse solutions will be rejected."
   },
   "distributed-systems": {
     brief: "Replay distributed event histories to find a consistency violation under partition timing changes",
@@ -513,7 +525,8 @@ const DOMAIN_DRAFTS = {
     method: "trace replay, happens-before reconstruction, invariant checking, quorum analysis, and deterministic fault-injection simulation",
     data: "node event logs, message trace files, configuration manifests, clock-skew metadata, and expected invariant definitions",
     failure: "assuming total ordering where none exists, ignoring delayed messages, missing split-brain cases, and producing conclusions not tied to replayed traces",
-    sourceKit: "Jepsen-style event histories packaged as history.edn or history.jsonl, node_configs.yaml, partition_windows.csv, invariant_spec.md, and expected_counterexamples.json"
+    sourceKit: "Jepsen-style event histories packaged as history.edn or history.jsonl, node_configs.yaml, partition_windows.csv, invariant_spec.md, and expected_counterexamples.json",
+    threshold: "Every counterexample trace must replay deterministically within 30 s; all invariant violations must be classified to one of the declared fault categories with zero false negatives on the supplied partition scenarios."
   },
   databases: {
     brief: "Diagnose why a reporting query regressed after planner statistics and index changes",
@@ -522,7 +535,8 @@ const DOMAIN_DRAFTS = {
     method: "query-plan inspection, cardinality-estimation analysis, index design, transaction anomaly detection, and repeatable benchmark comparison",
     data: "SQL schema dumps, sample tables, query workloads, transaction traces, planner outputs, and database version metadata",
     failure: "optimizing for one sample query only, ignoring isolation anomalies, using non-repeatable timings, and proposing indexes that violate workload constraints",
-    sourceKit: "TPC-H or Join Order Benchmark-inspired schema.sql, sample_data/, workload.sql, explain_plans_before.json, explain_plans_after.json, transaction_traces.csv, and postgres_version.txt"
+    sourceKit: "TPC-H or Join Order Benchmark-inspired schema.sql, sample_data/, workload.sql, explain_plans_before.json, explain_plans_after.json, transaction_traces.csv, and postgres_version.txt",
+    threshold: "Rewritten queries must reduce median execution time by ≥ 20% on the supplied workload without changing any result row or count; plan cost must not regress on the unmodified normal-traffic workload."
   },
   compilers: {
     brief: "Check whether a compiler optimization pass preserves semantics on targeted source fixtures",
@@ -531,7 +545,8 @@ const DOMAIN_DRAFTS = {
     method: "control-flow graph analysis, data-flow analysis, SSA reasoning, optimization legality checks, and differential testing against reference execution",
     data: "source fixtures, grammar or IR documentation, expected outputs, compiler flags, and pass-pipeline configuration files",
     failure: "performing an unsound optimization, mishandling undefined behavior, breaking scoping or type rules, and passing syntactic tests while changing program semantics",
-    sourceKit: "LLVM-lit-style fixtures or small language programs packaged as tests/input/, expected_stdout/, ir_before.ll, pass_pipeline.txt, grammar.md, and compiler_flags.txt"
+    sourceKit: "LLVM-lit-style fixtures or small language programs packaged as tests/input/, expected_stdout/, ir_before.ll, pass_pipeline.txt, grammar.md, and compiler_flags.txt",
+    threshold: "The optimization pass must preserve observable output for 100% of the supplied semantic test fixtures; IR diff must introduce zero undefined-behavior transformations; no scoping or type rules may be violated."
   },
   "ml-systems": {
     brief: "Audit batch-versus-online prediction drift after a feature pipeline migration",
@@ -540,7 +555,8 @@ const DOMAIN_DRAFTS = {
     method: "feature validation, calibration analysis, drift detection, latency profiling, batch/online parity checks, and threshold selection",
     data: "feature snapshots, prediction logs, ground-truth labels, model metadata, service traces, and evaluation configuration files",
     failure: "leaking labels, optimizing aggregate accuracy while failing slices, ignoring calibration, breaking batch/online parity, and using unstable latency measurements",
-    sourceKit: "OpenML-style tabular snapshot or model-serving logs packaged as features.parquet, labels.csv, prediction_logs.jsonl, model_card.md, slice_definitions.yaml, and latency_trace.csv"
+    sourceKit: "OpenML-style tabular snapshot or model-serving logs packaged as features.parquet, labels.csv, prediction_logs.jsonl, model_card.md, slice_definitions.yaml, and latency_trace.csv",
+    threshold: "Batch/online prediction divergence must stay below 1% on the top-confidence slice; p99 serving latency must not exceed 120 ms; AUC must not drop more than 0.005 relative to the pre-migration baseline."
   },
   "ai-governance": {
     brief: "Audit a model-risk and fairness report after a feature-policy migration changed production eligibility decisions",
@@ -549,7 +565,8 @@ const DOMAIN_DRAFTS = {
     method: "dataset-card validation, protected-attribute handling checks, slice-level performance analysis, calibration and threshold auditing, disparate-impact measurement, and policy-exception classification",
     data: "model cards, dataset cards, de-identified decision logs, protected-attribute policy metadata, slice definitions, threshold configs, and audit templates",
     failure: "leaking protected attributes, hiding harms in aggregate metrics, applying thresholds inconsistently across slices, missing calibration failures, and producing policy claims unsupported by output files",
-    sourceKit: "self-contained governance audit package with dataset_card.md, model_card.md, decision_logs.parquet, labels.csv, slice_definitions.yaml, threshold_policy.yaml, protected_attribute_policy.md, and expected_audit_metrics.json"
+    sourceKit: "self-contained governance audit package with dataset_card.md, model_card.md, decision_logs.parquet, labels.csv, slice_definitions.yaml, threshold_policy.yaml, protected_attribute_policy.md, and expected_audit_metrics.json",
+    threshold: "Disparate-impact ratio must be ≥ 0.80 across all protected slices; calibration error must not exceed 0.03; 100% of threshold decisions must trace to a policy entry with zero unexplained exceptions."
   },
   "applied-math": {
     brief: "Validate convergence and boundary-condition handling for a numerical solver output",
@@ -558,7 +575,8 @@ const DOMAIN_DRAFTS = {
     method: "discretization, stability analysis, convergence testing, residual computation, and tolerance-based comparison to analytic or high-resolution reference solutions",
     data: "parameter files, boundary-condition definitions, reference solutions, mesh or grid specifications, and numerical tolerance requirements",
     failure: "using an unstable discretization, confusing local and global error, failing boundary conditions, and reporting plausible numbers without convergence evidence",
-    sourceKit: "parameter_config.yaml, boundary_conditions.json, reference_solution.csv, mesh_levels/, tolerance_spec.json, and analytic_case_notes.md"
+    sourceKit: "parameter_config.yaml, boundary_conditions.json, reference_solution.csv, mesh_levels/, tolerance_spec.json, and analytic_case_notes.md",
+    threshold: "Numerical solution must converge to a relative residual below 1 × 10⁻⁶; boundary-condition error must not exceed 0.1% of the analytic reference; solution must be reproducible across 3 independent runs."
   },
   statistics: {
     brief: "Investigate why a treatment-effect analysis changed after missing-data handling was updated",
@@ -567,7 +585,8 @@ const DOMAIN_DRAFTS = {
     method: "power analysis, missing-data handling, model specification, multiple-testing correction, sensitivity analysis, and assumption diagnostics",
     data: "raw observation tables, treatment metadata, data dictionaries, pre-specified hypotheses, and analysis configuration files",
     failure: "p-hacking through multiple comparisons, invalid independence assumptions, mishandling missingness, and reporting significant results without diagnostic support",
-    sourceKit: "Kaggle/UCI-style raw observations packaged as observations.csv, treatment_assignments.csv, missingness_flags.csv, hypotheses.yaml, and analysis_plan.md"
+    sourceKit: "Kaggle/UCI-style raw observations packaged as observations.csv, treatment_assignments.csv, missingness_flags.csv, hypotheses.yaml, and analysis_plan.md",
+    threshold: "Point estimates must reproduce the reference within ±0.001; all p-values must be corrected for multiple comparisons at α = 0.05 using the pre-specified method; achieved power must be ≥ 0.80."
   },
   "scientific-computing": {
     brief: "Verify a solver run against conservation and residual targets after parameter changes",
@@ -576,7 +595,8 @@ const DOMAIN_DRAFTS = {
     method: "solver configuration, residual tracking, convergence analysis, conservation-law checks, parameter sweeps, and tolerance-based reference comparison",
     data: "simulation input files, parameter manifests, reference outputs, unit definitions, and package/compiler version notes",
     failure: "accepting non-converged runs, violating conservation constraints, mixing units, and using nondeterministic solver settings without documenting tolerances",
-    sourceKit: "solver_inputs/, parameters.yaml, unit_definitions.md, reference_outputs.csv, residual_targets.json, compiler_version.txt, and deterministic_seed.txt"
+    sourceKit: "solver_inputs/, parameters.yaml, unit_definitions.md, reference_outputs.csv, residual_targets.json, compiler_version.txt, and deterministic_seed.txt",
+    threshold: "Solver must achieve a relative residual below 1 × 10⁻⁸; mass and energy conservation errors must not exceed 0.01% across all timesteps; outputs must be bit-for-bit reproducible with the supplied seed."
   },
   "formal-methods": {
     brief: "Replay a model-checking counterexample and verify that the stated invariant is strong enough",
@@ -585,7 +605,8 @@ const DOMAIN_DRAFTS = {
     method: "state-space modeling, invariant strengthening, counterexample minimization, temporal-logic checking, and proof obligation validation",
     data: "formal specifications, model files, property definitions, expected counterexamples or theorem statements, and tool-version metadata",
     failure: "proving a weaker property than requested, missing liveness cases, relying on informal reasoning, and producing traces that cannot be replayed",
-    sourceKit: "TLA+/Alloy/Coq-style specs packaged as model.tla or model.als, properties.md, expected_counterexample.json, tool_versions.txt, and run_model_check.sh"
+    sourceKit: "TLA+/Alloy/Coq-style specs packaged as model.tla or model.als, properties.md, expected_counterexample.json, tool_versions.txt, and run_model_check.sh",
+    threshold: "Stated invariant must be verified or a minimal counterexample of ≤ 10 states must be produced; all proof obligations must discharge within 60 s using the supplied tool version; zero liveness cases may be omitted."
   }
 };
 
@@ -647,9 +668,10 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       return [
         `Produce ${profile.artifact} validating the results of ${toBriefNoun(profile.brief)}.`,
+        profile.threshold,
         `The report must identify every material divergence between legacy and migrated outputs, include a reason code for each divergence, and preserve the source records needed to audit it.`,
         standard.prompt
-      ].join("\n\n");
+      ].filter(Boolean).join("\n\n");
     }
   },
   {
@@ -662,9 +684,10 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       return [
         `Isolate the smallest reproducible failure case in ${toBriefNoun(profile.brief)} and return ${profile.artifact}.`,
+        profile.threshold,
         `The diagnosis must identify the root cause in machine-readable form, separate it from unrelated output drift, and include enough evidence for an independent engineer to rerun and confirm the failure.`,
         standard.prompt
-      ].join("\n\n");
+      ].filter(Boolean).join("\n\n");
     }
   },
   {
@@ -677,9 +700,10 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       return [
         `Produce ${profile.artifact} with full traceability for ${toBriefNoun(profile.brief)}.`,
+        profile.threshold,
         `Each final output must be traceable back to its validated input record, documented exclusion rule, or calculation assumption. Make it explicit which records were accepted, which were rejected, and why.`,
         standard.prompt
-      ].join("\n\n");
+      ].filter(Boolean).join("\n\n");
     }
   },
   {
@@ -692,9 +716,10 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       return [
         `Build a deterministic edge-case benchmark for ${toBriefNoun(profile.brief)} and produce ${profile.artifact}.`,
+        profile.threshold,
         `Include a failure-analysis table covering normal behavior, boundary conditions, invalid-input handling, and domain-specific failure modes. Every artifact must be verifiable from output files alone without reading the solver's reasoning.`,
         standard.prompt
-      ].join("\n\n");
+      ].filter(Boolean).join("\n\n");
     }
   },
   {
@@ -707,9 +732,10 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       return [
         `Reconcile ${toBriefNoun(profile.brief)} and produce ${profile.artifact}.`,
+        profile.threshold,
         `The output must include a reason code for each conflict decision, a confidence flag for each row, and a separate queue for unresolved records. A downstream team must be able to audit every changed or unresolved record from the output files alone.`,
         standard.prompt
-      ].join("\n\n");
+      ].filter(Boolean).join("\n\n");
     }
   }
 ];
