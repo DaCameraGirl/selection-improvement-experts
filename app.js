@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 quant-thresholds";
+const APP_VERSION = "2026-05-09 source-links";
 
 const state = {
   guides: [],
@@ -795,8 +795,9 @@ const DOMAIN_DETAILS = {
   },
   "computer-science": {
     sources: [
-      "Self-contained benchmark source: include the full problem statement, generated fixtures, seeds, and reference outputs in the zip.",
-      "If inspired by a public benchmark or repository, cite the exact URL, commit, release, or paper DOI in README.md."
+      "CSES Problem Set (competitive programming benchmarks): [CSES](https://cses.fi/problemset/)",
+      "USACO training and competition problems: [USACO](https://usaco.org/index.php?page=problems)",
+      "LeetCode problem set (algorithmic constraints): [LeetCode](https://leetcode.com/problemset/)"
     ],
     resources: [
       "problem/problem_statement.md describing an interval-query algorithm with n, q, value ranges, expected output format, and asymptotic target.",
@@ -820,8 +821,9 @@ const DOMAIN_DETAILS = {
   },
   "distributed-systems": {
     sources: [
-      "Self-contained distributed-systems benchmark source: include node event histories, partition windows, invariant definitions, and expected counterexamples in the zip.",
-      "If adapted from Jepsen-style histories or a public consistency-testing repository, cite the repository URL, commit SHA, license, history format, and workload/invariant definition."
+      "Jepsen distributed systems analysis framework and history format: [Jepsen](https://jepsen.io/)",
+      "Jepsen test histories and analysis reports on GitHub: [Jepsen GitHub](https://github.com/jepsen-io/jepsen)",
+      "FoundationDB simulation test suite documentation: [FoundationDB Testing](https://apple.github.io/foundationdb/testing.html)"
     ],
     resources: [
       "histories/history_before.jsonl and histories/history_after.jsonl with event_id, node_id, process_id, op, key, value, call_time_ms, return_time_ms, status, and logical_clock.",
@@ -845,8 +847,9 @@ const DOMAIN_DETAILS = {
   },
   compilers: {
     sources: [
-      "Self-contained compiler/static-analysis benchmark source: include all source fixtures, expected outputs, IR snapshots, pass configuration, and semantic checks in the zip.",
-      "If adapted from LLVM-lit, rustc, mypy, ESLint, or another public compiler/static-analysis suite, cite the repository URL, commit SHA, license, test IDs, and any fixture modifications."
+      "LLVM test suite and lit testing framework: [LLVM Test Suite](https://github.com/llvm/llvm-test-suite)",
+      "GCC compiler torture tests: [GCC Torture](https://github.com/gcc-mirror/gcc/tree/master/gcc/testsuite/gcc.c-torture)",
+      "mypy typeshed and type-checking test cases: [mypy Tests](https://github.com/python/mypy/tree/master/test-data)"
     ],
     resources: [
       "fixtures/source/ with normal_case.lang, edge_undefined_behavior.lang, invalid_type_scope.lang, and regression_case.lang.",
@@ -870,8 +873,9 @@ const DOMAIN_DETAILS = {
   },
   "applied-math": {
     sources: [
-      "Self-contained numerical benchmark source: include the analytic case notes, reference solution, mesh files, tolerance spec, and solver configuration in the zip.",
-      "If adapted from a public paper or textbook benchmark, cite the exact paper DOI, equation number, and boundary-condition definition in README.md."
+      "NIST Digital Library of Mathematical Functions (reference analytic solutions): [DLMF](https://dlmf.nist.gov/)",
+      "FEniCS Project tutorial problems and benchmark cases: [FEniCS Tutorial](https://fenicsproject.org/pub/tutorial/html/ftut1.html)",
+      "NIST finite element benchmark problems: [NIST FEM Benchmarks](https://www.nist.gov/programs-projects/nist-benchmark-finite-element-solution)"
     ],
     resources: [
       "config/parameter_config.yaml with equation_id, coefficient values, grid sizes, solver tolerances, and random_seed if used.",
@@ -895,9 +899,9 @@ const DOMAIN_DETAILS = {
   },
   "robotics-control": {
     sources: [
-      "Self-contained robotics benchmark source: include the converted trajectory CSVs, reference paths, controller configs, actuator limits, and expected metrics in the zip.",
-      "If adapted from TurtleBot3 or another ROS-based project, cite the exact repository URL, commit or release, robot model, ROS distribution, and bag-to-CSV conversion script.",
-      "If adapted from a public robotics trajectory dataset, cite the dataset URL, license, selected run IDs, coordinate-frame convention, and any downsampling used."
+      "TurtleBot3 ROS packages and simulation launch files: [TurtleBot3 GitHub](https://github.com/ROBOTIS-GIT/turtlebot3)",
+      "ROS bag format documentation and rosbag2 tools: [ROS2 Bags](https://docs.ros.org/en/rolling/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html)",
+      "MIT Humanoid Robotics Group trajectory datasets: [MIT CSAIL Robotics](https://groups.csail.mit.edu/robotics-center/)"
     ],
     resources: [
       "data/routes/route_a_reference.csv and route_b_reference.csv with timestamp_ns, frame_id, x_m, y_m, yaw_rad, v_ref_mps.",
@@ -919,8 +923,9 @@ const DOMAIN_DETAILS = {
   },
   "ml-systems": {
     sources: [
-      "Self-contained serving-evaluation source: include the feature snapshots, labels, model metadata, serving traces, and expected baseline metrics in the zip.",
-      "If adapted from OpenML or another public dataset, cite the dataset URL, version, task ID, license, and any preprocessing script used to create the supplied snapshots."
+      "OpenML datasets and benchmark tasks: [OpenML](https://www.openml.org/search?type=data)",
+      "scikit-learn sample datasets and real-world examples: [scikit-learn datasets](https://scikit-learn.org/stable/datasets.html)",
+      "Kaggle public datasets (filter by license): [Kaggle Datasets](https://www.kaggle.com/datasets)"
     ],
     resources: [
       "data/features/batch_features.parquet and online_features.parquet with stable entity_id, event_time, feature_version, and named feature columns.",
@@ -942,8 +947,9 @@ const DOMAIN_DETAILS = {
   },
   "ai-governance": {
     sources: [
-      "Self-contained AI governance audit source: include de-identified decision logs, labels, model card, dataset card, threshold policy, protected-attribute handling policy, and expected audit metrics in the zip.",
-      "If adapted from a public dataset, cite the dataset URL, version, license, selected sensitive/proxy attributes, preprocessing script, and why the supplied data is permitted for this use."
+      "IBM AI Fairness 360 datasets and examples: [AIF360](https://aif360.res.ibm.com/)",
+      "UCI Adult income dataset (income/fairness benchmark): [UCI Adult](https://archive.ics.uci.edu/dataset/2/adult)",
+      "Kaggle COMPAS recidivism data (ProPublica release): [COMPAS Dataset](https://www.kaggle.com/datasets/danofer/compass)"
     ],
     resources: [
       "governance/model_card.md and governance/dataset_card.md with model purpose, intended use, limits, training/evaluation split notes, and known risk controls.",
@@ -989,8 +995,9 @@ const DOMAIN_DETAILS = {
   },
   "software-engineering": {
     sources: [
-      "Self-contained repository benchmark source: include a pinned repository snapshot in repo_snapshot/ with the exact commit or release recorded in README.md.",
-      "If based on an open-source project, cite the repository URL, commit SHA, license, failing issue or regression note, and any upstream API documentation used."
+      "CPython issue tracker (real regression examples): [CPython Issues](https://github.com/python/cpython/issues)",
+      "pandas GitHub regression issues: [pandas Issues](https://github.com/pandas-dev/pandas/issues?q=label%3ARegression)",
+      "NumPy GitHub regression issues: [NumPy Issues](https://github.com/numpy/numpy/issues?q=label%3A%22regression%22)"
     ],
     resources: [
       "repo_snapshot/ containing the checked-out project at the pinned commit, excluding network-only build artifacts.",
@@ -1211,8 +1218,9 @@ const DOMAIN_DETAILS = {
   },
   "scientific-computing": {
     sources: [
-      "Self-contained solver benchmark source: include all input files, parameter manifests, reference outputs, and tool version notes in the zip.",
-      "If adapted from a textbook benchmark or published test case, cite the DOI, equation number, boundary conditions, and expected convergence rate in README.md."
+      "OpenFOAM tutorial cases and validation benchmarks: [OpenFOAM Tutorials](https://www.openfoam.com/documentation/tutorial-guide)",
+      "NIST computational fluid dynamics benchmark database: [NIST CFD](https://www.nist.gov/programs-projects/nist-data-gateway)",
+      "Netlib test problems for scientific computing: [Netlib](https://www.netlib.org/)"
     ],
     resources: [
       "solver_inputs/problem_definition.json with equation_type, domain_bounds, initial_conditions, source_term, and expected_conservation_quantities.",
