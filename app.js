@@ -1,5 +1,5 @@
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 source-links";
+const APP_VERSION = "2026-05-09 direct-downloads";
 
 const state = {
   guides: [],
@@ -746,6 +746,11 @@ const DOMAIN_DETAILS = {
       "PhysioNet MIT-BIH Arrhythmia Database v1.0.0: https://physionet.org/content/mitdb/1.0.0/",
       "PhysioNet file directory for records such as 100, 101, and 103: https://physionet.org/files/mitdb/1.0.0/"
     ],
+    downloads: [
+      "[Download record 100 CSV via PhysioNet waveform export](https://physionet.org/files/mitdb/1.0.0/) — click record 100, export as CSV; repeat for 101 and 103",
+      "[PhysioNet MIT-BIH annotation files (100.atr, 101.atr, 103.atr)](https://physionet.org/files/mitdb/1.0.0/) — download alongside each record CSV",
+      "[wfdb Python library for reading PhysioNet records](https://pypi.org/project/wfdb/) — pip install wfdb; use wfdb.rdsamp() to export to CSV"
+    ],
     resources: [
       "data/raw/mitdb_100_signal.csv, mitdb_101_signal.csv, mitdb_103_signal.csv with columns record_id, sample_index, time_sec, mlII_mv, v5_mv.",
       "data/reference/beat_annotations.csv with record_id, annotation_sample, annotation_time_sec, beat_symbol, source_record.",
@@ -771,6 +776,11 @@ const DOMAIN_DETAILS = {
       "Ensembl human GRCh38 downloads: https://www.ensembl.org/info/data/ftp/index.html",
       "JASPAR CORE transcription-factor binding profiles: https://jaspar.elixir.no/docs/",
       "Bioconductor JASPAR2024 data package: https://bioconductor.org/packages/JASPAR2024/"
+    ],
+    downloads: [
+      "[Ensembl GRCh38 chromosome 22 FASTA (small, fast download)](http://ftp.ensembl.org/pub/release-111/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.22.fa.gz) → gunzip → save as data/genome_slice.fa",
+      "[Ensembl GRCh38 GTF annotation (chr22 slice)](http://ftp.ensembl.org/pub/release-111/gtf/homo_sapiens/Homo_sapiens.GRCh38.111.chr.gtf.gz) → gunzip, filter to chr22 → save as data/annotations.gff3",
+      "[JASPAR 2024 CORE non-redundant PFMs (JASPAR format)](https://jaspar.elixir.no/download/data/2024/CORE/JASPAR2024_CORE_non-redundant_pfms_jaspar.txt) → save as data/jaspar_motifs.tsv"
     ],
     resources: [
       "data/genome_slice.fa containing chr7:55,000,000-55,120,000 from GRCh38 with sequence IDs matching coordinate_conventions.md.",
@@ -799,6 +809,11 @@ const DOMAIN_DETAILS = {
       "USACO training and competition problems: [USACO](https://usaco.org/index.php?page=problems)",
       "LeetCode problem set (algorithmic constraints): [LeetCode](https://leetcode.com/problemset/)"
     ],
+    downloads: [
+      "[CSES Range Queries problem pack (interval trees, segment trees)](https://cses.fi/problemset/list/) → write the problem_statement.md from the problem page; generate test cases using the provided seed_generator.py",
+      "[USACO 2023 problem test data GitHub mirror](https://github.com/bqi343/USACO) → download input/output files for a specific problem → save as cases/public_cases.jsonl",
+      "[competitive-programming-library on GitHub (reference implementations for stress testing)](https://github.com/atcoder/ac-library) → use as reference for adversarial case generation"
+    ],
     resources: [
       "problem/problem_statement.md describing an interval-query algorithm with n, q, value ranges, expected output format, and asymptotic target.",
       "problem/constraints.json with maximum n, maximum q, memory_limit_mb, time_limit_ms, and forbidden_complexity_classes.",
@@ -824,6 +839,11 @@ const DOMAIN_DETAILS = {
       "Jepsen distributed systems analysis framework and history format: [Jepsen](https://jepsen.io/)",
       "Jepsen test histories and analysis reports on GitHub: [Jepsen GitHub](https://github.com/jepsen-io/jepsen)",
       "FoundationDB simulation test suite documentation: [FoundationDB Testing](https://apple.github.io/foundationdb/testing.html)"
+    ],
+    downloads: [
+      "[Jepsen elle checker example histories (EDN/JSON format)](https://github.com/jepsen-io/elle/tree/main/test/elle) → download sample history files → convert to histories/history_before.jsonl",
+      "[Jepsen analyses GitHub repo (real system test results as EDN histories)](https://github.com/jepsen-io/jepsen/tree/main/jepsen/test/resources) → pick a workload history → save as histories/history_after.jsonl",
+      "[elle checker Python port on PyPI for invariant verification](https://pypi.org/project/elle-checker/) → use for replay verification scripts"
     ],
     resources: [
       "histories/history_before.jsonl and histories/history_after.jsonl with event_id, node_id, process_id, op, key, value, call_time_ms, return_time_ms, status, and logical_clock.",
@@ -851,6 +871,11 @@ const DOMAIN_DETAILS = {
       "GCC compiler torture tests: [GCC Torture](https://github.com/gcc-mirror/gcc/tree/master/gcc/testsuite/gcc.c-torture)",
       "mypy typeshed and type-checking test cases: [mypy Tests](https://github.com/python/mypy/tree/master/test-data)"
     ],
+    downloads: [
+      "[mypy test-data cases (typecheck suites, free direct download)](https://github.com/python/mypy/tree/master/test-data/unit) → download 2-3 .test files → extract input programs and expected outputs → save as fixtures/source/",
+      "[GCC torture test suite C files (browse by directory)](https://github.com/gcc-mirror/gcc/tree/master/gcc/testsuite/gcc.c-torture/execute) → download 5-10 .c files with known behavior → save as fixtures/source/",
+      "[LLVM lit test format documentation and sample fixtures](https://github.com/llvm/llvm-project/tree/main/llvm/test/Transforms) → pick one optimization pass folder, download 3-5 .ll files → save as fixtures/source/ and ir_before.ll"
+    ],
     resources: [
       "fixtures/source/ with normal_case.lang, edge_undefined_behavior.lang, invalid_type_scope.lang, and regression_case.lang.",
       "fixtures/expected_stdout/ and fixtures/expected_exit_codes.json with expected behavior before and after the optimization pass.",
@@ -876,6 +901,11 @@ const DOMAIN_DETAILS = {
       "NIST Digital Library of Mathematical Functions (reference analytic solutions): [DLMF](https://dlmf.nist.gov/)",
       "FEniCS Project tutorial problems and benchmark cases: [FEniCS Tutorial](https://fenicsproject.org/pub/tutorial/html/ftut1.html)",
       "NIST finite element benchmark problems: [NIST FEM Benchmarks](https://www.nist.gov/programs-projects/nist-benchmark-finite-element-solution)"
+    ],
+    downloads: [
+      "[FEniCS tutorial Poisson equation demo (Python source, self-contained)](https://github.com/FEniCS/dolfinx/tree/main/python/demo/poisson) → download demo_poisson.py → use as solve basis; generate boundary_conditions.json from it",
+      "[NIST DLMF Chapter 9 Airy functions (analytic reference values for convergence testing)](https://dlmf.nist.gov/9) → copy tabulated values → save as reference_solution.csv",
+      "[scipy.integrate reference ODE solvers (built-in, no download)](https://docs.scipy.org/doc/scipy/reference/integrate.html) → use scipy.integrate.solve_ivp() output as reference_solution.csv for comparison"
     ],
     resources: [
       "config/parameter_config.yaml with equation_id, coefficient values, grid sizes, solver tolerances, and random_seed if used.",
@@ -903,6 +933,11 @@ const DOMAIN_DETAILS = {
       "ROS bag format documentation and rosbag2 tools: [ROS2 Bags](https://docs.ros.org/en/rolling/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html)",
       "MIT Humanoid Robotics Group trajectory datasets: [MIT CSAIL Robotics](https://groups.csail.mit.edu/robotics-center/)"
     ],
+    downloads: [
+      "[TurtleBot3 simulation Gazebo bag files from ROBOTIS GitHub releases](https://github.com/ROBOTIS-GIT/turtlebot3/releases) → extract bag, export poses to CSV → save as data/logs/controller_run_01.csv",
+      "[nuScenes mini dataset free split (trajectory logs, no registration needed)](https://www.nuscenes.org/nuscenes#download) → extract trajectory CSVs for 2 scenes → save as data/routes/route_a_reference.csv",
+      "[robot_params.yaml example for TurtleBot3 Burger](https://raw.githubusercontent.com/ROBOTIS-GIT/turtlebot3/master/turtlebot3_description/urdf/turtlebot3_burger.urdf.xacro) → extract wheel radius and track width → save as config/robot_params.yaml"
+    ],
     resources: [
       "data/routes/route_a_reference.csv and route_b_reference.csv with timestamp_ns, frame_id, x_m, y_m, yaw_rad, v_ref_mps.",
       "data/logs/controller_run_01.csv and controller_run_02.csv with odom pose, command velocity, actuator saturation flags, and controller mode.",
@@ -927,6 +962,11 @@ const DOMAIN_DETAILS = {
       "scikit-learn sample datasets and real-world examples: [scikit-learn datasets](https://scikit-learn.org/stable/datasets.html)",
       "Kaggle public datasets (filter by license): [Kaggle Datasets](https://www.kaggle.com/datasets)"
     ],
+    downloads: [
+      "[OpenML credit-g dataset direct ARFF download (1000 rows, classification)](https://api.openml.org/data/v1/download/21552494) → convert ARFF to CSV with pandas or arff library → save as data/features/batch_features.csv",
+      "[OpenML wine quality dataset direct download](https://api.openml.org/data/v1/download/40691) → use as online feature snapshot with slight schema shift → save as data/features/online_features.csv",
+      "[scikit-learn breast cancer dataset (built-in, no download needed)](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_breast_cancer.html) → sklearn.datasets.load_breast_cancer(as_frame=True) → export to CSV as alternative feature set"
+    ],
     resources: [
       "data/features/batch_features.parquet and online_features.parquet with stable entity_id, event_time, feature_version, and named feature columns.",
       "data/predictions/batch_predictions.csv, online_predictions.jsonl, labels.csv, slice_definitions.yaml, latency_trace.csv, and model_card.md.",
@@ -950,6 +990,11 @@ const DOMAIN_DETAILS = {
       "IBM AI Fairness 360 datasets and examples: [AIF360](https://aif360.res.ibm.com/)",
       "UCI Adult income dataset (income/fairness benchmark): [UCI Adult](https://archive.ics.uci.edu/dataset/2/adult)",
       "Kaggle COMPAS recidivism data (ProPublica release): [COMPAS Dataset](https://www.kaggle.com/datasets/danofer/compass)"
+    ],
+    downloads: [
+      "[UCI Adult dataset direct download ZIP (48K rows, income/protected attributes)](https://archive.ics.uci.edu/static/public/2/adult.zip) → unzip, rename adult.data → save as data/decision_logs.csv with decision_id added",
+      "[ProPublica COMPAS two-year recidivism CSV (direct GitHub download)](https://raw.githubusercontent.com/propublica/compas-analysis/master/compas-scores-two-years.csv) → save as data/decision_logs.parquet after converting with pandas",
+      "[AIF360 example notebooks showing label/protected-attribute structure](https://github.com/Trusted-AI/AIF360/tree/main/examples) → use adult_demo.ipynb as reference for building slice_definitions.yaml and threshold_policy.yaml"
     ],
     resources: [
       "governance/model_card.md and governance/dataset_card.md with model purpose, intended use, limits, training/evaluation split notes, and known risk controls.",
@@ -976,6 +1021,11 @@ const DOMAIN_DETAILS = {
       "Self-contained database benchmark source: include the schema, sample data, query workload, explain plans, statistics snapshots, and expected metrics in the zip.",
       "If adapted from TPC-H, Join Order Benchmark, PostgreSQL examples, or another public benchmark, cite the source URL, version, license, scale factor, selected queries, and database engine version."
     ],
+    downloads: [
+      "[Join Order Benchmark (JOB) IMDB data download instructions and schema](https://github.com/gregrahn/join-order-benchmark) → clone repo, follow README to download IMDB CSVs → save schema as db/schema.sql",
+      "[PostgreSQL sample databases (pagila, dvdrental)](https://www.postgresqltutorial.com/postgresql-getting-started/postgresql-sample-database/) → download dvdrental.tar → restore, dump schema and 1000-row sample → save as db/sample_data/",
+      "[Bao query optimizer training workloads on GitHub](https://github.com/learnedsystems/BaoForPostgreSQL/tree/master/queries) → download SQL files → save as workload/reporting_query.sql"
+    ],
     resources: [
       "db/schema.sql, db/sample_data/, workload/reporting_query.sql, plans/explain_before.json, plans/explain_after.json, stats/table_stats_before_after.csv, and db/postgres_version.txt.",
       "constraints/index_budget.yaml, workload_frequency.csv, expected_output_schema.json, and verifier_inputs/known_bad_plan.json.",
@@ -998,6 +1048,11 @@ const DOMAIN_DETAILS = {
       "CPython issue tracker (real regression examples): [CPython Issues](https://github.com/python/cpython/issues)",
       "pandas GitHub regression issues: [pandas Issues](https://github.com/pandas-dev/pandas/issues?q=label%3ARegression)",
       "NumPy GitHub regression issues: [NumPy Issues](https://github.com/numpy/numpy/issues?q=label%3A%22regression%22)"
+    ],
+    downloads: [
+      "[pandas pinned release ZIP (pick a version with a known regression, e.g. 2.1.4)](https://github.com/pandas-dev/pandas/releases/tag/v2.1.4) → download source ZIP → save as repo_snapshot/",
+      "[CPython pinned release ZIP (e.g. 3.11.8 with a known bug)](https://github.com/python/cpython/releases/tag/v3.11.8) → download source ZIP → save as repo_snapshot/",
+      "[git clone a specific commit: git archive --format=zip HEAD > repo_snapshot.zip](https://github.com/pandas-dev/pandas) → use commit SHA from a regression issue → extract to repo_snapshot/"
     ],
     resources: [
       "repo_snapshot/ containing the checked-out project at the pinned commit, excluding network-only build artifacts.",
@@ -1025,6 +1080,11 @@ const DOMAIN_DETAILS = {
       "UCI Machine Learning Repository: https://archive.ics.uci.edu/",
       "OpenML datasets and benchmark tasks: https://www.openml.org/search?type=data"
     ],
+    downloads: [
+      "[UCI Heart Disease dataset ZIP (303 rows, clinical observations with missingness)](https://archive.ics.uci.edu/static/public/45/heart+disease.zip) → unzip, combine 4 location files → save as data/observations.csv",
+      "[UCI Wine Quality dataset (direct CSV, no login needed)](https://archive.ics.uci.edu/static/public/186/wine+quality.zip) → unzip winequality-red.csv → use as treatment/control group data",
+      "[OpenML diabetes dataset direct ARFF download](https://api.openml.org/data/v1/download/37) → convert to CSV → save as data/observations.csv with treatment_assignments.csv split by outcome column"
+    ],
     resources: [
       "data/observations.csv, treatment_assignments.csv, missingness_flags.csv, covariates.csv, hypotheses.yaml, and analysis_plan.md.",
       "config/model_spec.yaml with estimand, alpha level, clustering rules, missing-data policy, and multiple-testing correction method.",
@@ -1048,6 +1108,11 @@ const DOMAIN_DETAILS = {
     sources: [
       "NOAA GHCN-Daily archive: https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/archive/",
       "US Census Bureau TIGER/Line Shapefiles (county boundaries): https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html"
+    ],
+    downloads: [
+      "[NOAA GHCN-Daily station CSV archive (daily-summaries-latest.tar.gz)](https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/archive/) → extract, filter to your target county set → save as data/daily_observations.csv",
+      "[TIGER/Line 2023 US County shapefile ZIP](https://www2.census.gov/geo/tiger/TIGER2023/COUNTY/tl_2023_us_county.zip) → convert to GeoJSON with geopandas → save as data/county_boundaries.geojson",
+      "[NOAA station inventory CSV (ghcnd-stations.txt)](https://www.ncei.noaa.gov/pub/data/ghcn/daily/ghcnd-stations.txt) → filter to state/county → save as data/station_metadata.csv"
     ],
     resources: [
       "data/station_metadata.csv with station_id, latitude, longitude, elevation_m, state_fips, county_fips, and record_start_year.",
@@ -1074,6 +1139,11 @@ const DOMAIN_DETAILS = {
       "Stooq daily OHLCV data archive: https://stooq.com/db/h/",
       "Kenneth French Data Library (Fama-French factors): https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html"
     ],
+    downloads: [
+      "[Stooq US daily stock data ZIP (us_d.zip)](https://stooq.com/db/h/) → download us_d.zip, pick 5-10 tickers → save as data/ohlcv/prices_raw.csv",
+      "[Fama-French 3-Factor daily CSV ZIP](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip) → unzip → save as data/ff_factors_daily.csv",
+      "[Fama-French 3-Factor monthly CSV ZIP](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_CSV.zip) → unzip → save as data/ff_factors_monthly.csv"
+    ],
     resources: [
       "data/ohlcv/prices_raw.csv with ticker, date, open, high, low, close, volume, and adj_close, plus data/corporate_actions.csv with split_ratio, dividend, ex_date, and ticker.",
       "data/factors/ff3_daily.csv with date, mkt_rf, smb, hml, and rf from the Fama-French library.",
@@ -1099,6 +1169,11 @@ const DOMAIN_DETAILS = {
       "Crystallography Open Database (COD): https://www.crystallography.net/cod/",
       "COD FTP structure access: https://www.crystallography.net/cod/ftp.html"
     ],
+    downloads: [
+      "[COD search for silicon structures (free CIF download)](https://www.crystallography.net/cod/result.php?formula=Si) → download 10-20 CIF files → save as data/structures/cif_001.cif etc.",
+      "[COD FTP all CIF files (cod-cifs-pack.tar.gz ~3 GB, or browse by ID)](https://www.crystallography.net/cod/ftp.html) → use individual CIF URLs: https://www.crystallography.net/cod/1000001.cif",
+      "[pymatgen on PyPI for CIF parsing and descriptor generation](https://pypi.org/project/pymatgen/) → pip install pymatgen; included in requirements.txt"
+    ],
     resources: [
       "data/structures/ with cif_001.cif through cif_020.cif from COD, plus cod_metadata.csv with cod_id, formula, space_group, a_angstrom, b_angstrom, c_angstrom, and source_url.",
       "data/reference_properties.csv with cod_id, band_gap_ev, formation_energy_ev_atom, density_g_cm3, and measurement_source.",
@@ -1123,6 +1198,11 @@ const DOMAIN_DETAILS = {
       "MATPOWER case files and documentation: https://matpower.org/docs/",
       "MATPOWER GitHub repository: https://github.com/MATPOWER/matpower"
     ],
+    downloads: [
+      "[MATPOWER case14.m (14-bus IEEE test case)](https://raw.githubusercontent.com/MATPOWER/matpower/master/data/case14.m) → convert to CSV using pandapower or parse manually → save as data/case/bus.csv, branch.csv, gen.csv",
+      "[MATPOWER case30.m (30-bus IEEE test case)](https://raw.githubusercontent.com/MATPOWER/matpower/master/data/case30.m) → same conversion process",
+      "[pandapower on PyPI for MATPOWER case loading and load-flow](https://pypi.org/project/pandapower/) → pip install pandapower; use pp.from_mpc() to load .m files"
+    ],
     resources: [
       "data/case/bus.csv, branch.csv, gen.csv, and gencost.csv from a MATPOWER-format test case with column names matching MATPOWER bus/branch/gen matrix conventions.",
       "data/load/load_profile.csv with hour, bus_id, pd_pu, and qd_pu for 24 representative load hours.",
@@ -1146,6 +1226,11 @@ const DOMAIN_DETAILS = {
     sources: [
       "Stratosphere IPS CTU-13 dataset: https://www.stratosphereips.org/datasets-ctu13",
       "Malware-Traffic-Analysis PCAP training exercises: https://malware-traffic-analysis.net/training-exercises.html"
+    ],
+    downloads: [
+      "[CTU-13 scenario 1 PCAP and Zeek logs (direct download)](https://mcfp.felk.cvut.cz/publicDatasets/CTU-Malware-Capture-Botnet-42/) → download traffic.pcap and conn.log → save as data/pcap/traffic.pcap and data/logs/zeek_conn.log",
+      "[Malware-Traffic-Analysis 2024 training exercise PCAPs](https://malware-traffic-analysis.net/training-exercises.html) → pick any exercise, download the ZIP → extract PCAP → save as data/pcap/traffic.pcap",
+      "[Zeek network analysis framework on GitHub](https://github.com/zeek/zeek) → process PCAP with zeek -r traffic.pcap to generate conn.log, dns.log"
     ],
     resources: [
       "data/pcap/traffic.pcap sliced to the relevant session window (max 50 MB), data/logs/zeek_conn.log with ts, uid, id.orig_h, id.resp_h, id.resp_p, proto, service, duration, orig_bytes, resp_bytes, conn_state.",
@@ -1172,6 +1257,11 @@ const DOMAIN_DETAILS = {
       "World Bank Open Data: https://data.worldbank.org/",
       "IPUMS International microdata (non-restricted variables for demonstration): https://international.ipums.org/international/"
     ],
+    downloads: [
+      "[World Bank GDP per capita CSV (all countries, all years)](https://api.worldbank.org/v2/en/indicator/NY.GDP.PCAP.CD?downloadformat=csv) → unzip, filter to your treatment/control countries → save as data/panel_outcomes.csv",
+      "[World Bank unemployment rate CSV](https://api.worldbank.org/v2/en/indicator/SL.UEM.TOTL.ZS?downloadformat=csv) → use as covariate → save as data/covariates.csv",
+      "[Penn World Tables 10.01 (free download, GDP/productivity panel)](https://www.rug.nl/ggdc/productivity/pwt/pwt-releases/pwt10.01) → download CSV → filter to 20-30 countries and 10-year window"
+    ],
     resources: [
       "data/panel_outcomes.csv with unit_id, period, and outcome, plus data/treatment_timing.csv with unit_id, treatment_period, and treatment_status.",
       "data/covariates.csv with unit_id, period, and pre-treatment covariate columns, plus data/data_dictionary.md describing units, source, and any top-coding or imputation rules.",
@@ -1195,6 +1285,11 @@ const DOMAIN_DETAILS = {
     sources: [
       "Universal Dependencies treebanks: https://universaldependencies.org/",
       "Universal Dependencies GitHub repository: https://github.com/UniversalDependencies"
+    ],
+    downloads: [
+      "[UD English EWT train split (CoNLL-U format, direct download)](https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/master/en_ewt-ud-train.conllu) → save as data/train.conllu",
+      "[UD English EWT test split (CoNLL-U format, direct download)](https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/master/en_ewt-ud-test.conllu) → save as data/test.conllu",
+      "[UD English EWT dev split](https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/master/en_ewt-ud-dev.conllu) → save as data/dev.conllu for validation"
     ],
     resources: [
       "data/train.conllu and data/test.conllu in CoNLL-U format with ID, FORM, LEMMA, UPOS, XPOS, FEATS, HEAD, DEPREL, DEPS, and MISC columns.",
@@ -1222,6 +1317,11 @@ const DOMAIN_DETAILS = {
       "NIST computational fluid dynamics benchmark database: [NIST CFD](https://www.nist.gov/programs-projects/nist-data-gateway)",
       "Netlib test problems for scientific computing: [Netlib](https://www.netlib.org/)"
     ],
+    downloads: [
+      "[OpenFOAM cavity tutorial input files (lid-driven cavity, classic CFD benchmark)](https://develop.openfoam.com/Development/openfoam/-/tree/master/tutorials/incompressible/icoFoam/cavity) → download 0/, constant/, system/ folders → save as solver_inputs/",
+      "[Netlib LAPACK test matrices and reference solutions](https://www.netlib.org/lapack/lug/) → download specific matrix test sets → save as reference_outputs.csv",
+      "[SciPy ODEPACK / LSODA reference solver (built-in)](https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.odeint.html) → generate reference trajectory with fixed seed → save as reference_outputs.csv"
+    ],
     resources: [
       "solver_inputs/problem_definition.json with equation_type, domain_bounds, initial_conditions, source_term, and expected_conservation_quantities.",
       "solver_inputs/parameters.yaml with solver_type, dt, dx, max_iterations, tolerance, and deterministic_seed.",
@@ -1246,6 +1346,11 @@ const DOMAIN_DETAILS = {
     sources: [
       "TLA+ tools and specifications by Leslie Lamport: https://lamport.azurewebsites.net/tla/tla.html",
       "Alloy Analyzer: https://alloytools.org/"
+    ],
+    downloads: [
+      "[TLA+ Examples repository ZIP (Paxos, Raft, transaction commit specs)](https://github.com/tlaplus/Examples/archive/refs/heads/main.zip) → unzip, pick one spec (e.g. specifications/PaxosHowToWinATuringAward/) → save as specs/model.tla",
+      "[Alloy Analyzer 6 JAR (free download, runs standalone)](https://github.com/AlloyTools/org.alloytools.alloy/releases/latest) → download alloy.jar; pick a sample model from the examples folder → save as specs/model.als",
+      "[TLA+ Toolbox installer (free, includes TLC model checker)](https://github.com/tlaplus/tlaplus/releases/latest) → download, use TLC to generate counterexample traces → save as expected_counterexample.json"
     ],
     resources: [
       "specs/model.tla or specs/model.als with the full system specification, invariant definitions, liveness properties, and fairness conditions.",
@@ -1306,12 +1411,19 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
     "verifier_inputs/normal_case.csv, verifier_inputs/edge_case.csv, verifier_inputs/invalid_case.csv, and expected_metrics.json."
   ];
 
+  const domainDownloads = details && Array.isArray(details.downloads) && details.downloads.length ? details.downloads : [];
+
   return [
     "Provide one self-contained zip folder with this structure:",
     "",
     "Public source references:",
     ...resourceSourcesFor(details, profile).map((item) => `- ${formatSourceLink(item)}`),
     "",
+    ...(domainDownloads.length ? [
+      "Direct downloads — click each link, download the file, and place it at the path shown:",
+      ...domainDownloads.map((item) => `- ${formatSourceLink(item)}`),
+      ""
+    ] : []),
     "README.md",
     "- Describe each file, column schema, unit, coordinate/time convention, expected output path, and exclusion rule.",
     "- State that the workflow must run without network access after the zip is unpacked.",
