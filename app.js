@@ -780,6 +780,40 @@ const DOMAIN_DETAILS = {
       "Confirm filter parameters in run_manifest.json match those declared in config/filter_change.yaml.",
       "Fail if failure_analysis.csv is empty when any FP or FN beats exist in the report."
     ],
+    expectedOutputs: [
+      "Expected output paths:",
+      "- outputs/beat_validation_report.csv",
+      "- outputs/failure_analysis.csv",
+      "- outputs/qc_summary.json",
+      "- outputs/validation_metrics.json",
+      "- outputs/plots/record_overlay.png",
+      "- outputs/run_manifest.json",
+      "",
+      "Example validation_metrics.json object for the normal fixture:",
+      "{",
+      "  \"mitdb_100\": {",
+      "    \"sensitivity\": 0.98,",
+      "    \"ppv\": 0.97,",
+      "    \"tp\": 49,",
+      "    \"fp\": 1,",
+      "    \"fn\": 1,",
+      "    \"filter\": \"bandpass_0.5_40_notch_60\",",
+      "    \"det_source\": \"supplied\",",
+      "    \"pass\": true",
+      "  }",
+      "}",
+      "",
+      "Example beat_validation_report.csv row:",
+      "record_id,beat_index,detected_time_sec,nearest_annotation_time_sec,abs_error_ms,match_status,exclusion_reason,filter_applied,det_source,source_checksum",
+      "mitdb_100,0,0.214000,0.216000,2.000,MATCH,,bandpass_0.5_40_notch_60,supplied,<md5>",
+      "",
+      "Example qc_summary.json entries:",
+      "[",
+      "  {\"record_id\":\"mitdb_100\",\"status\":\"PASS\",\"reason\":\"THRESHOLDS_MET\",\"sensitivity\":0.98,\"ppv\":0.97},",
+      "  {\"record_id\":\"mitdb_101\",\"status\":\"FAIL\",\"reason\":\"BELOW_THRESHOLD\",\"sensitivity\":0.94,\"ppv\":0.96},",
+      "  {\"record_id\":\"mitdb_103\",\"status\":\"EXCLUDED\",\"reason\":\"SR_250HZ_EXPECTED_360HZ\",\"sensitivity\":null,\"ppv\":null}",
+      "]"
+    ],
     solutionCode: `# solve.py — PhysioNet MIT-BIH post-pipeline beat-detection validator
 # Validates pre-computed beat detections against PhysioNet annotations
 # after a filter-parameter change.  All thresholds come from config YAML.
@@ -880,6 +914,29 @@ def save_overlay(rid, times, sig, det_t, ann_t, out_dir):
     plots_dir.mkdir(parents=True, exist_ok=True)
     fig.savefig(plots_dir / "record_overlay.png", dpi=120)
     _plt.close(fig)
+
+def write_overlay_svg(path, report):
+    width, height = 720, 180
+    matched = [r for r in report if r["match_status"] == "MATCH"]
+    misses = [r for r in report if r["match_status"] != "MATCH"]
+    circles = []
+    for idx, row in enumerate(matched[:120]):
+        x = 20 + (idx * 5) % (width - 40)
+        y = 60 + ((idx // 120) * 25)
+        circles.append(f'<circle cx="{x}" cy="{y}" r="2" fill="#2f7d32" />')
+    for idx, row in enumerate(misses[:120]):
+        x = 20 + (idx * 5) % (width - 40)
+        y = 115 + ((idx // 120) * 25)
+        circles.append(f'<circle cx="{x}" cy="{y}" r="2" fill="#b3261e" />')
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="{0}" height="{1}">'.format(width, height) +
+        '<rect width="100%" height="100%" fill="white" />' +
+        '<text x="20" y="30" font-family="Arial" font-size="14">Beat validation overlay summary</text>' +
+        '<text x="20" y="52" font-family="Arial" font-size="11" fill="#2f7d32">matched detections</text>' +
+        '<text x="20" y="107" font-family="Arial" font-size="11" fill="#b3261e">unmatched detections</text>' +
+        ''.join(circles) +
+        '</svg>'
+    )
 
 def run(input_dir, config_path, out_dir):
     data, out = Path(input_dir), Path(out_dir)
@@ -4225,6 +4282,8 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
     `Important edge cases: ${profile.failure}.`
   ];
 
+  parts.push("", ...buildExpectedGoldenOutputsDraft(details, profile));
+
   if (details && details.solutionCode) {
     parts.push(
       "",
@@ -4248,6 +4307,25 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   }
 
   return parts.join("\n");
+}
+
+function buildExpectedGoldenOutputsDraft(details, profile) {
+  if (details && Array.isArray(details.expectedOutputs) && details.expectedOutputs.length) {
+    return [
+      "EXPECTED GOLDEN OUTPUTS:",
+      "----------------------------------------------",
+      ...details.expectedOutputs
+    ];
+  }
+
+  return [
+    "EXPECTED GOLDEN OUTPUTS:",
+    "----------------------------------------------",
+    `- The correct run must write the required final artifact(s): ${profile.artifact}.`,
+    "- Include one exact example row or JSON object for each required output artifact.",
+    "- Include expected PASS/FAIL reason codes for the normal, edge, and invalid verifier fixtures.",
+    "- Include output checksums or deterministic row counts so a reviewer can tell whether the final answer is correct without reading the implementation."
+  ];
 }
 
 function cleanSourceNotes(text) {
