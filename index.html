@@ -168,28 +168,48 @@
                 </label>
 
                 <label>
-                  Source notes or constraints
-                  <textarea id="task-domain" placeholder="Optional: name the dataset, paper, standard, repository, files, or constraints the draft should honor."></textarea>
+                  Field / Sub-field <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <input id="task-category" placeholder="Example: Biomedical Engineering, Signal Processing" />
                 </label>
 
                 <label>
-                  Generated prompt draft
+                  Task title / name <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <input id="task-title" placeholder="Example: Post-migration ECG beat-detection validation" />
+                </label>
+
+                <label>
+                  Prompt <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
                   <textarea id="task-prompt" placeholder="Generate a draft, then edit it to match the actual source package and task goal."></textarea>
                 </label>
 
                 <label>
-                  Resources needed to solve the task
+                  Short summary / snippet <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <textarea id="task-snippet" placeholder="1-2 sentence description of what the prompt asks the agent to do."></textarea>
+                </label>
+
+                <label>
+                  Error if wrong <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <textarea id="task-error" placeholder="What error message or exit code appears if the agent gets it wrong?"></textarea>
+                </label>
+
+                <label>
+                  Why it's difficult / expertise required <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <textarea id="task-difficulty" placeholder="Explain why this is hard, why domain expertise is required, and why the difficulty is genuine rather than arbitrary."></textarea>
+                </label>
+
+                <label>
+                  Resources / links required <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
                   <textarea id="task-resources" placeholder="List datasets, libraries, docs, files, packages, version numbers, and anything the agent environment must contain."></textarea>
                 </label>
 
                 <label>
-                  Golden solution / proof of solvability
+                  Golden solution steps <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
                   <textarea id="task-solution" placeholder="Show where the task is actually solved: authoritative computation, commands, scripts, expected outputs, schemas, and reason codes."></textarea>
                 </label>
 
                 <label>
-                  Difficulty explanation
-                  <textarea id="task-difficulty" placeholder="Explain why this is hard, why domain expertise is required, and why the difficulty is genuine rather than arbitrary."></textarea>
+                  Verifier description <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <textarea id="task-verifiers" placeholder="Describe deterministic checks for output files, schemas, tolerances, fixtures, and failure cases."></textarea>
                 </label>
 
                 <label>
@@ -198,13 +218,13 @@
                 </label>
 
                 <label>
-                  Verifiers description
-                  <textarea id="task-verifiers" placeholder="Describe deterministic checks for output files, schemas, tolerances, fixtures, and failure cases."></textarea>
+                  Frontier model test (required before submission)
+                  <textarea id="task-agent-check" placeholder="Test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected."></textarea>
                 </label>
 
                 <label>
-                  Frontier model test (required before submission)
-                  <textarea id="task-agent-check" placeholder="Test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected."></textarea>
+                  Internal source notes <small style="font-weight:400">(not submitted — guides generation)</small>
+                  <textarea id="task-domain" placeholder="Optional: name the dataset, paper, standard, repository, files, or constraints the draft should honor."></textarea>
                 </label>
               </section>
 
