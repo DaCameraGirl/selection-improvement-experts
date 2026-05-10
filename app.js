@@ -355,9 +355,9 @@ function buildTaskPackage() {
     "----------------------------------------------",
     packageText(fields.resources, "List every dataset, file, package, public source, version, and setup artifact the agent needs."),
     "",
-    "COPY BLOCK 5 - Golden Solution As Granular As Possible",
+    "COPY BLOCK 5 - Golden Solution / Proof Of Solvability",
     "----------------------------------------------",
-    packageText(fields.solution, "Provide the solve path, including commands, code/scripts, checks, and expected outputs."),
+    packageText(fields.solution, "Show where the task is actually solved: authoritative computation, commands, code/scripts, expected outputs, schemas, and failure decisions."),
     "",
     "COPY BLOCK 6 - Difficulty Explanation",
     "----------------------------------------------",
@@ -1019,22 +1019,28 @@ if __name__ == "__main__":
       "[competitive-programming-library on GitHub (reference implementations for stress testing)](https://github.com/atcoder/ac-library) → use as reference for adversarial case generation"
     ],
     resources: [
-      "problem/problem_statement.md describing an interval-query algorithm with n, q, value ranges, expected output format, and asymptotic target.",
-      "problem/constraints.json with maximum n, maximum q, memory_limit_mb, time_limit_ms, and forbidden_complexity_classes.",
-      "generators/seed_generator.py and generators/adversarial_case_generator.py with fixed seeds and documented case families.",
-      "cases/public_cases.jsonl, cases/adversarial_cases.jsonl, cases/migration_before_outputs.jsonl, and cases/migration_after_outputs.jsonl.",
-      "schemas/solution_output.schema.json, schemas/test_results.schema.json, and verifier_inputs/expected_divergences.json."
+      "problem/problem_statement.md copied from CSES 1647 Static Range Minimum Queries with n, q, value ranges, 1-indexed inclusive query coordinates, expected output format, and asymptotic target.",
+      "problem/constraints.json with max_n=100000, max_q=100000, memory_limit_mb, time_limit_ms=2000, and forbidden_complexity_classes including O(nq), O(qn), and O(n^2).",
+      "generators/seed_generator.py and generators/adversarial_case_generator.py with fixed seeds 42 and 137 plus documented case families: singleton ranges, full-array ranges, power-of-two boundaries, non-power-of-two overlaps, duplicated minima, and max-value arrays.",
+      "cases/public_cases.jsonl and cases/adversarial_cases.jsonl with case_id, n, values, queries, expected_output, expected_status, expected_reason_code, and source_reference fields.",
+      "verifier_inputs/reference_outputs.jsonl with authoritative minimum values produced by a brute-force reference for small cases and a checked sparse-table replay for n=100000 cases.",
+      "schemas/solution_output.schema.json, schemas/test_results.schema.json, schemas/divergence_report.schema.json, and verifier_inputs/expected_divergences.json."
     ],
     solution: [
-      "Implement solve.py or src/solution.py plus python run_cases.py --cases cases --out outputs/test_results.json.",
-      "Validate input constraints, generate deterministic adversarial cases, run legacy and migrated outputs, and classify divergences by stable case_id.",
-      "Prove or justify the asymptotic bound in outputs/complexity_note.md using invariants tied to the implemented data structure.",
-      "Write outputs/solution.py, outputs/test_results.json, outputs/divergence_report.json, outputs/complexity_note.md, and outputs/run_manifest.json.",
-      "The divergence report must include case_id, generator_seed, input_size, expected_output, actual_output, mismatch_type, and minimal_repro_case."
+      "Implement solution.py for CSES 1647 with a sparse table: parse n, q, values, then answer each 1-indexed inclusive [a,b] query by k=floor(log2(b-a+1)) and min(table[k][a], table[k][b-2^k+1]) after converting to 0-indexed positions.",
+      "Implement tools/run_cases.py --solution solution.py --cases cases --out outputs/test_results.json to materialize stdin for every JSONL row, run the submitted solution, capture stdout, runtime_ms, exit_code, and stderr, and compare output lines exactly to expected_output.",
+      "For intentionally invalid rows, reject before execution with the declared expected_reason_code. For valid rows, emit PASS only when stdout exactly matches reference_outputs.jsonl and runtime_ms <= 2000.",
+      "Write outputs/test_results.json with case_id, family, n, q, expected_output, actual_output, status, reason_code, runtime_ms, confidence_flag, and reference_output_checksum.",
+      "Write outputs/divergence_report.json for every failed or low-confidence case, including mismatch_type, first_bad_query_index, expected_value, actual_value, and minimal_repro_case.",
+      "Write outputs/complexity_note.md proving O(n log n) preprocessing, O(1) query time, O(n log n) memory, and why O(nq), O(qn), and O(n^2) submissions fail the n=100000 adversarial budget.",
+      "Run python tools/verify.py --solution solution.py --cases cases/public_cases.jsonl --cases cases/adversarial_cases.jsonl --expected verifier_inputs/reference_outputs.jsonl --out outputs/test_results.json. The expected result is all normal and edge cases PASS, the intentionally invalid case FAILS with SCHEMA_INVALID, and expected_divergences.json reason codes match exactly."
     ],
     verifiers: [
       "Fail if the implementation passes public cases but exceeds the declared asymptotic target on generated adversarial cases.",
-      "Check exact mismatch categories and minimal reproducer IDs against expected_divergences.json.",
+      "Check outputs/test_results.json against schemas/test_results.schema.json and require status, reason_code, runtime_ms, confidence_flag, and reference_output_checksum on every row.",
+      "Compare exact output values and failure reason codes against verifier_inputs/reference_outputs.jsonl and verifier_inputs/expected_divergences.json.",
+      "Fail if 1-indexed inclusive query coordinates are treated as 0-indexed, if non-power-of-two ranges use the wrong overlapping block, or if invalid fixtures are executed instead of rejected.",
+      "Assert outputs/divergence_report.json contains every failed or low-confidence case and includes a minimal_repro_case.",
       "Run repeated seeded case generation and assert stable outputs, runtime budget compliance, and schema validity."
     ],
     solutionCode: `# solve.py — CSES 1647 Static Range Minimum Queries via Sparse Table
@@ -3863,6 +3869,14 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   ];
 
   const parts = [
+    "This is the proof that the task is solvable, not a checklist. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail.",
+    "",
+    "Authoritative answer contract:",
+    `- Required final artifact(s): ${profile.artifact}.`,
+    "- Every required output path must be named before the workflow starts.",
+    "- Every accepted row, rejected row, conflict decision, tolerance, checksum, and reason code used by the verifier must appear in a machine-readable output.",
+    "- Any unresolved record must be emitted separately, not hidden in prose.",
+    "",
     "A strong solution would be organized as a reproducible terminal workflow, not a prose-only answer.",
     "",
     ...domainSteps.map((step, index) => `${index + 1}. ${step}`),
