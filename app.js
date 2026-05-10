@@ -509,14 +509,14 @@ const DOMAIN_DRAFTS = {
     threshold: "100% of regression tests passing on the baseline commit must pass after the patch; zero public function signatures, return types, or error codes may change; all 3 fixture cases must pass the verifier."
   },
   "computer-science": {
-    brief: "Build adversarial test coverage for an algorithm implementation with strict complexity constraints",
-    domain: "computer science algorithms using formal input constraints, asymptotic requirements, generated adversarial cases, and reproducible correctness testing",
-    artifact: "an implementation file, complexity note, and adversarial test-results JSON",
-    method: "algorithm design, proof-informed invariant checking, randomized stress testing, edge-case generation, and asymptotic performance validation",
-    data: "problem specification files, seedable case generators, hidden reference outputs, and performance budget metadata",
-    failure: "passing small examples with an exponential solution, mishandling boundary conditions, relying on unstable heuristics, and giving an implementation with no verifiable complexity behavior",
-    sourceKit: "problem_statement.md, constraints.json, seed_generator.py, public_cases.jsonl, adversarial_cases.jsonl, reference_outputs.jsonl, and runtime_budget.json",
-    threshold: "Implementation must solve all adversarial cases within a 2-second time limit at n = 100,000; output values must exactly match the reference for all public cases; O(n²) or worse solutions will be rejected."
+    brief: "Implement and validate a static range minimum query structure using sparse tables on CSES problem 1647, where adversarial inputs are designed to break O(n log n) preprocessing assumptions and expose incorrect index handling at boundaries",
+    domain: "computer science algorithms using CSES problem 1647 (Static Range Minimum Queries), sparse table preprocessing, O(1) query constraints, and reproducible adversarial correctness testing against hidden reference outputs at n=100,000",
+    artifact: "an implementation file (solution.py), complexity note (outputs/complexity_note.md), and adversarial test-results JSON (outputs/test_results.json)",
+    method: "sparse table construction, logarithm precomputation, O(1) range query via overlapping intervals, adversarial case generation targeting boundary indices and power-of-two edge cases, and asymptotic performance validation at n=100,000 within a 2-second wall-clock budget",
+    data: "CSES 1647 problem statement (problem/problem_statement.md), constraints.json (n≤100000, q≤100000, 2s limit, forbidden O(n²)), seed_generator.py (seed=42 and seed=137), public_cases.jsonl with 20 verified cases, adversarial_cases.jsonl targeting off-by-one and max-value boundaries, and reference_outputs.jsonl from a known-correct brute-force at small n",
+    failure: "using O(n) per query brute force that passes small cases but times out at n=100,000, mishandling the overlapping-interval formula for non-power-of-two range lengths, incorrect floor(log2) precomputation causing wrong minimum on boundary queries, and producing outputs that differ from reference on adversarial inputs without detecting the mismatch",
+    sourceKit: "problem/problem_statement.md, problem/constraints.json, generators/seed_generator.py, generators/adversarial_case_generator.py, cases/public_cases.jsonl (20 cases), cases/adversarial_cases.jsonl (50 cases), verifier_inputs/reference_outputs.jsonl, and environment/requirements.txt",
+    threshold: "Implementation must solve all adversarial cases within a 2-second time limit at n=100,000; output values must exactly match reference_outputs.jsonl for all public cases; O(n²) or worse solutions will be rejected by the time-limit verifier on adversarial inputs."
   },
   "distributed-systems": {
     brief: "Replay distributed event histories to find a consistency violation under partition timing changes",
