@@ -402,7 +402,7 @@ const DOMAIN_DRAFTS = {
     brief: "Validate beat-detection results for selected PhysioNet ECG records after a signal-cleaning pipeline change",
     domain: "biomedical signal processing using public ECG or PPG waveform data, clinical signal-quality constraints, and reproducible Python analysis",
     artifact: "a CSV report and validation plot",
-    method: "wavelet denoising, notch filtering, peak detection, beat-level feature extraction, and tolerance-based validation against reference annotations",
+    method: "bandpass filtering (0.5–40 Hz Butterworth), 60 Hz notch filtering via scipy.signal, validation of supplied beat detections against PhysioNet reference annotations, and tolerance-based sensitivity/PPV computation",
     data: "MIT-BIH-style waveform segments, annotation files, sampling-rate metadata, and a channel manifest",
     failure: "filter leakage, incorrect sampling-rate conversion, false peak matching, and accepting visually plausible but clinically invalid beat intervals",
     sourceKit: "PhysioNet MIT-BIH Arrhythmia Database records 100, 101, and 103 exported as records.csv, annotations.csv, sampling_metadata.json, and a README with the 360 Hz sampling rate and signal-unit notes",
@@ -759,7 +759,8 @@ const DOMAIN_DETAILS = {
     resources: [
       "data/raw/mitdb_100_signal.csv, mitdb_101_signal.csv, mitdb_103_signal.csv with columns record_id, sample_index, time_sec, mlII_mv, v5_mv.",
       "data/reference/beat_annotations.csv with record_id, annotation_sample, annotation_time_sec, beat_symbol, source_record.",
-      "config/filter_change.yaml describing the old and new high-pass, notch, and denoising settings.",
+      "data/detections/ subfolder containing per-record CSVs of pre-computed detections (columns: detected_time_sec); if absent, solve.py falls back to threshold detection on the filtered signal.",
+      "config/filter_change.yaml with keys bandpass_lo_hz, bandpass_hi_hz, notch_hz, notch_q, tolerance_ms, sensitivity_min, ppv_min — all filter and threshold parameters are read exclusively from this file.",
       "schemas/beat_report.schema.json requiring record_id, beat_index, detected_time_sec, nearest_annotation_time_sec, abs_error_ms, match_status, exclusion_reason.",
       "verifier_inputs/normal_record_100.csv, edge_noisy_segment_101.csv, invalid_sampling_rate_103.csv, and expected_metrics.json."
     ],
@@ -767,95 +768,425 @@ const DOMAIN_DETAILS = {
       "Implement solve.py with commands such as python solve.py --input data --config config/filter_change.yaml --out outputs.",
       "Load each ECG record, verify the 360 Hz sampling rate, check monotonic sample_index values, and compute input checksums before processing.",
       "Apply the stated cleaning change, detect candidate R peaks, match detections to reference annotations within the declared millisecond tolerance, and flag unmatched detections separately from rejected records.",
-      "Write outputs/beat_validation_report.csv, outputs/validation_metrics.json, outputs/plots/record_overlay.png, and outputs/run_manifest.json.",
+      "Write outputs/beat_validation_report.csv, outputs/failure_analysis.csv, outputs/qc_summary.json, outputs/validation_metrics.json, outputs/plots/record_overlay.png, and outputs/run_manifest.json.",
       "The report must expose record_id, sample ranges, filter parameters, beat counts, sensitivity, PPV, false positives, false negatives, exclusion_reason, and source checksum."
     ],
     verifiers: [
-      "Assert the 360 Hz metadata is used rather than inferred from row count.",
-      "Check beat matching against hidden reference rows within the stated tolerance.",
-      "Fail if an invalid sampling-rate fixture is accepted or if noisy edge cases lose traceability."
+      "Assert the 360 Hz sampling rate is read from the time column, not inferred from row count; reject records where inferred rate differs by more than 5 Hz.",
+      "Verify all six required output files exist: beat_validation_report.csv, failure_analysis.csv, qc_summary.json, validation_metrics.json, plots/record_overlay.png, run_manifest.json.",
+      "Check beat_validation_report.csv schema has all required columns including filter_applied and source_checksum.",
+      "Confirm validation_metrics.json sensitivity >= 0.97 and PPV >= 0.96 for each passing record, within ±0.005 of expected values.",
+      "Assert the invalid sampling-rate fixture (record 103 at wrong Hz) appears in qc_summary.json with status EXCLUDED.",
+      "Confirm filter parameters in run_manifest.json match those declared in config/filter_change.yaml.",
+      "Fail if failure_analysis.csv is empty when any FP or FN beats exist in the report."
     ],
-    solutionCode: `# solve.py — PhysioNet MIT-BIH ECG beat detection validation
+    solutionCode: `# solve.py — PhysioNet MIT-BIH post-pipeline beat-detection validator
+# Validates pre-computed beat detections against PhysioNet annotations
+# after a filter-parameter change.  All thresholds come from config YAML.
 # Run: python solve.py --input data --config config/filter_change.yaml --out outputs
-import sys, json, hashlib, csv, argparse
+import sys, json, hashlib, csv, argparse, re
 from pathlib import Path
 
-def checksum(p): return hashlib.md5(Path(p).read_bytes()).hexdigest()
+try:
+    import scipy.signal as _ss
+    import numpy as _np
+    import matplotlib; matplotlib.use('Agg')
+    import matplotlib.pyplot as _plt
+    _HAS_SCIPY = True
+except ImportError:
+    _HAS_SCIPY = False
 
-def validate_sr(rows, hz=360):
-    if len(rows) < 2: return False, "TOO_FEW_SAMPLES"
+SAMPLE_RATE_HZ = 360
+SR_TOLERANCE   = 5        # Hz
+
+CFG_DEFAULTS = {
+    "bandpass_lo_hz":  0.5,
+    "bandpass_hi_hz": 40.0,
+    "notch_hz":       60.0,
+    "notch_q":        30.0,
+    "tolerance_ms":   15,
+    "sensitivity_min": 0.97,
+    "ppv_min":         0.96,
+}
+
+def load_config(path):
+    cfg = dict(CFG_DEFAULTS)
+    p = Path(path)
+    if p.exists():
+        for line in p.read_text().splitlines():
+            m = re.match(r'^\s*([\w_]+)\s*:\s*([^\s#]+)', line)
+            if m:
+                k, v = m.group(1), m.group(2)
+                if k in cfg:
+                    try: cfg[k] = float(v) if '.' in v else int(v)
+                    except ValueError: pass
+    return cfg
+
+def checksum(path):
+    return hashlib.md5(Path(path).read_bytes()).hexdigest()
+
+def validate_sr(rows, hz=SAMPLE_RATE_HZ, tol=SR_TOLERANCE):
+    if len(rows) < 2:
+        return False, "TOO_FEW_SAMPLES"
     dt = float(rows[1]["time_sec"]) - float(rows[0]["time_sec"])
     inferred = round(1.0 / dt) if dt > 0 else 0
-    if abs(inferred - hz) > 5: return False, f"SR_{inferred}HZ_EXPECTED_{hz}HZ"
+    if abs(inferred - hz) > tol:
+        return False, f"SR_{inferred}HZ_EXPECTED_{hz}HZ"
     return True, None
 
-def detect_peaks(sig, refrac=50):
-    mu = sum(sig) / len(sig); thr = mu + 0.6 * (max(sig) - mu)
-    peaks, last = [], -refrac
-    for i in range(1, len(sig) - 1):
-        if sig[i] >= thr and sig[i] >= sig[i-1] and sig[i] >= sig[i+1] and i - last >= refrac:
-            peaks.append(i); last = i
-    return peaks
+def apply_pipeline(raw, cfg, fs):
+    if not _HAS_SCIPY:
+        return list(raw), "unfiltered_scipy_unavailable"
+    nyq = 0.5 * fs
+    b, a = _ss.butter(4, [cfg["bandpass_lo_hz"] / nyq, cfg["bandpass_hi_hz"] / nyq], btype='band')
+    filtered = _ss.filtfilt(b, a, _np.array(raw))
+    b2, a2 = _ss.iirnotch(cfg["notch_hz"] / (0.5 * fs), cfg["notch_q"])
+    filtered = _ss.filtfilt(b2, a2, filtered)
+    label = (f"bandpass_{cfg['bandpass_lo_hz']}-{cfg['bandpass_hi_hz']}Hz"
+             f"_notch_{cfg['notch_hz']}Hz")
+    return filtered.tolist(), label
 
-def match_beats(det, ref, tol_sec):
+def match_beats(det_times, ann_times, tol_sec):
     tp, fp, used, rows = 0, 0, set(), []
-    for d in det:
-        cands = [i for i in range(len(ref)) if i not in used]
-        best = min(cands, key=lambda i: abs(ref[i] - d), default=None)
-        if best is not None and abs(ref[best] - d) <= tol_sec:
+    for d in det_times:
+        cands = [i for i in range(len(ann_times)) if i not in used]
+        best = min(cands, key=lambda i: abs(ann_times[i] - d), default=None)
+        if best is not None and abs(ann_times[best] - d) <= tol_sec:
             tp += 1; used.add(best)
-            rows.append((d, ref[best], abs(ref[best] - d) * 1000, "MATCH"))
+            rows.append({"det": d, "ann": ann_times[best],
+                         "err_ms": abs(ann_times[best] - d) * 1000, "status": "MATCH"})
         else:
-            fp += 1; rows.append((d, None, None, "NO_MATCH"))
-    return tp, fp, len(ref) - len(used), rows
+            fp += 1
+            rows.append({"det": d, "ann": None, "err_ms": None, "status": "FP"})
+    fn = len(ann_times) - len(used)
+    return tp, fp, fn, rows
+
+def save_overlay(rid, times, sig, det_t, ann_t, out_dir):
+    fig, ax = _plt.subplots(figsize=(14, 3))
+    ax.plot(times, sig, lw=0.5, color='steelblue', label='filtered ECG')
+    det_vals, det_plot_t = [], []
+    for t in det_t:
+        idx = round(t * SAMPLE_RATE_HZ)
+        if 0 <= idx < len(sig):
+            det_vals.append(sig[idx]); det_plot_t.append(t)
+    ax.scatter(det_plot_t, det_vals, color='red', s=15, zorder=3, label='detected')
+    if ann_t:
+        ax.vlines(ann_t, ymin=min(sig), ymax=max(sig),
+                  colors='limegreen', lw=0.6, alpha=0.6, label='annotation')
+    ax.set(title=f'Record {rid} — detection overlay', xlabel='time (s)', ylabel='mV')
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    plots_dir = Path(out_dir) / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(plots_dir / "record_overlay.png", dpi=120)
+    _plt.close(fig)
 
 def run(input_dir, config_path, out_dir):
     data, out = Path(input_dir), Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    anns = {}
+    cfg = load_config(config_path)
+    tol_sec  = cfg["tolerance_ms"] / 1000.0
+    sens_min = cfg["sensitivity_min"]
+    ppv_min  = cfg["ppv_min"]
+
+    ann_map = {}
     ann_f = data / "reference" / "beat_annotations.csv"
     if ann_f.exists():
         for r in csv.DictReader(open(ann_f)):
-            anns.setdefault(r["source_record"], []).append(float(r["annotation_time_sec"]))
-    report, metrics, excl = [], {}, []
-    for f in sorted((data / "raw").glob("mitdb_*_signal.csv")):
-        rid = f.stem.replace("_signal", ""); ck = checksum(f)
-        rows = list(csv.DictReader(open(f)))
-        ok, reason = validate_sr(rows)
-        if not ok:
-            excl.append({"record_id": rid, "reason": reason, "source_checksum": ck}); continue
-        sig = [float(r["mlII_mv"]) for r in rows]
+            ann_map.setdefault(r["source_record"], []).append(float(r["annotation_time_sec"]))
+
+    det_map = {}
+    det_dir = data / "detections"
+    if det_dir.exists():
+        for f in sorted(det_dir.glob("*.csv")):
+            det_map[f.stem] = [float(r["detected_time_sec"]) for r in csv.DictReader(open(f))]
+
+    report, metrics, excl, qc_rows, fail_rows = [], {}, [], [], []
+    overlay_saved = False
+
+    for sig_f in sorted((data / "raw").glob("mitdb_*_signal.csv")):
+        rid = sig_f.stem.replace("_signal", "")
+        ck  = checksum(sig_f)
+        rows = list(csv.DictReader(open(sig_f)))
+        ok_sr, reason = validate_sr(rows)
+        if not ok_sr:
+            excl.append({"record_id": rid, "reason": reason, "source_checksum": ck})
+            qc_rows.append({"record_id": rid, "status": "EXCLUDED",
+                            "reason": reason, "sensitivity": None, "ppv": None})
+            fail_rows.append({"record_id": rid, "beat_index": -1,
+                              "failure_type": "INVALID_INPUT", "detected_time_sec": None,
+                              "detail": reason, "source_checksum": ck})
+            continue
+
+        raw   = [float(r["mlII_mv"]) for r in rows]
         times = [float(r["time_sec"]) for r in rows]
-        det_t = [times[i] for i in detect_peaks(sig)]
-        ref_t = anns.get(rid, [])
-        tp, fp, fn, mrows = match_beats(det_t, ref_t, 0.015)
-        sens = tp / (tp + fn) if tp + fn else 0.0
-        ppv  = tp / (tp + fp) if tp + fp else 0.0
-        for i, (d, near, err, st) in enumerate(mrows):
-            report.append({"record_id": rid, "beat_index": i,
-                "detected_time_sec": round(d, 6),
-                "nearest_annotation_time_sec": round(near, 6) if near else None,
-                "abs_error_ms": round(err, 3) if err else None,
-                "match_status": st, "exclusion_reason": None, "source_checksum": ck})
-        metrics[rid] = {"sensitivity": round(sens, 4), "ppv": round(ppv, 4),
-                        "tp": tp, "fp": fp, "fn": fn, "pass": sens >= 0.97 and ppv >= 0.96}
-    fields = ["record_id","beat_index","detected_time_sec","nearest_annotation_time_sec",
-              "abs_error_ms","match_status","exclusion_reason","source_checksum"]
+        fs    = round(1.0 / (times[1] - times[0])) if len(times) > 1 else SAMPLE_RATE_HZ
+        filt, filter_label = apply_pipeline(raw, cfg, fs)
+
+        if rid in det_map:
+            det_t = det_map[rid]; det_source = "supplied"
+        else:
+            mu = sum(filt) / len(filt); thr = mu + 0.6 * (max(filt) - mu)
+            refrac = int(0.2 * fs); last_p = -refrac; det_idx = []
+            for i in range(1, len(filt) - 1):
+                if (filt[i] >= thr and filt[i] >= filt[i-1]
+                        and filt[i] >= filt[i+1] and i - last_p >= refrac):
+                    det_idx.append(i); last_p = i
+            det_t = [times[i] for i in det_idx]; det_source = "threshold_fallback"
+
+        ann_t  = ann_map.get(rid, [])
+        tp, fp, fn, mrows = match_beats(det_t, ann_t, tol_sec)
+        sens   = tp / (tp + fn) if tp + fn else 0.0
+        ppv    = tp / (tp + fp) if tp + fp else 0.0
+        passed = sens >= sens_min and ppv >= ppv_min
+
+        for i, mr in enumerate(mrows):
+            report.append({
+                "record_id": rid, "beat_index": i,
+                "detected_time_sec": round(mr["det"], 6),
+                "nearest_annotation_time_sec":
+                    round(mr["ann"], 6) if mr["ann"] is not None else None,
+                "abs_error_ms":
+                    round(mr["err_ms"], 3) if mr["err_ms"] is not None else None,
+                "match_status": mr["status"], "exclusion_reason": None,
+                "filter_applied": filter_label, "det_source": det_source,
+                "source_checksum": ck,
+            })
+            if mr["status"] != "MATCH":
+                fail_rows.append({
+                    "record_id": rid, "beat_index": i, "failure_type": mr["status"],
+                    "detected_time_sec": round(mr["det"], 6),
+                    "detail": f"no annotation within {cfg['tolerance_ms']:.0f}ms",
+                    "source_checksum": ck,
+                })
+        for _ in range(fn):
+            fail_rows.append({
+                "record_id": rid, "beat_index": -1, "failure_type": "FN",
+                "detected_time_sec": None,
+                "detail": "annotation with no matching detection",
+                "source_checksum": ck,
+            })
+
+        metrics[rid] = {
+            "sensitivity": round(sens, 4), "ppv": round(ppv, 4),
+            "tp": tp, "fp": fp, "fn": fn,
+            "filter": filter_label, "det_source": det_source, "pass": passed,
+        }
+        qc_rows.append({
+            "record_id": rid, "status": "PASS" if passed else "FAIL",
+            "reason": "THRESHOLDS_MET" if passed else "BELOW_THRESHOLD",
+            "sensitivity": round(sens, 4), "ppv": round(ppv, 4),
+        })
+
+        if not overlay_saved and _HAS_SCIPY:
+            try:
+                save_overlay(rid, times, filt, det_t, ann_t, out)
+                overlay_saved = True
+            except Exception:
+                pass
+
+    rpt_fields = [
+        "record_id", "beat_index", "detected_time_sec",
+        "nearest_annotation_time_sec", "abs_error_ms", "match_status",
+        "exclusion_reason", "filter_applied", "det_source", "source_checksum",
+    ]
     with open(out / "beat_validation_report.csv", "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=fields); w.writeheader(); w.writerows(report)
+        w = csv.DictWriter(fh, fieldnames=rpt_fields)
+        w.writeheader(); w.writerows(report)
+
+    fail_fields = [
+        "record_id", "beat_index", "failure_type",
+        "detected_time_sec", "detail", "source_checksum",
+    ]
+    with open(out / "failure_analysis.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=fail_fields)
+        w.writeheader(); w.writerows(fail_rows)
+
+    (out / "qc_summary.json").write_text(json.dumps(qc_rows, indent=2))
     (out / "validation_metrics.json").write_text(json.dumps(metrics, indent=2))
-    (out / "run_manifest.json").write_text(json.dumps({"python": sys.version,
-        "records_processed": len(metrics), "records_excluded": len(excl),
-        "all_pass": all(v["pass"] for v in metrics.values()) if metrics else False}, indent=2))
-    print(f"Done. {len(metrics)} records processed, {len(excl)} excluded.")
+
+    all_pass = all(v["pass"] for v in metrics.values()) if metrics else False
+    (out / "run_manifest.json").write_text(json.dumps({
+        "python": sys.version,
+        "config": str(config_path),
+        "filter_scipy_available": _HAS_SCIPY,
+        "tolerance_ms": cfg["tolerance_ms"],
+        "sensitivity_min": sens_min,
+        "ppv_min": ppv_min,
+        "records_processed": len(metrics),
+        "records_excluded": len(excl),
+        "all_pass": all_pass,
+        "status": "ok",
+    }, indent=2))
+    print(f"Done. {len(metrics)} records processed, {len(excl)} excluded, "
+          f"all_pass={all_pass}")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", default="data")
+    ap.add_argument("--input",  default="data")
     ap.add_argument("--config", default="config/filter_change.yaml")
-    ap.add_argument("--out", default="outputs")
+    ap.add_argument("--out",    default="outputs")
     args = ap.parse_args()
-    run(args.input, args.config, args.out)`
+    run(args.input, args.config, args.out)`,
+    verifyCode: `# verify.py — deterministic verifier for biomedical beat-detection validator
+# Run: python verify.py --out outputs --expected verifier_inputs/expected_metrics.json
+# Exit: 0 = all checks passed | 1 = one or more checks failed
+import json, sys, csv, argparse
+from pathlib import Path
+
+REQUIRED_FILES = [
+    "beat_validation_report.csv",
+    "failure_analysis.csv",
+    "qc_summary.json",
+    "validation_metrics.json",
+    "run_manifest.json",
+    "plots/record_overlay.png",
+]
+
+BEAT_REPORT_COLS = [
+    "record_id", "beat_index", "detected_time_sec",
+    "nearest_annotation_time_sec", "abs_error_ms",
+    "match_status", "exclusion_reason", "source_checksum",
+]
+
+FAIL_COLS = [
+    "record_id", "beat_index", "failure_type",
+    "detected_time_sec", "detail", "source_checksum",
+]
+
+SENSITIVITY_MIN = 0.97
+PPV_MIN         = 0.96
+TOLERANCE       = 0.005
+
+_results = []
+
+def fail(msg):
+    print(f"  FAIL  {msg}"); _results.append(False)
+
+def ok(msg):
+    print(f"  PASS  {msg}"); _results.append(True)
+
+def run(out_dir, expected_path):
+    out = Path(out_dir)
+    expected = {}
+    ep = Path(expected_path)
+    if ep.exists():
+        expected = json.loads(ep.read_text())
+
+    print(f"\\nVerifying outputs in {out}/")
+    print("-" * 56)
+
+    # 1. required files present
+    for f in REQUIRED_FILES:
+        p = out / f
+        if p.exists(): ok(f"exists: {f}")
+        else: fail(f"missing: {f}")
+
+    # 2. beat_validation_report.csv schema
+    rpt = out / "beat_validation_report.csv"
+    if rpt.exists():
+        rows = list(csv.DictReader(open(rpt)))
+        header = rows[0] if rows else {}
+        missing = [c for c in BEAT_REPORT_COLS if c not in header]
+        if missing: fail(f"beat_validation_report.csv missing cols: {missing}")
+        else: ok("beat_validation_report.csv schema ok")
+        statuses = {r.get("match_status") for r in rows}
+        bad = statuses - {"MATCH", "FP", "", None}
+        if bad: fail(f"unexpected match_status values: {bad}")
+        else: ok("match_status values valid (MATCH/FP only)")
+
+    # 3. failure_analysis.csv schema
+    fa = out / "failure_analysis.csv"
+    if fa.exists():
+        rows = list(csv.DictReader(open(fa)))
+        header = rows[0] if rows else {}
+        missing = [c for c in FAIL_COLS if c not in header]
+        if missing: fail(f"failure_analysis.csv missing cols: {missing}")
+        else: ok("failure_analysis.csv schema ok")
+
+    # 4. validation_metrics.json thresholds
+    mf = out / "validation_metrics.json"
+    if mf.exists():
+        metrics = json.loads(mf.read_text())
+        for rid, m in metrics.items():
+            sens = m.get("sensitivity", 0)
+            ppv  = m.get("ppv", 0)
+            exp_sens = expected.get(rid, {}).get("sensitivity", SENSITIVITY_MIN)
+            exp_ppv  = expected.get(rid, {}).get("ppv", PPV_MIN)
+            if abs(sens - exp_sens) <= TOLERANCE:
+                ok(f"{rid} sensitivity={sens} (expected ~{exp_sens})")
+            else:
+                fail(f"{rid} sensitivity={sens} not within {TOLERANCE} of {exp_sens}")
+            if abs(ppv - exp_ppv) <= TOLERANCE:
+                ok(f"{rid} PPV={ppv} (expected ~{exp_ppv})")
+            else:
+                fail(f"{rid} PPV={ppv} not within {TOLERANCE} of {exp_ppv}")
+    else:
+        fail("validation_metrics.json missing — cannot check thresholds")
+
+    # 5. qc_summary.json structure
+    qs = out / "qc_summary.json"
+    if qs.exists():
+        qc = json.loads(qs.read_text())
+        if not isinstance(qc, list):
+            fail("qc_summary.json must be a list")
+        else:
+            bad_entries = [e for e in qc if "record_id" not in e or "status" not in e]
+            if bad_entries:
+                fail(f"qc_summary.json entries missing record_id/status: {bad_entries[:2]}")
+            else:
+                ok("qc_summary.json structure ok")
+
+    # 6. invalid fixture (wrong sampling rate) must be excluded
+    if qs.exists():
+        qc = json.loads((out / "qc_summary.json").read_text())
+        rejected = any(
+            "103" in str(e.get("record_id", "")) and e.get("status") == "EXCLUDED"
+            for e in qc
+        )
+        if rejected: ok("invalid sampling-rate fixture (record 103) correctly excluded")
+        else: fail("invalid sampling-rate fixture (record 103) not found as EXCLUDED")
+
+    # 7. failure_analysis consistency — FP/FN beats must appear there
+    if rpt.exists() and fa.exists():
+        rpt_rows = list(csv.DictReader(open(rpt)))
+        non_match = [r for r in rpt_rows if r.get("match_status") not in ("MATCH", "")]
+        fa_rows = list(csv.DictReader(open(fa)))
+        if non_match and not fa_rows:
+            fail(f"failure_analysis.csv is empty but {len(non_match)} FP beats exist in report")
+        elif non_match:
+            ok(f"failure_analysis.csv populated with {len(fa_rows)} failure rows")
+        else:
+            ok("no FP/FN beats — failure_analysis.csv empty as expected")
+
+    # 8. run_manifest status and config echo
+    rm_path = out / "run_manifest.json"
+    if rm_path.exists():
+        rm = json.loads(rm_path.read_text())
+        if rm.get("status") == "ok": ok("run_manifest status=ok")
+        else: fail(f"run_manifest status={rm.get('status')!r}")
+        n = rm.get("records_processed", 0)
+        if n > 0: ok(f"records_processed={n}")
+        else: fail("records_processed=0 — no records were processed")
+    else:
+        fail("run_manifest.json missing")
+
+    print("-" * 56)
+    passed = sum(1 for r in _results if r)
+    total  = len(_results)
+    if all(_results):
+        print(f"\\n  ALL {total} CHECKS PASSED")
+        sys.exit(0)
+    else:
+        print(f"\\n  {total - passed} / {total} CHECK(S) FAILED")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out",      default="outputs")
+    ap.add_argument("--expected", default="verifier_inputs/expected_metrics.json")
+    args = ap.parse_args()
+    run(args.out, args.expected)`
   },
   "computational-biology": {
     sources: [
@@ -3387,7 +3718,7 @@ const DOMAIN_CODE = {
   "biomedical-signal": {
     imports: ["import wfdb", "import numpy as np", "import scipy.signal as sig", "import matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt"],
     config: "config/filter_change.yaml",
-    coreTodo: ["sig_data, fields = wfdb.rdsamp(str(record_path)); assert fields['fs'] == SAMPLE_RATE_HZ", "Apply bandpass 0.5–40 Hz and 60 Hz notch filter using sig.butter + sig.filtfilt", "peaks, _ = sig.find_peaks(ecg, distance=int(0.2 * SAMPLE_RATE_HZ))", "Match each peak to nearest annotation within ±TOLERANCE_MS ms; label TP/FP/FN", "Compute sensitivity = TP/(TP+FN), PPV = TP/(TP+FP) per record"]
+    coreTodo: ["Load config/filter_change.yaml; extract bandpass_lo_hz, bandpass_hi_hz, notch_hz, tolerance_ms, sensitivity_min, ppv_min", "Validate each record's sampling rate from the time column; reject records where inferred Hz deviates by > SR_TOLERANCE", "Apply scipy.signal.butter + filtfilt bandpass then iirnotch; record filter_label in every output row", "Load supplied detections from data/detections/ (or fall back to threshold detection on filtered signal); match to annotations within tol_sec", "Write beat_validation_report.csv, failure_analysis.csv, qc_summary.json, validation_metrics.json, plots/record_overlay.png, run_manifest.json"]
   },
   "climate-geospatial": {
     imports: ["import xarray as xr", "import geopandas as gpd", "import numpy as np", "import rasterio\nfrom rasterio.warp import reproject, Resampling"],
@@ -3901,6 +4232,17 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
       "----------------------------------------------",
       "```python",
       details.solutionCode,
+      "```"
+    );
+  }
+
+  if (details && details.verifyCode) {
+    parts.push(
+      "",
+      "CORRECT REFERENCE VERIFIER (verify.py):",
+      "-----------------------------------------",
+      "```python",
+      details.verifyCode,
       "```"
     );
   }
