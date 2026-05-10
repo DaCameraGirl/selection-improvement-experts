@@ -1,17 +1,17 @@
 :root {
-  --ink: #1f2526;
-  --muted: #657174;
-  --line: #d8dcda;
+  --ink: #1a1035;
+  --muted: #6b6787;
+  --line: #e2d9f3;
   --panel: #ffffff;
-  --page: #f5f2ea;
-  --nav: #193336;
-  --nav-soft: #26474b;
-  --accent: #c65f3a;
-  --accent-dark: #93401f;
-  --green: #426b45;
-  --blue: #315f86;
-  --danger: #9f2f2f;
-  --shadow: 0 16px 36px rgba(24, 38, 40, 0.12);
+  --page: #f5f3ff;
+  --nav: #1a1035;
+  --nav-soft: #2d1a5e;
+  --accent: #9333ea;
+  --accent-dark: #7e22ce;
+  --green: #16803c;
+  --blue: #a855f7;
+  --danger: #be185d;
+  --shadow: 0 16px 36px rgba(26, 16, 53, 0.13);
 }
 
 * {
@@ -94,8 +94,8 @@ button:hover,
   width: 46px;
   height: 46px;
   border-radius: 8px;
-  background: #f3c66c;
-  color: #1b2b2d;
+  background: #c084fc;
+  color: #1a1035;
   display: grid;
   place-items: center;
   font-weight: 800;
@@ -366,10 +366,10 @@ form {
 
 .version-pill {
   min-height: 40px;
-  border: 1px solid #b7c7c4;
+  border: 1px solid #d8b4fe;
   border-radius: 6px;
-  background: #eef4f2;
-  color: var(--nav);
+  background: #faf5ff;
+  color: var(--accent-dark);
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
@@ -442,7 +442,7 @@ summary {
   font-size: 14px;
   padding: 12px 14px;
   border-left: 4px solid var(--accent);
-  background: #fff8f4;
+  background: #faf5ff;
   border-radius: 6px;
 }
 
@@ -537,13 +537,13 @@ legend {
 }
 
 .check-item.pass {
-  border-color: rgba(66, 107, 69, 0.35);
-  background: #f3faf1;
+  border-color: rgba(22, 128, 60, 0.35);
+  background: #f0fdf4;
 }
 
 .check-item.warn {
-  border-color: rgba(159, 47, 47, 0.3);
-  background: #fff5f2;
+  border-color: rgba(190, 24, 93, 0.3);
+  background: #fff0f8;
 }
 
 .check-item strong {
@@ -569,8 +569,8 @@ legend {
 }
 
 .result-card mark {
-  background: #f3d585;
-  color: #1f2526;
+  background: #e9d5ff;
+  color: #1a1035;
   padding: 0 2px;
 }
 
@@ -599,10 +599,10 @@ legend {
 .code-block {
   min-height: 480px;
   max-height: 70vh;
-  border: 1px solid #2e3f42;
+  border: 1px solid #3b1f6b;
   border-radius: 8px;
-  background: #1a2628;
-  color: #c8e0d8;
+  background: #120b2e;
+  color: #d8b4fe;
   padding: 14px 16px;
   font-family: 'Courier New', Courier, monospace;
   font-size: 12.5px;
