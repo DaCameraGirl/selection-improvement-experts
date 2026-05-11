@@ -64,6 +64,9 @@
         </section>
 
         <section class="view is-visible" id="view-library">
+          <div class="view-desc">
+            <strong>Library</strong> — Save any guideline docs, rubrics, or rejection rules here. Give each one a title and tags, then paste the text. Everything you save becomes searchable from the bar above — the tool pulls matching rules when you analyze a question or build a prompt package.
+          </div>
           <div class="split">
             <form id="guide-form" class="panel" autocomplete="off">
               <div class="panel-header">
@@ -97,6 +100,9 @@
         </section>
 
         <section class="view" id="view-prompt">
+          <div class="view-desc">
+            <strong>Prompt Maker</strong> — Pick a domain, expertise level, and task shape, then hit <em>Generate Draft</em> to auto-fill all fields with a scenario-based starter. Replace any generic details with your real source material, then hit <em>Build Package</em> to produce the formatted submission fields ready to paste one-by-one into the Outlier TBench form.
+          </div>
           <div class="panel wide-panel">
             <div class="panel-header">
               <h2>Prompt Maker</h2>
@@ -106,6 +112,8 @@
                 <button id="clear-task-draft" type="button">Clear Draft</button>
                 <button id="build-task-package" class="primary" type="button">Build Package</button>
                 <button id="copy-task-package" type="button">Copy</button>
+                <button id="build-zip-package" class="primary" type="button">Download ZIP</button>
+                <button id="run-frontier-sim" type="button">Analyze Task</button>
               </div>
             </div>
             <div class="task-layout">
@@ -229,6 +237,9 @@
               </section>
 
               <section>
+                <h3>Readiness Dashboard</h3>
+                <div id="readiness-dashboard" class="readiness-dashboard"></div>
+                <div id="frontier-sim-results" class="sim-results is-hidden"></div>
                 <h3>Guideline Checks</h3>
                 <div id="task-checks" class="checklist"></div>
                 <h3>Generated Submission Package</h3>
@@ -240,6 +251,9 @@
         </section>
 
         <section class="view" id="view-answer">
+          <div class="view-desc">
+            <strong>Answer Helper</strong> — Paste an onboarding question or scenario into the box and hit <em>Analyze</em>. The tool searches your saved guidelines for matching rules and drafts a structured answer outline. Requires at least one saved guide in the Library to work.
+          </div>
           <div class="panel wide-panel">
             <div class="panel-header">
               <h2>Answer Helper</h2>
@@ -265,6 +279,9 @@
     </div>
 
     <section class="view" id="view-templates">
+          <div class="view-desc">
+            <strong>Code Templates</strong> — Starter scaffolds for the domain and scenario you last generated in Prompt Maker. These are <em>not</em> finished solutions — fill every <code>TODO</code>, replace all placeholder paths with your real data paths, and drop them into your zip as the basis for the <code>solve.py</code> and <code>verify.py</code> you actually submit.
+          </div>
       <div class="panel wide-panel">
         <div class="panel-header">
           <h2>Code Templates</h2>
@@ -313,6 +330,7 @@
       </article>
     </template>
 
-    <script src="app.js?v=20260510-outlier-fields"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="app.js?v=20260511-zip-builder"></script>
   </body>
 </html>

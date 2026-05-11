@@ -1,5 +1,8 @@
+history.scrollRestoration = "manual";
+window.scrollTo(0, 0);
+
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-09 tb3-guides";
+const APP_VERSION = "2026-05-11 zip-builder";
 
 const state = {
   guides: [],
@@ -65,7 +68,10 @@ function normalize(text) {
 }
 
 function toBriefNoun(brief) {
-  return brief.replace(/^(validate|audit|review|reconcile|screen|rank|replay|triage|build|diagnose|check|verify|investigate|analyze)\s+/i, "");
+  let noun = brief.replace(/^(implement|validate|audit|review|reconcile|screen|rank|replay|triage|build|diagnose|check|verify|investigate|analyze)(\s+and\s+\w+)?\s+/i, "");
+  const comma = noun.indexOf(",");
+  if (comma > 0 && comma < 90) noun = noun.slice(0, comma);
+  return noun;
 }
 
 function tokenize(text) {
@@ -419,6 +425,7 @@ function buildTaskPackage() {
     getTaskChecks(fields).map((check) => `${check.pass ? "PASS" : "NEEDS WORK"} - ${check.title}: ${check.message}`).join("\n")
   ].join("\n");
   renderPackagePreview(els.generatedTaskPackage.value);
+  renderReadinessDashboard();
 }
 
 const DOMAIN_DRAFTS = {
@@ -752,6 +759,11 @@ const SCENARIO_STYLES = [
   },
   {
     name: "operational reconciliation",
+    excludedDomains: [
+      "computer-science", "software-engineering", "compilers", "distributed-systems",
+      "formal-methods", "scientific-computing", "applied-math", "robotics-control",
+      "ml-systems", "databases", "ai-governance", "computational-linguistics"
+    ],
     situation: "when two trusted operational systems disagree and the downstream team needs a defensible reconciliation",
     objective: "reconcile the systems into a final output table with reason codes, confidence flags, and a review queue for unresolved records",
     resource: "two system exports, schema documentation, precedence rules, timestamp metadata, and a set of known reconciliation examples",
@@ -2182,7 +2194,7 @@ if __name__ == "__main__":
     ],
     downloads: [
       "[UCI Adult dataset direct download ZIP (48K rows, income/protected attributes)](https://archive.ics.uci.edu/static/public/2/adult.zip) → unzip, rename adult.data → save as data/decision_logs.csv with decision_id added",
-      "[ProPublica COMPAS two-year recidivism CSV (direct GitHub download)](https://raw.githubusercontent.com/propublica/compas-analysis/master/compas-scores-two-years.csv) → save as data/decision_logs.parquet after converting with pandas",
+      "[ProPublica COMPAS two-year recidivism CSV (direct GitHub download)](https://raw.githubusercontent.com/propublica/compas-analysis/master/compas-scores-two-years.csv) → convert with pandas; rename id→entity_id, decile_score→model_score, two_year_recid→decision_outcome, race→race, sex→gender; add event_time and label_availability_time columns; save as data/decision_logs.parquet",
       "[AIF360 example notebooks showing label/protected-attribute structure](https://github.com/Trusted-AI/AIF360/tree/main/examples) → use adult_demo.ipynb as reference for building slice_definitions.yaml and threshold_policy.yaml"
     ],
     resources: [
@@ -2265,7 +2277,7 @@ def run(decisions_path, labels_path, policy_dir, config_dir, out_dir):
     overall_ece = ece(all_probs, all_labels)
     for sk in slice_keys:
         groups = {}
-        for r, ldata_key in zip(decisions, [label_map.get(r.get("entity_id",""), {}) for r in decisions]):
+        for r in decisions:
             val = r.get(sk)
             if val is None: continue
             groups.setdefault(val, []).append(float(r.get("decision_outcome", float(r.get("model_score",0.5)) > 0.5)))
@@ -4178,7 +4190,7 @@ function fillStarterTemplate() {
   const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["biomedical-signal"];
   const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
-  const scenario = pickScenario();
+  const scenario = pickScenario(domainKey);
   const expertise = expertiseLabel(els.taskExpertise.value).toLowerCase();
 
   lastTemplateState = { domainKey, profile, scenario };
@@ -4404,12 +4416,16 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
   ].join("\n");
 }
 
-function pickScenario() {
+function pickScenario(domainKey) {
   const key = "selection-improvement-scenario-index";
+  const compatible = SCENARIO_STYLES.filter(s =>
+    !s.excludedDomains || !s.excludedDomains.includes(domainKey)
+  );
+  const pool = compatible.length ? compatible : SCENARIO_STYLES;
   const current = Number(localStorage.getItem(key) || "-1");
-  const next = (current + 1) % SCENARIO_STYLES.length;
+  const next = (current + 1) % pool.length;
   localStorage.setItem(key, String(next));
-  return SCENARIO_STYLES[next];
+  return pool[next];
 }
 
 function hasTaskDraft() {
@@ -4954,6 +4970,588 @@ Scope down the time estimate if work volume rather than intellectual difficulty 
   renderAll();
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ZIP BUILDER + READINESS DASHBOARD + FRONTIER SIMULATION
+// ══════════════════════════════════════════════════════════════════════════════
+
+const DOMAIN_REQUIREMENTS = {
+  "biomedical-signal":         "numpy>=1.24\nscipy>=1.10\nmatplotlib>=3.7\nwfdb>=4.1\n",
+  "climate-geospatial":        "numpy>=1.24\npandas>=2.0\n",
+  "computational-biology":     "biopython>=1.81\nnumpy>=1.24\nscipy>=1.10\n",
+  "quant-finance":             "numpy>=1.24\npandas>=2.0\n",
+  "materials-science":         "pymatgen>=2024.1\nnumpy>=1.24\n",
+  "power-systems":             "numpy>=1.24\nscipy>=1.10\n",
+  "cyber-forensics":           "scapy>=2.5\npandas>=2.0\n",
+  "robotics-control":          "numpy>=1.24\nscipy>=1.10\n",
+  "econometrics":              "numpy>=1.24\nscipy>=1.10\nstatsmodels>=0.14\n",
+  "computational-linguistics": "conllu>=4.4\nnumpy>=1.24\n",
+  "software-engineering":      "pytest>=7.4\n",
+  "computer-science":          "numpy>=1.24\n",
+  "distributed-systems":       "numpy>=1.24\n",
+  "databases":                 "sqlalchemy>=2.0\npandas>=2.0\n",
+  "compilers":                 "lark>=1.1\n",
+  "ml-systems":                "numpy>=1.24\npandas>=2.0\nscikit-learn>=1.3\n",
+  "ai-governance":             "numpy>=1.24\npandas>=2.0\nscikit-learn>=1.3\n",
+  "applied-math":              "numpy>=1.24\nscipy>=1.10\nmatplotlib>=3.7\n",
+  "statistics":                "numpy>=1.24\nscipy>=1.10\nstatsmodels>=0.14\n",
+  "scientific-computing":      "numpy>=1.24\nscipy>=1.10\n",
+  "formal-methods":            "",
+};
+
+const DOMAIN_CONFIG_FILES = {
+  "biomedical-signal":    { filename: "filter_change.yaml",     content: "bandpass_lo_hz: 0.5\nbandpass_hi_hz: 40.0\nnotch_hz: 60.0\nnotch_q: 30.0\ntolerance_ms: 15\nsensitivity_min: 0.97\nppv_min: 0.96\n" },
+  "climate-geospatial":   { filename: "anomaly_config.yaml",    content: "baseline_start: \"1990\"\nbaseline_end: \"2010\"\ntarget_start: \"2020\"\ntarget_end: \"2023\"\nmin_station_coverage: 1\n" },
+  "quant-finance":        { filename: "risk_config.yaml",       content: "annualization_factor: 252\nrolling_window_days: 252\ndrawdown_method: peak_to_trough\nfactor_model: ff3\nreturn_type: log\n" },
+  "ml-systems":           { filename: "serving_config.yaml",    content: "parity_threshold: 0.01\nlatency_p99_ms: 120\nauc_delta_max: 0.005\ndrift_method: ks_test\nalpha: 0.05\n" },
+  "ai-governance":        { filename: "audit_config.yaml",      content: "disparate_impact_min: 0.80\ncalibration_error_max: 0.03\nalpha: 0.05\nprotected_attributes:\n  - age_group\n  - gender\n  - race\n" },
+  "robotics-control":     { filename: "controller_config.yaml", content: "tracking_error_rms_max_m: 0.05\nsettle_time_max_s: 2.0\ntorque_tolerance_fraction: 0.10\n" },
+  "power-systems":        { filename: "solver_config.yaml",     content: "voltage_min_pu: 0.95\nvoltage_max_pu: 1.05\nthermal_limit_tolerance_mva: 0.1\nflow_method: dc\n" },
+  "software-engineering": { filename: "test_config.yaml",       content: "required_test_pass_rate: 1.0\nmax_api_signature_changes: 0\nfixture_count: 3\n" },
+  "econometrics":         { filename: "model_config.yaml",      content: "confidence_level: 0.95\ncluster_variable: county_id\nfe_entity: state\nfe_time: year\nplacebo_periods: 3\n" },
+  "cyber-forensics":      { filename: "forensics_config.yaml",  content: "timezone: UTC\nioc_recall_min: 1.0\nmax_false_positive_sessions: 0\n" },
+  "statistics":           { filename: "analysis_config.yaml",   content: "alpha: 0.05\npower_min: 0.80\nmissing_method: multiple_imputation\ncorrection_method: benjamini_hochberg\n" },
+};
+
+// ── 7-CRITERIA VALIDATION GATE ────────────────────────────────────────────
+
+function validateZipReadiness() {
+  const f = getTaskFields();
+  const issues = [];
+  if (!f.prompt || f.prompt.length < 80)
+    issues.push("Prompt is missing or too short — needs a clear output goal (≥80 chars).");
+  if (!f.solution || f.solution.length < 100)
+    issues.push("Golden solution missing — needs expert workflow, commands, and output paths.");
+  if (!f.verifiers || f.verifiers.length < 50)
+    issues.push("Verifier description missing — needs deterministic output checks.");
+  if (!f.resources || !f.resources.includes("data/"))
+    issues.push("Resources must reference files inside a data/ folder.");
+  if (!f.resources || !/(http|github|physionet|openml|noaa|ensembl|stooq|tpc|conll|cses|matpower|icpsr|jaspar|stratosphere)/i.test(f.resources))
+    issues.push("Resources must cite a public source (URL, PhysioNet, OpenML, GitHub, NOAA, etc.).");
+  if (!f.solution || !/(python|\.py|bash|make|pytest|run)/i.test(f.solution))
+    issues.push("Golden solution needs a runnable command (e.g. python solve.py).");
+  if (!f.errorIfWrong || f.errorIfWrong.length < 20)
+    issues.push("'Error if wrong' missing — what does verify.py output on failure?");
+  return { ready: issues.length === 0, issues };
+}
+
+// ── READINESS DASHBOARD ───────────────────────────────────────────────────
+
+function computeReadinessScores(f) {
+  const p = f.prompt || "", s = f.solution || "", v = f.verifiers || "", r = f.resources || "";
+  const d = f.difficulty || "";
+  const hasDeterministicVerifier = v.length > 50 && !/(human|LLM|judge|subjective|manually)/i.test(v) &&
+    /(exit|schema|file|csv|json|threshold|tolerance|deterministic)/i.test(v);
+  const hasSolution = s.length > 100;
+  const hasCommands = /(python|\.py|make|pytest|bash|sh|run)/i.test(s);
+  const hasOutputPaths = /(\.csv|\.json|outputs\/|\.parquet)/i.test(s);
+  const requiresCode = /(python|\.py|terminal|script|code|bash|command|csv|json|parquet|sql|compute)/i.test(p);
+  const hasDifficulty = d.length > 80;
+  const hasFailureModes = hasDifficulty && /(fail|wrong|incorrect|edge|boundary|invalid|adversarial)/i.test(d);
+  const hasRealSource = /(physionet|openml|github\.com|stooq|ensembl|noaa|matpower|cses|tpc|conll|universal.dep|icpsr|jaspar|stratosphere)/i.test(r) || /(https?:\/\/)/i.test(r);
+  const hasNamedFiles = ((r).match(/\.(csv|json|yaml|parquet|fa|tsv|txt|py|sh)/g) || []).length >= 2;
+  const hasVersions = /(>=|version|v\d|release)/i.test(r);
+  const hasOutputContract = /(outputs\/)/.test(s + r) || (/\.(csv|json|parquet)/.test(s) && /(\d+\.?\d*\s*%|±|>=|<=|tolerance|threshold)/i.test(s + p));
+  return {
+    verifiable:   hasDeterministicVerifier ? 1.0 : v.length > 50 ? 0.5 : 0.1,
+    solvable:     (hasSolution && hasCommands && hasOutputPaths) ? 1.0 : (hasSolution && hasCommands) ? 0.6 : hasSolution ? 0.3 : 0.0,
+    requiresCode: requiresCode ? 1.0 : 0.2,
+    difficult:    (hasDifficulty && hasFailureModes) ? 0.9 : hasDifficulty ? 0.5 : 0.2,
+    realWorld:    hasRealSource ? 1.0 : 0.3,
+    resources:    (hasNamedFiles && hasVersions) ? 1.0 : hasNamedFiles ? 0.6 : hasVersions ? 0.4 : 0.2,
+    outcome:      hasOutputContract ? 1.0 : 0.4,
+  };
+}
+
+function renderReadinessDashboard() {
+  const el = document.querySelector("#readiness-dashboard");
+  if (!el) return;
+  const f = getTaskFields();
+  const scores = computeReadinessScores(f);
+  const criteria = [
+    { key: "verifiable",   label: "Verifiable",         desc: "Deterministic verifier, no LLM judge" },
+    { key: "solvable",     label: "Solvable",            desc: "Solution has commands + output paths" },
+    { key: "requiresCode", label: "Requires Code",       desc: "Terminal, scripts, or data analysis" },
+    { key: "difficult",    label: "Difficult",           desc: "Domain failure modes documented" },
+    { key: "realWorld",    label: "Real Source",         desc: "Named public dataset or repository" },
+    { key: "resources",    label: "Resources Complete",  desc: "Named files, schemas, and versions" },
+    { key: "outcome",      label: "Outcome-Verifiable",  desc: "Output files and numeric thresholds" },
+  ];
+  const overall = Math.round(Object.values(scores).reduce((a, b) => a + b, 0) / criteria.length * 100);
+  const overallCls = overall >= 80 ? "score-ready" : overall >= 55 ? "score-near" : "score-notready";
+  const overallLabel = overall >= 80 ? "ZIP export ready" : overall >= 55 ? "almost ready" : "needs work";
+  el.innerHTML = criteria.map(({ key, label, desc }) => {
+    const pct = Math.round(scores[key] * 100);
+    const cls = pct >= 80 ? "meter-high" : pct >= 50 ? "meter-mid" : "meter-low";
+    return `<div class="meter ${cls}"><div class="meter-header"><span class="meter-label">${escapeHtmlInline(label)}</span><span class="meter-pct">${pct}%</span></div><div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div><small class="meter-desc">${escapeHtmlInline(desc)}</small></div>`;
+  }).join("") + `<div class="overall-score ${overallCls}">Overall readiness: <strong>${overall}%</strong> — ${overallLabel}</div>`;
+}
+
+function escapeHtmlInline(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+// ── FRONTIER MODEL FAILURE SIMULATION ────────────────────────────────────
+
+function simulateModelTier(tier, f) {
+  const p = f.prompt || "", s = f.solution || "", v = f.verifiers || "", r = f.resources || "";
+  const hasEdgeCases      = /(edge|boundary|invalid|adversarial|malformed)/i.test(p + s + v);
+  const hasTolerance      = /(\d+\.?\d*\s*%|±\d|tolerance|within \d)/i.test(p + s);
+  const hasMultiFile      = ((s + r).match(/\.(csv|json|parquet|yaml)/g) || []).length >= 3;
+  const hasDomainCheck    = /(schema|checksum|annotation|calibration|coverage|invariant|exclusion)/i.test(v);
+  const hasStrictSchema   = /(required.colum|required.field|must.contain|exact.schema)/i.test(v);
+  const hasComplexDomain  = /(physionet|genomic|ecg|trajectory|disparate.impact|contingency|calibration)/i.test(p + s);
+  const challenges = [hasEdgeCases, hasTolerance, hasMultiFile, hasDomainCheck, hasStrictSchema, hasComplexDomain].filter(Boolean).length;
+  const thresholds = { "fast-model": 1, "strong-model": 3, "frontier-model": 5 };
+  const passes = challenges <= thresholds[tier];
+  const failuresByTier = {
+    "fast-model": [
+      hasMultiFile       ? "Likely misses required output files — writes partial results only" : null,
+      hasStrictSchema    ? "Likely produces wrong schema — column names differ from spec" : null,
+      hasEdgeCases       ? "Likely fails invalid-input fixture — no exclusion logic" : null,
+      hasTolerance       ? "Likely uses wrong tolerance — off-by-one in threshold comparison" : null,
+    ],
+    "strong-model": [
+      hasComplexDomain   ? "Passes normal cases but fails domain-specific edge cases" : null,
+      hasDomainCheck     ? "Ignores domain invariant (e.g. sampling-rate check, CRS normalization)" : null,
+      hasStrictSchema    ? "Correct values but wrong column order or extra columns" : null,
+    ],
+    "frontier-model": [
+      hasComplexDomain   ? "May fail PhD-level domain constraints (calibration, invariant strengthening)" : null,
+      hasDomainCheck     ? "May miss the most adversarial fixture case" : null,
+    ],
+  };
+  return {
+    tier,
+    label: { "fast-model": "GPT-3.5 tier", "strong-model": "GPT-4 tier", "frontier-model": "Frontier (Claude Opus / GPT-4o)" }[tier],
+    passes,
+    challenges,
+    failures: (failuresByTier[tier] || []).filter(Boolean)
+  };
+}
+
+function runFrontierSimulation() {
+  const f = getTaskFields();
+  const results = ["fast-model", "strong-model", "frontier-model"].map((t) => simulateModelTier(t, f));
+  const failCount = results.filter((r) => !r.passes).length;
+  const difficultyPct = Math.round((failCount / results.length) * 100);
+  const diffLabel = difficultyPct >= 67 ? "Hard" : difficultyPct >= 34 ? "Medium" : "Easy";
+  return { results, difficultyPct, diffLabel };
+}
+
+function renderFrontierSimResults() {
+  const el = document.querySelector("#frontier-sim-results");
+  if (!el) return;
+  const { results, difficultyPct, diffLabel } = runFrontierSimulation();
+  const diffCls = difficultyPct >= 67 ? "diff-hard" : difficultyPct >= 34 ? "diff-medium" : "diff-easy";
+  el.classList.remove("is-hidden");
+  el.innerHTML = `<div class="sim-header"><strong>Frontier Failure Simulation</strong> <small>Heuristic — based on task complexity</small><span class="diff-badge ${diffCls}">${diffLabel} (${difficultyPct}% of tiers fail)</span></div>` +
+    results.map((r) => `<div class="sim-row ${r.passes ? "sim-pass" : "sim-fail"}"><span class="sim-model">${escapeHtmlInline(r.label)}</span><span class="sim-verdict">${r.passes ? "PASS — likely solvable" : "FAIL — likely fails verifier"}</span>${r.failures.length ? `<ul class="sim-failures">${r.failures.map((f) => `<li>${escapeHtmlInline(f)}</li>`).join("")}</ul>` : ""}</div>`).join("") +
+    buildSelfHealingSuggestions(results, getTaskFields());
+}
+
+function buildSelfHealingSuggestions(results, f) {
+  const failing = results.filter((r) => !r.passes);
+  if (!failing.length) return "";
+  const fixes = new Set();
+  for (const r of failing) {
+    for (const msg of r.failures) {
+      if (/output file|partial result/i.test(msg)) fixes.add("Name every required output file path explicitly in the golden solution.");
+      if (/schema|column/i.test(msg)) fixes.add("Add a schema spec block listing every required column name and type.");
+      if (/invalid|exclusion/i.test(msg)) fixes.add("Document how invalid-input fixtures are rejected (exclusion_reason column + qc_summary.json).");
+      if (/tolerance|threshold/i.test(msg)) fixes.add("Spell out numeric thresholds with units (e.g. sensitivity ≥ 0.97 ± 0.005).");
+      if (/domain invariant|crs|sampling/i.test(msg)) fixes.add("Name the domain-specific invariant the verifier checks (e.g. 360 Hz sampling rate, UTM CRS).");
+    }
+  }
+  if (!fixes.size) return "";
+  return `<div class="self-heal"><strong>Suggested fixes:</strong><ul>${[...fixes].map((f) => `<li>${escapeHtmlInline(f)}</li>`).join("")}</ul></div>`;
+}
+
+// ── ADVERSARIAL TEST GENERATOR ────────────────────────────────────────────
+
+function generateAdversarialTests(domainKey, profile) {
+  const outputFiles = extractOutputFilenames(domainKey);
+  const firstFile = outputFiles[0] || "output.json";
+
+  return {
+    schema_breaks: [
+      { name: "missing_required_fields", description: "Output CSV with no required columns", input: { missing_cols: ["record_id", "status", firstFile.replace(/\..*/, "_id")], action: "omit all required columns from output file" } },
+      { name: "type_mismatch",           description: "Numeric threshold field contains string", input: { field: "sensitivity", value: "not_a_number", expected_type: "float" } },
+      { name: "deeply_nested_invalid",   description: "Output JSON is deeply nested instead of flat", input: { meta: { broken: { deeply: { invalid: null } } } } },
+    ],
+    boundary_cases: [
+      { name: "empty_input",    description: "Input data file is empty (zero rows)", input: { rows: 0, expected_behavior: "verify.py should exit 1 with 'no records processed'" } },
+      { name: "single_row",     description: "Input has exactly 1 valid row", input: { rows: 1, expected_behavior: "solve.py should produce valid output for a single-row input" } },
+      { name: "max_valid",      description: "Input has the maximum expected row count", input: { rows: 100000, expected_behavior: "solve.py should complete within time budget" } },
+    ],
+    format_traps: [
+      { name: "partial_json",          description: "Output JSON is truncated mid-write", input: '{"result": "incomplete"' },
+      { name: "wrong_delimiter",       description: "CSV uses semicolons instead of commas", input: "key1;val1\nkey2;val2" },
+      { name: "extra_columns",         description: `Output has all required columns plus unexpected extras`, input: { extra_cols: ["TEMP_DEBUG", "TODO_REMOVE"], note: "verifier must fail on unexpected schema additions that break downstream" } },
+    ],
+    reasoning_conflicts: [
+      { name: "contradictory_tolerance", description: "Tolerance set to 0 but domain requires fuzzy matching", input: `${profile.threshold || "see spec"} — but tolerance_ms set to 0` },
+      { name: "competing_exclusions",    description: "Record matches both include and exclude criteria", input: { include_rule: "process records with quality_flag=0", exclude_rule: "skip records with quality_flag=0 if sampling_rate_mismatch=true" } },
+    ],
+    instruction_conflicts: [
+      { name: "include_exclude_same",   description: "Must include and exclude the same field", input: "Output must include field X AND must not include field X — catches verifiers that don't enforce schema strictly" },
+      { name: "format_vs_content",      description: "JSON required but natural language expected", input: "Output must be valid JSON but must also contain a human-readable justification paragraph" },
+    ],
+  };
+}
+
+// ── AUTO FIXTURE GENERATOR ────────────────────────────────────────────────
+
+function generateAutoFixtures(domainKey, profile) {
+  const domainFixtures = {
+    "biomedical-signal": {
+      correct: {
+        _description: "Correct output: all thresholds met, invalid record excluded",
+        required_outputs: ["beat_validation_report.csv","failure_analysis.csv","qc_summary.json","validation_metrics.json","run_manifest.json","plots/record_overlay.png"],
+        validation_metrics: { "mitdb_100": { sensitivity: 0.98, ppv: 0.97, tp: 49, fp: 1, fn: 1, pass: true }, "mitdb_101": { sensitivity: 0.97, ppv: 0.96, tp: 51, fp: 2, fn: 0, pass: true } },
+        qc_summary: [
+          { record_id: "mitdb_100", status: "PASS", reason: "THRESHOLDS_MET", sensitivity: 0.98, ppv: 0.97 },
+          { record_id: "mitdb_101", status: "PASS", reason: "THRESHOLDS_MET", sensitivity: 0.97, ppv: 0.96 },
+          { record_id: "mitdb_103", status: "EXCLUDED", reason: "SR_250HZ_EXPECTED_360HZ", sensitivity: null, ppv: null },
+        ]
+      },
+      incorrect: {
+        _description: "Incorrect: sensitivity 0.85 < 0.97 threshold; record 103 not excluded",
+        _failure_reason: "sensitivity and PPV below threshold; invalid record not correctly excluded",
+        _missing_files: ["failure_analysis.csv","qc_summary.json","run_manifest.json","plots/record_overlay.png"],
+        validation_metrics: { "mitdb_100": { sensitivity: 0.85, ppv: 0.82, pass: false } }
+      }
+    },
+    "ml-systems": {
+      correct: {
+        _description: "Correct: batch/online parity <1%, latency p99 <120ms, AUC delta <0.005",
+        required_outputs: ["metrics.json","drift_report.json","latency_summary.csv","run_manifest.json"],
+        metrics: { auc: 0.883, auc_delta: 0.003, parity_divergence_pct: 0.007, latency_p99_ms: 105 }
+      },
+      incorrect: {
+        _description: "Incorrect: parity violation >1%, drift_report.json missing",
+        _failure_reason: "parity_divergence_pct=0.032 exceeds 0.01 threshold; drift_report.json absent",
+        _missing_files: ["drift_report.json","latency_summary.csv","run_manifest.json"],
+        metrics: { auc: 0.840, auc_delta: 0.012, parity_divergence_pct: 0.032, latency_p99_ms: 180 }
+      }
+    },
+    "ai-governance": {
+      correct: {
+        _description: "Correct: disparate impact ≥0.80, calibration error ≤0.03, zero unexplained exceptions",
+        required_outputs: ["governance_metrics.json","fairness_audit.csv","policy_exception_report.json","run_manifest.json"],
+        governance_metrics: { disparate_impact: 0.85, calibration_error: 0.021, unexplained_exceptions: 0 }
+      },
+      incorrect: {
+        _description: "Incorrect: disparate impact 0.72 < 0.80; unexplained exceptions=3",
+        _failure_reason: "disparate_impact=0.72 below threshold; unexplained_exceptions=3; fairness_audit.csv missing",
+        _missing_files: ["fairness_audit.csv","policy_exception_report.json","run_manifest.json"],
+        governance_metrics: { disparate_impact: 0.72, calibration_error: 0.05, unexplained_exceptions: 3 }
+      }
+    },
+    "software-engineering": {
+      correct: {
+        _description: "Correct: all regression tests pass, zero API signature changes",
+        required_outputs: ["patch.diff","test_report.json","compatibility_summary.json","run_manifest.json"],
+        test_report: { passed: 3, failed: 0, total: 3 },
+        compatibility_summary: { api_changes: 0, breaking_changes: 0, fixture_results: [{ name: "normal", pass: true }, { name: "edge", pass: true }, { name: "invalid", pass: true }] }
+      },
+      incorrect: {
+        _description: "Incorrect: one regression test fails, compatibility_summary.json missing",
+        _failure_reason: "test_report shows 1 failure; compatibility_summary.json absent",
+        _missing_files: ["compatibility_summary.json","run_manifest.json"],
+        test_report: { passed: 2, failed: 1, total: 3 }
+      }
+    },
+  };
+  const fix = domainFixtures[domainKey];
+  const outputFiles = extractOutputFilenames(domainKey);
+  const correct = fix ? { ...fix.correct, _domain: domainKey, _threshold: profile.threshold || "" }
+    : { _description: `Correct output for ${domainKey} — verifier must PASS`, _domain: domainKey, _threshold: profile.threshold || "", required_outputs: outputFiles, metrics: { status: "pass", score: 0.97 } };
+  const incorrect = fix ? { ...fix.incorrect, _domain: domainKey }
+    : { _description: `Incorrect output for ${domainKey} — verifier must FAIL`, _domain: domainKey, _failure_reason: `Metrics below threshold: ${profile.threshold || "see task spec"}`, _missing_files: outputFiles.slice(0, 2), corrupted: true };
+  return { correct, incorrect };
+}
+
+// ── DATA STUBS + SCHEMA FILES ─────────────────────────────────────────────
+
+function buildDataStubs(domainKey, dataFolder) {
+  const stubs = {
+    "biomedical-signal": {
+      "raw/mitdb_100_signal.csv": "record_id,sample_index,time_sec,mlII_mv,v5_mv\n# PLACEHOLDER — download from PhysioNet MIT-BIH record 100\n",
+      "raw/mitdb_101_signal.csv": "record_id,sample_index,time_sec,mlII_mv,v5_mv\n# PLACEHOLDER — download from PhysioNet MIT-BIH record 101\n",
+      "raw/mitdb_103_signal.csv": "record_id,sample_index,time_sec,mlII_mv,v5_mv\n# PLACEHOLDER — record 103 (edge case: wrong sampling rate)\n",
+      "reference/beat_annotations.csv": "record_id,annotation_sample,annotation_time_sec,beat_symbol,source_record\n# PLACEHOLDER — download PhysioNet MIT-BIH annotation files (.atr)\n",
+    },
+    "ml-systems": {
+      "labels.csv": "id,label,split\n# PLACEHOLDER — ground-truth labels with train/test split\n",
+      "prediction_logs.jsonl": '{"id":"example_001","batch_pred":0.75,"online_pred":0.76,"latency_ms":42,"timestamp":"2024-01-01T00:00:00Z"}\n',
+      "latency_trace.csv": "request_id,latency_ms,timestamp,model_version\n# PLACEHOLDER\n",
+      "model_card.md": "# Model Card\n\n## TODO: fill in model details, training data, and serving constraints\n",
+    },
+    "ai-governance": {
+      "labels.csv": "id,label\n# PLACEHOLDER\n",
+      "slice_definitions.yaml": "protected_slices:\n  age_group: [under_30, 30_to_50, over_50]\n  gender: [M, F, other]\n",
+      "threshold_policy.yaml": "decision_threshold_default: 0.5\nreview_queue_threshold: 0.45\n",
+    },
+    "software-engineering": {
+      "api_contract.md": "# API Contract\n\n## TODO: list all public functions, signatures, return types, and error codes\n",
+      "failing_tests.txt": "# TODO: list failing test names here, one per line\n",
+      "expected_behavior.json": '{"functions":[],"return_types":{},"error_codes":[],"deprecated":[]}\n',
+      "regression_fixtures/normal_case.json": '{"input":{},"expected_output":{},"test_name":"normal_case"}\n',
+      "regression_fixtures/edge_case.json": '{"input":{"edge":true},"expected_output":null,"test_name":"edge_case"}\n',
+      "regression_fixtures/invalid_case.json": '{"input":null,"expected_error":"ValueError","test_name":"invalid_case"}\n',
+    },
+    "climate-geospatial": {
+      "daily_observations.csv": "station_id,date,tmax_tenth_c,quality_flag\n# PLACEHOLDER — download NOAA GHCN daily data\n",
+      "station_metadata.csv": "station_id,latitude,longitude,elevation_m,county_fips\n# PLACEHOLDER\n",
+      "county_boundaries.geojson": '{"type":"FeatureCollection","features":[]}\n',
+    },
+    "quant-finance": {
+      "ohlcv/prices_raw.csv": "ticker,date,open,high,low,close,volume,adj_close\n# PLACEHOLDER — download from Stooq\n",
+      "corporate_actions.csv": "ticker,ex_date,split_ratio,dividend\n# PLACEHOLDER\n",
+      "portfolio/holdings.csv": "ticker,weight,entry_date,exit_date,strategy_id\n# PLACEHOLDER\n",
+      "factors/ff3_daily.csv": "date,mkt_rf,smb,hml,rf\n# PLACEHOLDER — Ken French Data Library\n",
+    },
+    "robotics-control": {
+      "trajectory_logs/run_01.csv": "timestamp_s,x_m,y_m,theta_rad,vx_mps,vy_mps,torque_nm\n# PLACEHOLDER\n",
+      "reference_path.csv": "waypoint_id,x_m,y_m,theta_rad,expected_speed_mps\n# PLACEHOLDER\n",
+      "robot_params.yaml": "mass_kg: 5.0\nwheelbase_m: 0.287\nmax_torque_nm: 2.5\nmax_velocity_mps: 0.5\n",
+      "actuator_limits.json": '{"torque_nm":{"min":-2.5,"max":2.5},"velocity_mps":{"max":0.5}}\n',
+    },
+    "power-systems": {
+      "bus.csv": "bus_id,bus_type,pd_mw,qd_mvar,vm_pu,va_deg,vmax_pu,vmin_pu\n# PLACEHOLDER — from MATPOWER case file\n",
+      "branch.csv": "from_bus,to_bus,r_pu,x_pu,b_pu,ratea_mva,tap_ratio\n# PLACEHOLDER\n",
+      "gen.csv": "bus_id,pg_mw,qg_mvar,qmax_mvar,pg_max_mw,pg_min_mw\n# PLACEHOLDER\n",
+      "base_mva.json": '{"base_mva":100,"case_name":"case14"}\n',
+    },
+  };
+  const domainStubs = stubs[domainKey];
+  if (!domainStubs) { dataFolder.file("source_inputs_PLACEHOLDER.csv", "# PLACEHOLDER — replace with real data\n"); return; }
+  for (const [fp, content] of Object.entries(domainStubs)) {
+    const parts = fp.split("/");
+    if (parts.length > 1) {
+      let folder = dataFolder;
+      for (let i = 0; i < parts.length - 1; i++) folder = folder.folder(parts[i]);
+      folder.file(parts[parts.length - 1], content);
+    } else { dataFolder.file(fp, content); }
+  }
+}
+
+function buildSchemaFiles(domainKey, schemasFolder) {
+  const schemas = {
+    "biomedical-signal": {
+      "beat_report.schema.json": JSON.stringify({ "$schema": "http://json-schema.org/draft-07/schema", "type": "array", "items": { "type": "object", "required": ["record_id","beat_index","detected_time_sec","match_status","source_checksum"], "properties": { "record_id": { "type": "string" }, "beat_index": { "type": "integer" }, "detected_time_sec": { "type": "number" }, "match_status": { "type": "string", "enum": ["MATCH","FP"] }, "source_checksum": { "type": "string" } } } }, null, 2),
+      "qc_summary.schema.json": JSON.stringify({ "$schema": "http://json-schema.org/draft-07/schema", "type": "array", "items": { "type": "object", "required": ["record_id","status"], "properties": { "record_id": { "type": "string" }, "status": { "type": "string", "enum": ["PASS","FAIL","EXCLUDED"] }, "sensitivity": { "type": ["number","null"] }, "ppv": { "type": ["number","null"] } } } }, null, 2),
+    },
+    "ml-systems": {
+      "metrics.schema.json": JSON.stringify({ "$schema": "http://json-schema.org/draft-07/schema", "type": "object", "required": ["auc","auc_delta","parity_divergence_pct","latency_p99_ms"], "properties": { "auc": { "type": "number", "minimum": 0, "maximum": 1 }, "auc_delta": { "type": "number" }, "parity_divergence_pct": { "type": "number" }, "latency_p99_ms": { "type": "number" } } }, null, 2),
+    },
+    "ai-governance": {
+      "audit_metrics.schema.json": JSON.stringify({ "$schema": "http://json-schema.org/draft-07/schema", "type": "object", "required": ["disparate_impact","calibration_error","unexplained_exceptions"], "properties": { "disparate_impact": { "type": "number", "minimum": 0, "maximum": 1 }, "calibration_error": { "type": "number", "minimum": 0 }, "unexplained_exceptions": { "type": "integer", "minimum": 0 } } }, null, 2),
+    },
+    "software-engineering": {
+      "test_report.schema.json": JSON.stringify({ "$schema": "http://json-schema.org/draft-07/schema", "type": "object", "required": ["passed","failed","total"], "properties": { "passed": { "type": "integer" }, "failed": { "type": "integer" }, "total": { "type": "integer" } } }, null, 2),
+    },
+  };
+  const domainSchemas = schemas[domainKey];
+  if (domainSchemas) {
+    for (const [fn, content] of Object.entries(domainSchemas)) schemasFolder.file(fn, content);
+  } else {
+    schemasFolder.file("output.schema.json", JSON.stringify({ "$schema": "http://json-schema.org/draft-07/schema", "description": `Output schema for ${domainKey} — fill in required fields`, "type": "object", "required": ["status","run_manifest"] }, null, 2));
+  }
+}
+
+function buildExpectedMetricsJson(domainKey, profile) {
+  const byDomain = {
+    "biomedical-signal": { "mitdb_100": { sensitivity: 0.97, ppv: 0.96 }, "mitdb_101": { sensitivity: 0.97, ppv: 0.96 }, "_threshold_note": profile.threshold || "" },
+    "ml-systems":        { auc_min: 0.83, auc_delta_max: 0.005, parity_divergence_pct_max: 0.01, latency_p99_ms_max: 120 },
+    "ai-governance":     { disparate_impact_min: 0.80, calibration_error_max: 0.03, unexplained_exceptions_max: 0 },
+    "robotics-control":  { tracking_error_rms_max_m: 0.05, settle_time_max_s: 2.0, torque_tolerance_fraction: 0.10 },
+    "climate-geospatial":{ anomaly_tolerance_c: 0.1, orphaned_stations_max: 0, reprojection_error_max_m: 50 },
+    "software-engineering": { regression_tests_pass_rate: 1.0, api_signature_changes_max: 0, fixture_pass_count: 3 },
+    "quant-finance":     { vol_tolerance_pct: 0.2, drawdown_tolerance_pp: 0.5, factor_beta_tolerance: 0.01 },
+    "power-systems":     { voltage_min_pu: 0.95, voltage_max_pu: 1.05, thermal_tolerance_mva: 0.1 },
+    "cyber-forensics":   { ioc_recall_min: 1.0, false_positive_sessions_max: 0, timestamp_tolerance_s: 1 },
+    "econometrics":      { point_estimate_tolerance: 0.001, se_tolerance: 0.005, pretrend_alpha: 0.10 },
+    "statistics":        { point_estimate_tolerance: 0.001, power_min: 0.80, alpha: 0.05 },
+  };
+  return JSON.stringify(byDomain[domainKey] || { "_threshold_note": profile.threshold || "Fill in numeric thresholds", pass_criteria: "edit to match real acceptance thresholds" }, null, 2);
+}
+
+function buildGenericConfigYaml(domainKey, profile) {
+  return `# Task configuration — ${domainKey}\n# Generated by Selection Improvement Experts ${APP_VERSION}\n# Edit thresholds to match your task spec before running solve.py\n\nthreshold_primary: 0.97      # TODO: replace with real value\nthreshold_secondary: 0.96    # TODO: replace with real value\ntolerance: 0.005\nrandom_seed: 42\noutput_dir: outputs\n`;
+}
+
+function buildDataReadme(domainKey, details, profile) {
+  const sources   = (details && details.sources)    ? details.sources   : [];
+  const downloads = (details && details.downloads)  ? details.downloads : [];
+  const resources = (details && details.resources)  ? details.resources : [];
+  return ["# data/ — Download Instructions", "", "**Placeholder stubs only. Replace each file with the real download before running solve.py.**", "", "## Public sources", "", ...sources.map((s) => `- ${s}`), "", ...(downloads.length ? ["## Step-by-step downloads", "", ...downloads.map((d, i) => `**${i + 1}.** ${d}`), ""] : []), "## Required files", "", ...resources.map((r) => `- ${r}`), "", `## Exclusion rules\nRecords are excluded if they: ${profile.failure || "fail schema validation or violate domain constraints"}.`, "", "```\npython solve.py\npython verify.py\n```"].join("\n");
+}
+
+function buildFixturesReadme(domainKey, profile) {
+  return ["# verifier_inputs/ — Fixture Documentation", "", "## correct.json", "A correct solver output — verify.py must **EXIT 0** on this.", "", "## incorrect.json", "A deliberately broken output — verify.py must **EXIT 1** on this.", `Failure reason: ${profile.threshold || "metrics below declared thresholds."}`, "", "## expected_metrics.json", "Numeric thresholds read by verify.py. Update to match final task spec.", "", "## Smoke-test workflow", "1. `python solve.py` — generates outputs/", "2. `python verify.py` — should exit 0", "3. Degrade one output (delete a required column or lower a metric below threshold)", "4. `python verify.py` — must exit 1", "5. Document the failing step in 'Error if wrong' before submitting."].join("\n");
+}
+
+function buildZipReadme(domainKey, profile, scenario, details, fields) {
+  const sources   = (details && details.sources)   ? details.sources   : [];
+  const downloads = (details && details.downloads) ? details.downloads : [];
+  const resources = (details && details.resources) ? details.resources : [];
+  return [`# Task Package: ${fields.title || profile.brief}`, "", `**Domain:** ${DOMAIN_CATEGORY[domainKey] || profile.domain}`, `**Scenario:** ${scenario.name}`, `**Generated:** ${new Date().toISOString().slice(0, 10)} via Selection Improvement Experts ${APP_VERSION}`, "", "## Quick start", "```", "pip install -r environment/requirements.txt", "# Place real data files in data/ (see data/README_data.md)", "python solve.py", "python verify.py", "```", "", "## Folder structure", "", "| Path | Purpose |", "|------|---------|", "| `solve.py` | Main solver — produces outputs/ |", "| `verify.py` | Deterministic verifier — exit 0 = pass, exit 1 = fail |", "| `config/` | Task-specific thresholds and parameters |", "| `data/` | Input data — see data/README_data.md |", "| `schemas/` | JSON Schema definitions for output validation |", "| `verifier_inputs/` | Correct and incorrect fixture files |", "| `adversarial_tests/` | Schema-break, boundary, and conflict test cases |", "| `huggingface_export/` | HuggingFace-style JSONL dataset export |", "| `outputs/` | Populated by solve.py |", "| `environment/` | requirements.txt and version manifest |", "", "## Threshold contract", "", profile.threshold || "See verifier_inputs/expected_metrics.json for numeric thresholds.", "", "## Data sources", "", ...sources.map((s) => `- ${s}`), "", ...(downloads.length ? ["## Download steps", "", ...downloads.map((d) => `- ${d}`), ""] : []), "## Required input files", "", ...resources.map((r) => `- ${r}`), "", "## Verifier behavior", "", "- **Exit 0** — all required files present, schemas valid, metrics within tolerance", "- **Exit 1** — missing file, schema violation, metric below threshold, or invalid fixture accepted", "", "> The workflow must run without network access after unpacking."].join("\n");
+}
+
+// ── HUGGINGFACE EXPORT ─────────────────────────────────────────────────────
+
+function buildHFExport(domainKey, profile, scenario, fields, adversarialTests) {
+  const taskJSONL = JSON.stringify({ id: `${domainKey}-${Date.now()}`, prompt: fields.prompt || profile.brief, domain: domainKey, scenario: scenario.name, artifact: profile.artifact, threshold: profile.threshold || "", difficulty: "requires expert domain knowledge", source_kit: profile.sourceKit || "" }) + "\n";
+
+  const advJSONL = Object.entries(adversarialTests).flatMap(([category, tests]) =>
+    tests.map((t) => JSON.stringify({ id: t.name, category, domain: domainKey, input: t.input, description: t.description, type: "adversarial" }))
+  ).join("\n") + "\n";
+
+  const evalHarness = `#!/usr/bin/env python3
+"""
+eval_harness.py — HuggingFace-style evaluation harness
+Run: python eval_harness.py --dataset task.jsonl --model YOUR_MODEL
+"""
+import json, argparse, sys
+
+def load_jsonl(path):
+    with open(path) as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+def evaluate(model_fn, dataset):
+    results = []
+    for item in dataset:
+        output = model_fn(item["prompt"])
+        results.append({"id": item["id"], "output": output, "domain": item.get("domain")})
+    return results
+
+def dummy_model(prompt):
+    return {"status": "placeholder — replace with real model call", "prompt_length": len(prompt)}
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dataset", default="task.jsonl")
+    args = ap.parse_args()
+    data = load_jsonl(args.dataset)
+    results = evaluate(dummy_model, data)
+    print(json.dumps(results, indent=2))
+`;
+
+  const readme = `# HuggingFace Dataset Export
+## Generated by Selection Improvement Experts ${APP_VERSION}
+## Domain: ${DOMAIN_CATEGORY[domainKey] || profile.domain}
+
+## Structure
+- \`task.jsonl\` — main evaluation task definitions
+- \`adversarial.jsonl\` — robustness and adversarial test cases
+- \`eval_harness.py\` — evaluation script scaffold
+
+## Format
+Each task.jsonl row:
+\`\`\`json
+{"id": "...", "prompt": "...", "domain": "...", "threshold": "...", "difficulty": "..."}
+\`\`\`
+
+Each adversarial.jsonl row:
+\`\`\`json
+{"id": "...", "category": "schema_breaks|boundary_cases|...", "domain": "...", "input": {...}}
+\`\`\`
+
+## Usage
+\`\`\`
+python eval_harness.py --dataset task.jsonl
+\`\`\`
+`;
+
+  return { taskJSONL, advJSONL, evalHarness, readme };
+}
+
+// ── MAIN ZIP BUILDER ──────────────────────────────────────────────────────
+
+async function buildAndDownloadZip() {
+  if (!window.JSZip) { alert("JSZip library not loaded. Please refresh the page."); return; }
+
+  const validation = validateZipReadiness();
+  if (!validation.ready) {
+    alert("NOT READY FOR EXPORT — fix these issues first:\n\n" + validation.issues.map((i, n) => `${n + 1}. ${i}`).join("\n\n"));
+    return;
+  }
+  if (!lastTemplateState) { alert("Generate a draft in Prompt Maker first, then click Download ZIP."); return; }
+
+  const btn = document.querySelector("#build-zip-package");
+  if (btn) { btn.textContent = "Building…"; btn.disabled = true; }
+
+  try {
+    const { domainKey, profile, scenario } = lastTemplateState;
+    const details = DOMAIN_DETAILS[domainKey];
+    const fields  = getTaskFields();
+    const slug    = ((fields.title || domainKey).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48)) || domainKey;
+
+    const zip  = new window.JSZip();
+    const root = zip.folder(`task-${slug}`);
+
+    // Core files
+    root.file("README.md",  buildZipReadme(domainKey, profile, scenario, details, fields));
+    root.file("solve.py",   generateSolvePy(domainKey, profile, scenario));
+    root.file("verify.py",  generateVerifyPy(domainKey, profile));
+
+    // environment/
+    const reqs = (DOMAIN_REQUIREMENTS[domainKey] || "numpy>=1.24\n").trimEnd();
+    const envFolder = root.folder("environment");
+    envFolder.file("requirements.txt", reqs + "\n");
+    envFolder.file("version_manifest.json", JSON.stringify({ python: ">=3.10", domain: domainKey, task: fields.title || domainKey, generated: new Date().toISOString().slice(0, 10), app_version: APP_VERSION, packages: reqs.split("\n").filter(Boolean) }, null, 2));
+
+    // config/
+    const domainCfg = DOMAIN_CONFIG_FILES[domainKey];
+    const cfgFolder = root.folder("config");
+    cfgFolder.file(domainCfg ? domainCfg.filename : "task_config.yaml", domainCfg ? domainCfg.content : buildGenericConfigYaml(domainKey, profile));
+
+    // data/
+    const dataFolder = root.folder("data");
+    dataFolder.file("README_data.md", buildDataReadme(domainKey, details, profile));
+    buildDataStubs(domainKey, dataFolder);
+
+    // schemas/
+    buildSchemaFiles(domainKey, root.folder("schemas"));
+
+    // verifier_inputs/
+    const { correct, incorrect } = generateAutoFixtures(domainKey, profile);
+    const viFolder = root.folder("verifier_inputs");
+    viFolder.file("correct.json",           JSON.stringify(correct, null, 2));
+    viFolder.file("incorrect.json",         JSON.stringify(incorrect, null, 2));
+    viFolder.file("expected_metrics.json",  buildExpectedMetricsJson(domainKey, profile));
+    viFolder.file("README_fixtures.md",     buildFixturesReadme(domainKey, profile));
+
+    // adversarial_tests/
+    const advTests = generateAdversarialTests(domainKey, profile);
+    const advFolder = root.folder("adversarial_tests");
+    for (const [cat, tests] of Object.entries(advTests)) advFolder.file(`${cat}.json`, JSON.stringify(tests, null, 2));
+
+    // huggingface_export/
+    const { taskJSONL, advJSONL, evalHarness, readme: hfReadme } = buildHFExport(domainKey, profile, scenario, fields, advTests);
+    const hfFolder = root.folder("huggingface_export");
+    hfFolder.file("task.jsonl",        taskJSONL);
+    hfFolder.file("adversarial.jsonl", advJSONL);
+    hfFolder.file("eval_harness.py",   evalHarness);
+    hfFolder.file("README.md",         hfReadme);
+
+    // outputs/ placeholder
+    const outFolder = root.folder("outputs");
+    outFolder.file(".gitkeep", "");
+    outFolder.file("README_outputs.md", "# outputs/\n\nPopulated by solve.py.\n\n```\npython solve.py\npython verify.py\n```\n");
+
+    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `task-${slug}.zip`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+  } catch (err) {
+    alert("ZIP build failed: " + String(err));
+  } finally {
+    if (btn) { btn.textContent = "Download ZIP"; btn.disabled = false; }
+  }
+}
+
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -5001,6 +5599,13 @@ els.importData.addEventListener("change", importData);
 els.clearData.addEventListener("click", clearData);
 els.sampleData.addEventListener("click", loadSampleData);
 
+const buildZipBtn = document.querySelector("#build-zip-package");
+if (buildZipBtn) buildZipBtn.addEventListener("click", buildAndDownloadZip);
+
+const frontierSimBtn = document.querySelector("#run-frontier-sim");
+if (frontierSimBtn) frontierSimBtn.addEventListener("click", renderFrontierSimResults);
+
 load();
 renderAll();
 renderTaskChecks(getTaskFields());
+renderReadinessDashboard();
