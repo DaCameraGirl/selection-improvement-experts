@@ -5042,6 +5042,45 @@ function getTaskChecks(fields) {
       title: "Prompt draft present",
       pass: prompt.length > 0,
       message: "Enter the actual prompt, then use this app to check and format it against the guidelines."
+    },
+    // ── From Outlier Master Ruleset — Common Errors ───────────────────────────
+    {
+      title: "Frontier model tested (Error #1)",
+      pass: fields.agentCheck.length > 30,
+      message: "Fill in the Frontier Model Test field with the exact step where the model failed. Submissions without this are rejected."
+    },
+    {
+      title: "No searchable data fingerprints (Error #2–3)",
+      pass: !hasAny(`${fields.domain} ${resources}`, ["from the paper", "verbatim from", "exact parameters from", "the original study", "the published dataset", "doi:", "arxiv:"]) &&
+            !hasAny(prompt, ["from the paper", "from the original study", "as described in", "the published values"]),
+      message: "Remove any exact quoted values, identifiable metadata, or phrases that could appear verbatim in a Google Scholar hit. Modify public data so results are similar but not identical."
+    },
+    {
+      title: "Data provenance stated (Error #3 / #10)",
+      pass: hasAny(`${fields.domain} ${resources}`, ["synthetic", "real data", "public dataset", "perturbed", "modified", "generated", "simulated", "open-source", "from physionet", "from kaggle", "from uci", "from github", "from noaa", "from ncbi", "from ieee", "from nasa", "derived from", "based on"]),
+      message: "State whether data is real, synthetic, or modified/perturbed. Always say where it comes from — even synthetic data needs a provenance statement."
+    },
+    {
+      title: "Output file + path named (Error #5)",
+      pass: hasAny(prompt, [".csv", ".json", ".jsonl", ".parquet", ".yaml", ".yml", ".txt", ".log", ".tsv", ".sql"]) &&
+            hasAny(prompt, ["save", "write", "outputs/", "output/", "path", "file named", "named ", "stored in", "produce a file"]),
+      message: "Every prompt must name the output file, its format, and where it must be saved. Define exact keys and value types inside it."
+    },
+    {
+      title: "Numerical tolerances declared (Error #12)",
+      pass: !(/\d/.test(prompt)) ||
+            hasAny(prompt, ["tolerance", "±", "+/-", "within", "at most", "no more than", "at least", "threshold", "margin", "error of", "accuracy of", "precision of", "absolute error", "relative error"]),
+      message: "Every numeric threshold in the prompt needs a declared tolerance. Too tight fails valid methods; too loose lets shortcuts pass."
+    },
+    {
+      title: "Instructions in prompt, not data files (Error #13)",
+      pass: !hasAny(resources, ["readme contains instructions", "see readme for", "instructions in readme", "instructions.txt", "see instructions", "task instructions in", "how to solve in", "directions in"]),
+      message: "All instructions must be inside the prompt itself. Do not put directions in README.md, instructions.txt, or any data folder file."
+    },
+    {
+      title: "Not a pure retrieval task (Design tip #2)",
+      pass: !hasAny(prompt, ["what is the value from", "find the value in the paper", "look up", "retrieve the", "what does the paper say", "report the number from", "what value does"]),
+      message: "If the answer exists verbatim in a paper or dataset, it is a retrieval task, not a reasoning task. Force the model to apply first-principles logic or generalize beyond published results."
     }
   ];
 }
@@ -5258,6 +5297,111 @@ Optional agent difficulty checks using frontier models such as Claude, GPT-4o, o
 Frontier model test: test against a frontier model with full terminal access before submission. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected.
 Professional time estimates should be realistic for a qualified professional: 3 to 6 hours for senior professional, 5 to 9 hours for master's level, 8 to 16 hours for PhD or research level.
 Scope down the time estimate if work volume rather than intellectual difficulty is what makes it long.`
+    }
+  ];
+
+    {
+      id: uid(),
+      title: "Outlier Master Ruleset — Tips for Designing Challenging Tasks",
+      tags: "design, challenge, numerical, inference, niche library, debugging, optimization, binary, simplification trap",
+      body: `These seven design principles describe what makes a task genuinely hard for frontier models.
+
+1. SENSITIVITY TO NUMERICAL METHODS
+Models default to numerical approximations. Force exact symbolic logic to expose lack of internal verification.
+✓ Use compound errors where early rounding breaks final logical deductions.
+✓ Treat numbers as exact concepts, not rounded floats.
+✗ Do not allow shortcuts like π ≈ 3.14 or memorized constants.
+
+2. GENERALIZATION BEYOND PUBLISHED RESULTS
+Even when a model finds a relevant paper, it may fail to generalize beyond it.
+✓ Use parameters that do not exist in published source material. Force first-principles reasoning.
+✗ Do not make the answer verbatim in a paper — that is a retrieval task, not a reasoning task.
+
+3. DEPENDENCE ON STANDARD LIBRARIES
+Models rely on familiar libraries like NumPy. Mandating niche or domain-specific frameworks reveals adaptability limits.
+✓ Mandate a framework with different logic structure than the model's standard choice (e.g. SageMath instead of NumPy).
+✗ Do not allow the model to revert to its most familiar technical libraries.
+
+4. DEBUGGING AND CODE CORRECTION
+Common failure modes: Oversight (missing errors), False Positives (flagging correct code), Compatibility (hidden version conflicts).
+✓ Include subtle multi-version dependency issues that require reading changelogs.
+
+5. CODE OPTIMIZATION UNDER TIME CONSTRAINTS
+Models may fail when brute force is functionally useless due to scale.
+✓ Set efficiency constraints that make O(n²) or brute-force solutions take hours.
+✗ Do not use small samples the model can finish in seconds.
+
+6. ANALYSIS OF NON-STANDARD FILE TYPES
+Models trained on tabular data struggle with raw binary, custom binary streams, or non-standard encodings.
+✓ Require the model to reconstruct data from raw binary file structures.
+✗ Do not use CSV or JSON formats the model has processed billions of times.
+
+7. THE SIMPLIFICATION TRAP
+Models sometimes over-generalize or prematurely simplify complex systems.
+✓ Prevent simplification with explicit constraints. Name each sub-constraint that must be honored.
+✗ Do not use prompts with broad scopes that allow the model to summarize or generalize the core challenge.`
+    },
+    {
+      id: uid(),
+      title: "Outlier Master Ruleset — Common Errors & Golden Rules",
+      tags: "common errors, rejection, golden rule, frontier test, searchable, data fingerprint, ambiguity, output format, verifier mismatch, subjective, code required, resources, real scenario, provenance, tolerances, instructions",
+      body: `These 13 common errors are the primary reasons task proposals get rejected.
+
+ERROR 1 — NOT DIFFICULT ENOUGH / FRONTIER MODEL NOT TESTED
+Golden Rule: You must verify a frontier model cannot solve the task before submitting.
+✓ Test against Cursor, free Gemini, ChatGPT, or Claude. If it solves it, increase complexity.
+
+ERROR 2 — SEARCHABLE DATA (WEB SEARCH SOLVABLE)
+Golden Rule: If a string from the prompt or data file could appear in a paper or Google Scholar hit, delete or generalize it.
+✓ Keep only raw signal and minimal headers needed for parsing.
+
+ERROR 3 — DATA FINGERPRINTS / UNMODIFIED PUBLIC DATA
+✓ Sanitize data files — remove headers, metadata, and identifiable filenames.
+✓ Generalize exact unit-cell parameters or unique motifs.
+✓ Search test: Google your own prompt sentences; if the paper appears, rewrite.
+✓ Modify public data so results are similar but not identical.
+✓ Ask for intermediate values as well as final values.
+
+ERROR 4 — AMBIGUOUS PROMPT
+Golden Rule: Leave nothing ambiguous. Every acceptance criterion must be stated or clearly inferable.
+✓ Peer review — ask a colleague or an LLM to find ambiguities.
+✓ Check methodology, not just the answer.
+
+ERROR 5 — OUTPUT FORMAT NOT SPECIFIED
+Golden Rule: Every prompt must name the file, the format, and the exact shape of the answer inside it.
+✓ Define the expected filename, file path, and exact keys and value types.
+
+ERROR 6 — SOLUTION-VERIFIER MISMATCH
+Golden Rule: Verifiers should only inspect final outputs or files explicitly requested.
+✗ Do not check intermediate files or steps not asked for in the prompt.
+
+ERROR 7 — SUBJECTIVE OR LLM-BASED VERIFIERS
+Golden Rule: Verifiers must be objective and reproducible. No LLM-as-judge.
+✗ Two equally defensible answers must not get different scores across runs.
+
+ERROR 8 — SOLVABLE WITHOUT RUNNING CODE
+✓ Inline test: is data small enough for mental processing? If yes, make it larger.
+✓ Closed-form test: can the answer be reached by symbolic manipulation alone?
+✓ Tool test: paste into a chatbot — if it solves without running code, the task fails.
+
+ERROR 9 — MISSING OR EXTERNALLY-DEPENDENT RESOURCES
+Golden Rule: Everything needed must already be present in the provided resources.
+✓ Ensure every referenced dataset is included. Agents have no internet access. Online data shifts.
+
+ERROR 10 — NOT A REAL-LIFE SCENARIO
+✓ Avoid unrealistic quantities, unreasonable scenarios, unmeasurable accuracy, or idealized textbook assumptions.
+✓ Always state where the data came from. Synthetic data is acceptable if clearly stated.
+
+ERROR 11 — DIFFICULTY NOT EXPLAINED
+Do not omit: real-world role (persona), why the proposal is hard, data provenance and realism.
+
+ERROR 12 — NUMERICAL TOLERANCES MISSING OR MISCALIBRATED
+✓ Every numeric output must be checked with appropriate tolerances.
+✗ Too loose → shortcuts pass. Too tight → valid methods fail.
+
+ERROR 13 — INSTRUCTIONS SCATTERED OUTSIDE THE PROMPT
+Golden Rule: If text tells the agent what to do or how to do it, it belongs in the prompt.
+✗ Do not put instructions in README.md or .txt files in the data folder.`
     }
   ];
 
