@@ -3858,9 +3858,16 @@ if __name__ == "__main__":
       "version_manifest.json — TypeScript version, Node version, and OS"
     ],
     standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits.",
-    composePrompt(profile, type, standard) {
+    composePrompt(profile, type, standard, scenario) {
+      const openers = {
+        "post-migration validation": "After upgrading a shared type utility package, the custom AwaitedLike<T> conditional type now silently widens union members containing Promise<never> to unknown instead of the correct resolved type. Repair the provided TypeScript project so AwaitedLike<T> distributes correctly over all union members without widening. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
+        "regression triage": "A recent TypeScript 5.x upgrade introduced a regression in the custom AwaitedLike<T> utility: union members containing Promise<never> are now widened to unknown at the call site instead of resolving to the correct type. Repair the project so AwaitedLike<T> handles the never branch correctly without widening. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
+        "compliance audit": "A pre-release type audit identified that the custom AwaitedLike<T> utility incorrectly widens Promise<never> branches to unknown under strict mode, silently breaking callers that depend on the resolved type. Repair the project so AwaitedLike<T> distributes correctly and all public type signatures remain unchanged. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
+        "edge-case benchmark": "The provided TypeScript project contains a conditional type utility AwaitedLike<T> that fails on a known edge case: union members containing Promise<never> silently infer unknown instead of the correct resolved type. Repair the utility without widening any union branch or changing public type signatures. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json."
+      };
+      const opener = openers[scenario && scenario.name] || openers["edge-case benchmark"];
       return [
-        "Repair the provided TypeScript project so its custom AwaitedLike<T> utility correctly distributes over unions containing Promise<never> without widening any resolved branch to unknown. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
+        opener,
         "The four positive fixtures normal_union.ts, nested_promise.ts, never_branch.ts, and edge_deeply_nested.ts must compile with zero diagnostics under tsconfig.strict.json. The negative fixture invalid_non_thenable.ts must fail with exactly one TS2345 diagnostic under tsconfig.negative.json. Every exported type signature listed in contracts/public_types.md must remain unchanged.",
         "The JSON reports must list every fixture, compiler exit code, diagnostic code count, TypeScript version, public API change status, and SHA-256 checksum of each required input file. The verifier will grade only the submitted patch and output reports, not the chosen implementation method."
       ].join("\n\n");
@@ -4003,11 +4010,18 @@ if __name__ == "__main__":
       "version_manifest.json — React version, Node version, and OS"
     ],
     standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits.",
-    composePrompt(profile, type, standard) {
+    composePrompt(profile, type, standard, scenario) {
+      const openers = {
+        "post-migration validation": "After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves. Repair the component so this never happens. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "regression triage": "A regression in DataFetcher allows a stale async result to overwrite the final rendered value under rapid prop changes or unmount-before-resolve conditions. The bug is reproducible with the provided Jest fixtures. Repair the component and produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "compliance audit": "A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing 'state update on an unmounted component' warnings and stale rendered values. Repair the component without changing its exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "edge-case benchmark": "The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures. Repair the component so all five fixtures pass and no stale state updates occur. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json."
+      };
+      const opener = openers[scenario && scenario.name] || openers["regression triage"];
       return [
-        "Repair the provided React 18 TypeScript project so DataFetcher never commits stale async results after unmount, remount, or rapid prop changes. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        opener,
         "All five Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr. Render counts for each fixture must not exceed the limits in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
-        "The JSON reports must include per-test status, final rendered value, warning counts, render counts, package versions, input file checksums, and pass/fail reason codes. The verifier will grade only the submitted component, patch, and output reports, not the specific implementation method."
+        "The JSON reports must include per-test status, final rendered value, warning counts, render counts per fixture, package versions, input file checksums, and pass/fail reason codes. The verifier will grade only the submitted component, patch, and output reports, not the specific implementation method."
       ].join("\n\n");
     },
     sources: [
@@ -4141,9 +4155,16 @@ if __name__ == "__main__":
       "version_manifest.json — git version and OS used to produce the fixtures"
     ],
     standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts.",
-    composePrompt(profile, type, standard) {
+    composePrompt(profile, type, standard, scenario) {
+      const openers = {
+        "post-migration validation": "An accidental git push --force during a deployment pipeline removed three commits from the release branch before the migration could be validated. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
+        "regression triage": "Three commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable.",
+        "compliance audit": "An incident review confirmed that three commits are no longer reachable on the release branch after an accidental force-push. Recovery must be machine-verifiable with full checksum and topology evidence. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original commits are reachable with the exact topology specified.",
+        "edge-case benchmark": "The provided Git repository contains a ref reconstruction challenge: three commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs."
+      };
+      const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
       return [
-        "Repair the provided Git repository after an accidental force-push removed three commits from the release branch. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
+        opener,
         "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. The repaired repository must clone successfully from the bundle; git fsck --connectivity-only must report zero missing or corrupt objects; all three recovered commit SHAs must be reachable from the required branch ref; each recovered commit must have the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec.json.",
         "The JSON reports must include original and repaired branch refs, recovered commit SHAs, parent SHAs, reachability status, checksum verification results, Git version, input bundle checksums, and pass/fail reason codes. The verifier will grade only the repaired bundle and output reports, not the recovery method."
       ].join("\n\n");
@@ -5129,7 +5150,7 @@ function fillStarterTemplate() {
 
   const domainDetails = DOMAIN_DETAILS[domainKey];
   els.taskPrompt.value = (domainDetails && domainDetails.composePrompt)
-    ? domainDetails.composePrompt(profile, type, standard)
+    ? domainDetails.composePrompt(profile, type, standard, scenario)
     : scenario.composePrompt(profile, type, standard);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
