@@ -436,6 +436,7 @@ function buildTaskPackage() {
   renderPackagePreview(els.generatedTaskPackage.value);
   renderReadinessDashboard();
   renderSubmissionAudit();
+  renderConsistencyChecker();
 }
 
 const DOMAIN_DRAFTS = {
@@ -3794,7 +3795,7 @@ def parse_tlc_output(stdout, stderr):
     violations = []
     for line in (stdout + stderr).splitlines():
         if "Invariant" in line and "violated" in line.lower():
-            inv_match = re.search(r"Invariant (\w+)", line)
+            inv_match = re.search(r"Invariant (\\w+)", line)
             violations.append(inv_match.group(1) if inv_match else "UNKNOWN_INVARIANT")
     error = None
     if "Error" in stdout or "Error" in stderr: error = "SPEC_ERROR"
@@ -3915,6 +3916,7 @@ if __name__ == "__main__":
       "- outputs/fix.patch",
       "- outputs/tsc_report.json",
       "- outputs/type_test_results.json",
+      "- outputs/public_api_report.json",
       "- outputs/run_manifest.json",
       "",
       "Example tsc_report.json:",
@@ -3946,7 +3948,7 @@ def run_tsc(repo_dir, tsconfig):
 def parse_tsc_output(raw):
     diagnostics = {}
     for line in raw.splitlines():
-        m = re.match(r"([\w./]+\.ts)\((\d+),(\d+)\): error (TS\d+): (.+)", line)
+        m = re.match(r"([\\w./]+\\.ts)\\((\\d+),(\\d+)\\): error (TS\\d+): (.+)", line)
         if m:
             f = Path(m.group(1)).name
             diagnostics.setdefault(f, []).append({"code": m.group(4), "message": m.group(5)})
@@ -4061,6 +4063,7 @@ if __name__ == "__main__":
     ],
     expectedOutputs: [
       "Expected output paths:",
+      "- outputs/DataFetcher.fixed.tsx",
       "- outputs/fix.patch",
       "- outputs/test_results.json",
       "- outputs/render_count_report.json",
@@ -4117,9 +4120,9 @@ def run(repo_dir, out_dir):
     expected_rc = json.loads(expected_rc_path.read_text()) if expected_rc_path.exists() else {}
     for suite in jest_data.get("testResults", []):
         for t in suite.get("testResults", []):
-            m = re.search(r"\[renders:(\d+)\]", t.get("title", ""))
+            m = re.search(r"\\[renders:(\\d+)\\]", t.get("title", ""))
             actual = int(m.group(1)) if m else None
-            fixture_key = re.sub(r"\s*\[renders:\d+\]", "", t["title"]).strip()
+            fixture_key = re.sub(r"\\s*\\[renders:\\d+\\]", "", t["title"]).strip()
             max_allowed = expected_rc.get(fixture_key, {}).get("max") if isinstance(expected_rc.get(fixture_key), dict) else expected_rc.get(fixture_key)
             if actual is not None:
                 render_counts[fixture_key] = {
@@ -5129,6 +5132,7 @@ function renderCodeTemplates() {
   if (solveEl) solveEl.textContent = solvePy;
   if (verifyEl) verifyEl.textContent = verifyPy;
   if (ctxEl) ctxEl.textContent = `${profile.domain} · ${scenario.name}`;
+  renderCodeLinter();
 }
 
 function fillStarterTemplate() {
@@ -6199,6 +6203,107 @@ function renderReadinessDashboard() {
 
 function escapeHtmlInline(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
+// ── CROSS-FIELD CONSISTENCY CHECKER ──────────────────────────────────────
+
+function extractOutputPaths(text) {
+  const matches = text.match(/outputs\/[\w.\-]+/g) || [];
+  return new Set(matches);
+}
+
+function extractSourceFiles(text) {
+  const matches = text.match(/\b[\w.\-]+\.(bundle|json|csv|txt|py|tsx|ts|yaml|yml|parquet|gz|zip)\b/g) || [];
+  return new Set(matches.filter(f => !f.startsWith("outputs/")));
+}
+
+function checkContractConsistency(f) {
+  const issues = [];
+
+  const promptPaths    = extractOutputPaths(f.prompt    || "");
+  const solutionPaths  = extractOutputPaths(f.solution  || "");
+  const verifierPaths  = extractOutputPaths(f.verifiers || "");
+
+  for (const p of promptPaths) {
+    if (!solutionPaths.has(p))
+      issues.push({ sev: "error", msg: `"${p}" mentioned in Prompt but missing from Golden Solution` });
+    if (!verifierPaths.has(p))
+      issues.push({ sev: "error", msg: `"${p}" mentioned in Prompt but not checked by Verifier` });
+  }
+  for (const p of solutionPaths) {
+    if (!verifierPaths.has(p))
+      issues.push({ sev: "warn", msg: `"${p}" written by Golden Solution but not referenced in Verifier` });
+  }
+  for (const p of verifierPaths) {
+    if (!solutionPaths.has(p) && !promptPaths.has(p))
+      issues.push({ sev: "warn", msg: `"${p}" checked by Verifier but not written by Solution or mentioned in Prompt` });
+  }
+
+  // Source files in Prompt must appear in Resources
+  const promptFiles   = extractSourceFiles(f.prompt    || "");
+  const resourceFiles = extractSourceFiles(f.resources || "");
+  for (const fn of promptFiles) {
+    if (!resourceFiles.has(fn))
+      issues.push({ sev: "warn", msg: `Source file "${fn}" referenced in Prompt but not listed in Resources` });
+  }
+
+  // Warn if Prompt is empty but Solution has output paths
+  if (!f.prompt.trim() && solutionPaths.size > 0)
+    issues.push({ sev: "warn", msg: "Prompt is empty — output paths in Solution are unanchored" });
+
+  return issues;
+}
+
+function renderConsistencyChecker() {
+  const el = document.querySelector("#consistency-checker");
+  if (!el) return;
+  const f = getTaskFields();
+  const issues = checkContractConsistency(f);
+  if (!issues.length) {
+    el.innerHTML = `<p class="audit-clean">All output paths are consistent across Prompt, Solution, and Verifier.</p>`;
+    return;
+  }
+  const errors = issues.filter(i => i.sev === "error");
+  const warns  = issues.filter(i => i.sev === "warn");
+  el.innerHTML =
+    (errors.length ? `<ul class="consistency-errors">${errors.map(i => `<li class="c-error"><strong>ERROR</strong> — ${escapeHtmlInline(i.msg)}</li>`).join("")}</ul>` : "") +
+    (warns.length  ? `<ul class="consistency-warns">${warns .map(i => `<li class="c-warn"><strong>WARN</strong> — ${escapeHtmlInline(i.msg)}</li>`).join("")}</ul>` : "");
+}
+
+// ── CODE TEMPLATE LINTER ──────────────────────────────────────────────────
+
+function lintCodeTemplate(code) {
+  const issues = [];
+  const checks = [
+    { rx: /r"[^"\n]*\[w[^\\\w]/, msg: 'Broken regex `[w` — should be `[\\w` (backslash eaten by JS template literal)' },
+    { rx: /r"[^"\n]*\(d\+\)/, msg: 'Broken regex `(d+)` — should be `(\\d+)` (backslash eaten)' },
+    { rx: /r"[^"\n]*TSd[\d+*]/, msg: 'Broken regex `TSd` — should be `TS\\d` (backslash eaten)' },
+    { rx: /r"[^"\n]*[^\\]\[renders:/, msg: 'Broken regex `[renders:` — should start with `\\[renders:`' },
+    { rx: /r"[^"\n]*(?<![\\])s\*/, msg: 'Broken regex `s*` — should be `\\s*` (backslash eaten)' },
+    { rx: /r"[^"\n]*@\(w\+\)/, msg: 'Broken regex `@(w+)` — should be `@(\\w+)` (backslash eaten)' },
+    { rx: /\x08/, msg: 'Backspace char (0x08) found — `\\b` word boundary was mishandled in a JS template literal' },
+  ];
+  for (const { rx, msg } of checks) {
+    if (rx.test(code)) issues.push(msg);
+  }
+  return issues;
+}
+
+function renderCodeLinter() {
+  const el = document.querySelector("#code-linter");
+  if (!el) return;
+  const solveEl  = document.querySelector("#template-solve-py");
+  const verifyEl = document.querySelector("#template-verify-py");
+  const solveCode  = solveEl  ? solveEl.textContent  : "";
+  const verifyCode = verifyEl ? verifyEl.textContent : "";
+  const solveIssues  = lintCodeTemplate(solveCode).map(m => ({ file: "solve.py",  msg: m }));
+  const verifyIssues = lintCodeTemplate(verifyCode).map(m => ({ file: "verify.py", msg: m }));
+  const all = [...solveIssues, ...verifyIssues];
+  if (!all.length) {
+    el.innerHTML = `<p class="audit-clean">No broken regex patterns detected in code templates.</p>`;
+    return;
+  }
+  el.innerHTML = `<ul class="consistency-errors">${all.map(i => `<li class="c-error"><strong>${escapeHtmlInline(i.file)}</strong> — ${escapeHtmlInline(i.msg)}</li>`).join("")}</ul>`;
+}
+
 // ── FRONTIER MODEL FAILURE SIMULATION ────────────────────────────────────
 
 function simulateModelTier(tier, f) {
@@ -6721,3 +6826,4 @@ renderAll();
 renderTaskChecks(getTaskFields());
 renderReadinessDashboard();
 renderSubmissionAudit();
+renderConsistencyChecker();

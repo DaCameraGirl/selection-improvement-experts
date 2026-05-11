@@ -844,3 +844,39 @@ legend {
 .flag-detail li em { color: #86efac; font-style: normal; }
 
 .audit-clean { font-size: 0.80rem; color: #4ade80; margin: 4px 0 0; }
+
+/* ── CONSISTENCY CHECKER & CODE LINTER ────────────────────────────────────── */
+
+.consistency-checker,
+.code-linter {
+  margin: 4px 0 8px;
+  font-size: 0.80rem;
+}
+
+.consistency-errors,
+.consistency-warns {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.c-error {
+  color: #fca5a5;
+  background: rgba(239,68,68,0.08);
+  border-left: 3px solid #ef4444;
+  padding: 3px 8px;
+  margin: 3px 0;
+  border-radius: 0 4px 4px 0;
+}
+
+.c-warn {
+  color: #fcd34d;
+  background: rgba(251,191,36,0.08);
+  border-left: 3px solid #f59e0b;
+  padding: 3px 8px;
+  margin: 3px 0;
+  border-radius: 0 4px 4px 0;
+}
+
+.c-error strong { color: #f87171; }
+.c-warn  strong { color: #fbbf24; }
