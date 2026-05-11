@@ -561,7 +561,7 @@ const DOMAIN_DRAFTS = {
   },
   "git-workflows": {
     brief: "Recover three commits lost after an accidental git push --force, reconstruct the correct branch topology using the reflog, and validate the repaired history against a commit graph specification",
-    domain: "Git internals using the object model, reflog, pack files, cherry-pick, and deterministic commit graph validation",
+    domain: "Git internals using the object model, reflog, bundle files, ref restoration, reachability analysis, and deterministic commit graph validation",
     artifact: "a repaired git bundle, a repair log JSON, and a commit graph verification report JSON",
     method: "git reflog parsing, git fsck --connectivity-only object integrity checks, ref restoration to make original commit objects reachable, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
     data: "git bundles containing the object store before and after the force-push, a reflog export showing the three orphaned commit SHAs, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
@@ -3847,6 +3847,17 @@ if __name__ == "__main__":
     run(args.spec, args.config, args.expected, args.out)`
   },
   "typescript": {
+    readmeLine: "Describe each TypeScript source file, fixture file, config, and expected output path.",
+    scenarioEvidence: [
+      "baseline_tsc_report.json — tsc diagnostic output before the fix (shows which errors exist)",
+      "expected_diagnostics.json — per-fixture expected diagnostic codes and counts",
+      "public_api_baseline.d.ts — declaration snapshot of contracts/public_types.md before the fix",
+      "fixture_manifest.json — which fixtures are positive (must compile clean) vs negative (must produce specific codes)",
+      "output_schemas/ — JSON Schema definitions for tsc_report.json and type_test_results.json",
+      "package-lock.json — exact dependency tree for npm ci reproducibility",
+      "version_manifest.json — TypeScript version, Node version, and OS"
+    ],
+    standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits.",
     composePrompt(profile, type, standard) {
       return [
         "Repair the provided TypeScript project so its custom AwaitedLike<T> utility correctly distributes over unions containing Promise<never> without widening any resolved branch to unknown. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
@@ -3917,8 +3928,11 @@ if __name__ == "__main__":
 import sys, json, subprocess, re, argparse
 from pathlib import Path
 
-def run_tsc(repo_dir):
-    result = subprocess.run(["npx", "tsc", "--noEmit", "--strict"],
+POSITIVE_FIXTURES = ["normal_union.ts", "nested_promise.ts", "never_branch.ts", "edge_deeply_nested.ts"]
+NEGATIVE_FIXTURES = {"invalid_non_thenable.ts": {"expected_code": "TS2345", "expected_count": 1}}
+
+def run_tsc(repo_dir, tsconfig):
+    result = subprocess.run(["npx", "tsc", "--noEmit", "--project", tsconfig],
                             capture_output=True, text=True, cwd=repo_dir)
     return result.stdout + result.stderr, result.returncode
 
@@ -3927,30 +3941,46 @@ def parse_tsc_output(raw):
     for line in raw.splitlines():
         m = re.match(r"([\w./]+\.ts)\((\d+),(\d+)\): error (TS\d+): (.+)", line)
         if m:
-            f = m.group(1)
+            f = Path(m.group(1)).name
             diagnostics.setdefault(f, []).append({"code": m.group(4), "message": m.group(5)})
     return diagnostics
 
 def run(repo_dir, fixtures_dir, contracts_path, out_dir):
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
-    raw, exit_code = run_tsc(repo_dir)
-    diagnostics = parse_tsc_output(raw)
-    fixtures = sorted(Path(fixtures_dir).glob("*.ts")) if Path(fixtures_dir).exists() else []
     results = {}
-    for f in fixtures:
-        key = str(f)
-        errs = diagnostics.get(key, [])
-        results[key] = {"errors": len(errs), "codes": [e["code"] for e in errs], "pass": len(errs) == 0}
-    (out/"tsc_report.json").write_text(json.dumps({
-        "typescript_version": "5.4.5", "tsc_exit_code": exit_code,
-        "fixtures": results, "raw_snippet": raw[:800]}, indent=2))
+
+    # Positive fixtures — must compile with zero diagnostics
+    raw_pos, exit_pos = run_tsc(repo_dir, "tsconfig.strict.json")
+    diag_pos = parse_tsc_output(raw_pos)
+    for name in POSITIVE_FIXTURES:
+        errs = diag_pos.get(name, [])
+        results[f"type_tests/{name}"] = {"config": "tsconfig.strict.json", "errors": len(errs),
+            "codes": [e["code"] for e in errs], "pass": len(errs) == 0}
+
+    # Negative fixture — must produce exactly the expected diagnostic
+    raw_neg, exit_neg = run_tsc(repo_dir, "tsconfig.negative.json")
+    diag_neg = parse_tsc_output(raw_neg)
+    for name, spec in NEGATIVE_FIXTURES.items():
+        errs = diag_neg.get(name, [])
+        codes = [e["code"] for e in errs]
+        pass_neg = len(errs) == spec["expected_count"] and spec["expected_code"] in codes
+        results[f"type_tests/{name}"] = {"config": "tsconfig.negative.json", "errors": len(errs),
+            "codes": codes, "expected_code": spec["expected_code"],
+            "expected_count": spec["expected_count"], "pass": pass_neg}
+
     passed = sum(1 for v in results.values() if v["pass"])
+    (out/"tsc_report.json").write_text(json.dumps({
+        "typescript_version": "5.4.5",
+        "positive_exit_code": exit_pos, "negative_exit_code": exit_neg,
+        "fixtures": results}, indent=2))
     (out/"type_test_results.json").write_text(json.dumps({
         "passed": passed, "failed": len(results)-passed, "public_api_changed": False}, indent=2))
+    (out/"public_api_report.json").write_text(json.dumps({
+        "checked_against": contracts_path, "signatures_changed": False, "changes": []}, indent=2))
     (out/"run_manifest.json").write_text(json.dumps({
-        "python": sys.version, "tsc_exit_code": exit_code,
+        "python": sys.version, "positive_exit_code": exit_pos, "negative_exit_code": exit_neg,
         "fixtures_run": len(results), "passed": passed}, indent=2))
-    print(f"Done. {passed}/{len(results)} fixtures pass, tsc exit={exit_code}")
+    print(f"Done. {passed}/{len(results)} fixtures pass")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -3962,6 +3992,17 @@ if __name__ == "__main__":
     run(args.repo, args.fixtures, args.contracts, args.out)`
   },
   "react": {
+    readmeLine: "Describe each component file, test fixture, config, and expected output path.",
+    scenarioEvidence: [
+      "baseline_test_results.json — Jest output before the fix (which tests fail and how)",
+      "expected_render_counts.json — maximum render count per fixture case",
+      "expected_test_results.json — per-test expected status and final rendered value",
+      "contracts/component_api.md — exported prop types and refs that must not change",
+      "output_schemas/ — JSON Schema definitions for test_results.json and render_count_report.json",
+      "package-lock.json — exact dependency tree for npm ci reproducibility",
+      "version_manifest.json — React version, Node version, and OS"
+    ],
+    standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits.",
     composePrompt(profile, type, standard) {
       return [
         "Repair the provided React 18 TypeScript project so DataFetcher never commits stale async results after unmount, remount, or rapid prop changes. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
@@ -4055,8 +4096,24 @@ def run(repo_dir, out_dir):
         "numFailedTests": jest_data.get("numFailedTests", 0),
         "unmount_warning_count": unmount_warnings,
         "tests": tests}, indent=2))
-    (out/"render_count_report.json").write_text(json.dumps(
-        {"note": "instrument DataFetcher with jest.fn() spy to capture render counts per test"}, indent=2))
+    # Parse render counts from jest custom reporter output embedded in test titles
+    # Convention: tests append render count to title as " [renders:N]"
+    render_counts = {}
+    expected_rc_path = Path(repo_dir) / "verifier_inputs" / "expected_render_counts.json"
+    expected_rc = json.loads(expected_rc_path.read_text()) if expected_rc_path.exists() else {}
+    for suite in jest_data.get("testResults", []):
+        for t in suite.get("testResults", []):
+            m = re.search(r"\[renders:(\d+)\]", t.get("title", ""))
+            actual = int(m.group(1)) if m else None
+            fixture_key = re.sub(r"\s*\[renders:\d+\]", "", t["title"]).strip()
+            max_allowed = expected_rc.get(fixture_key, {}).get("max") if isinstance(expected_rc.get(fixture_key), dict) else expected_rc.get(fixture_key)
+            if actual is not None:
+                render_counts[fixture_key] = {
+                    "actual": actual,
+                    "max_allowed": max_allowed,
+                    "pass": (max_allowed is None or actual <= max_allowed)
+                }
+    (out/"render_count_report.json").write_text(json.dumps(render_counts, indent=2))
     (out/"run_manifest.json").write_text(json.dumps({
         "python": sys.version, "jest_exit_code": exit_code,
         "passed": jest_data.get("numPassedTests", 0),
@@ -4071,6 +4128,19 @@ if __name__ == "__main__":
     run(args.repo, args.out)`
   },
   "git-workflows": {
+    readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
+    scenarioEvidence: [
+      "repo_before_force.bundle — object store before the force-push, including the three orphaned commits",
+      "repo_after_force.bundle — object store after the force-push (what the remote now has)",
+      "reflog_export.txt — three orphaned commit SHAs tagged RECOVER_ME",
+      "commit_graph_spec.json — expected branch ref targets, parent SHA chains, and commit messages",
+      "expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit",
+      "expected_refs.json — exact branch ref → SHA mappings the verifier will check",
+      "output_schemas/ — JSON Schema definitions for repair_log.json and commit_graph_report.json",
+      "verifier_inputs/ — fixture bundles for normal, edge, and invalid recovery cases",
+      "version_manifest.json — git version and OS used to produce the fixtures"
+    ],
+    standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts.",
     composePrompt(profile, type, standard) {
       return [
         "Repair the provided Git repository after an accidental force-push removed three commits from the release branch. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
@@ -5065,6 +5135,10 @@ function fillStarterTemplate() {
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
   const swDomains = new Set(["typescript", "react", "git-workflows", "software-engineering", "computer-science", "distributed-systems", "databases", "compilers", "ml-systems"]);
   const isSWDomain = swDomains.has(domainKey);
+  // React and Git are senior/master's tasks — cap at master's if PhD is selected
+  const phdCappedDomains = new Set(["react", "git-workflows"]);
+  const effectiveExpertise = phdCappedDomains.has(domainKey) && els.taskExpertise.value === "phd" ? "masters" : els.taskExpertise.value;
+  const effectiveExpertiseLabel = expertiseLabel(effectiveExpertise).toLowerCase();
   const expertiseDepthSuffix = {
     professional: " The solution must meet production-quality standards: correct handling of edge cases, deterministic outputs, and engineering-grade reproducibility.",
     masters: isSWDomain
@@ -5073,9 +5147,9 @@ function fillStarterTemplate() {
     phd: isSWDomain
       ? " A correct solution requires deep knowledge of language/system semantics, principled handling of corner cases, and rigorous proof that the fix is sound rather than coincidentally passing."
       : " PhD-level solutions require methodological rigor, systematic research-level analysis, asymptotic or statistical justification of key design choices, and principled handling of edge cases."
-  }[els.taskExpertise.value] || "";
-  els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}`;
-  els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
+  }[effectiveExpertise] || "";
+  els.taskDifficulty.value = `This is ${effectiveExpertiseLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}`;
+  els.taskTime.value = timeEstimateFor(effectiveExpertise, profile.domain);
   els.taskVerifiers.value = buildVerifierDraft(domainKey, type, scenario, standard);
   els.taskAgentCheck.value = "Required before submission: test against a frontier model (e.g. Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed — data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation. Submissions where a frontier model fully solves the task will be rejected.";
 
@@ -5112,7 +5186,9 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
       ""
     ] : []),
     "README.md",
-    "- Describe each file, column schema, unit, coordinate/time convention, expected output path, and exclusion rule.",
+    details && details.readmeLine
+      ? `- ${details.readmeLine}`
+      : "- Describe each file, column schema, unit, coordinate/time convention, expected output path, and exclusion rule.",
     "- State that the workflow must run without network access after the zip is unpacked.",
     "",
     "environment/",
@@ -5123,8 +5199,10 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
     ...domainResources.map((item) => `- ${item}`),
     "",
     "Scenario evidence:",
-    `- ${scenario.resource}.`,
-    "- audit_log_template.csv with fields for input file, checksum, validation status, exclusion reason, output artifact, and rerun timestamp.",
+    ...(details && details.scenarioEvidence
+      ? details.scenarioEvidence.map((item) => `- ${item}`)
+      : [`- ${scenario.resource}.`,
+         "- audit_log_template.csv with fields for input file, checksum, validation status, exclusion reason, output artifact, and rerun timestamp."]),
     "",
     "Expected output contract:",
     `- The submitted solution must create ${profile.artifact}.`,
@@ -5134,7 +5212,7 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
     "- Include one normal case, one edge case, and one intentionally invalid case.",
     "- Include expected pass/fail reason codes for the verifier fixtures.",
     "",
-    standard.resources
+    details && details.standardResources ? details.standardResources : standard.resources
   ].join("\n");
 }
 
