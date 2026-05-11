@@ -29,6 +29,7 @@ const els = {
   relevantResults: document.querySelector("#relevant-results"),
   answerOutline: document.querySelector("#answer-outline"),
   taskDomain: document.querySelector("#task-domain"),
+  taskRecipe: document.querySelector("#task-recipe"),
   taskExpertise: document.querySelector("#task-expertise"),
   taskDomainSelect: document.querySelector("#task-domain-select"),
   taskType: document.querySelector("#task-type"),
@@ -5135,9 +5136,190 @@ function renderCodeTemplates() {
   renderCodeLinter();
 }
 
+// ── TASK RECIPES ─────────────────────────────────────────────────────────
+// Single source of truth for output paths, input files, verifier checks, and
+// field content for the three locked software-engineering task contracts.
+// All generated fields that reference output paths pull from recipe.outputPaths
+// so the same list appears in Prompt, Solution, Verifier, and Expected Outputs.
+
+const TASK_RECIPES = {
+  "git-force-push-recovery": {
+    id:       "git-force-push-recovery",
+    label:    "Git — Force-Push Recovery",
+    domain:   "git-workflows",
+    expertise: "masters",
+    category: "Software Engineering, Version Control",
+    outputPaths: [
+      "outputs/repaired_repo.bundle",
+      "outputs/repair_log.json",
+      "outputs/commit_graph_report.json",
+      "outputs/run_manifest.json",
+    ],
+    inputFiles: [
+      "repo_before_force.bundle",
+      "repo_after_force.bundle",
+      "reflog_export.txt",
+      "commit_graph_spec.json",
+      "expected_file_checksums.json",
+      "expected_refs.json",
+    ],
+    title:   "Git force-push recovery: reconstruct three orphaned commits with exact topology",
+    snippet: "Recover three commits lost to an accidental git push --force by fetching original objects from a before-bundle and restoring branch refs to the exact SHA in the contract. Produce a verified repaired bundle and machine-readable audit reports.",
+    errorIfWrong: "verify.py exits with code 1 — repaired_repo.bundle is missing or invalid, git fsck --connectivity-only reports missing objects, recovered commit SHAs are not reachable from the required branch ref, or parent chain does not match commit_graph_spec.json.",
+    verifierChecks: [
+      "repaired_repo.bundle exists and is non-empty",
+      "git clone from repaired_repo.bundle succeeds",
+      "git fsck --connectivity-only exits 0 with no missing or corrupt objects",
+      "all three orphaned SHAs from reflog_export.txt are reachable via git rev-list from the restored branch ref",
+      "parent chain for each recovered commit matches commit_graph_spec.json exactly (SHA, not cherry-picked SHA)",
+      "file checksums at each recovered commit match expected_file_checksums.json exactly",
+      "branch refs match expected_refs.json (exact original SHAs — cherry-pick SHAs will fail this check)",
+      "repair_log.json and commit_graph_report.json are present and valid JSON with required fields",
+    ],
+    difficultyCore: "requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
+  },
+  "typescript-awaited-type": {
+    id:       "typescript-awaited-type",
+    label:    "TypeScript — Conditional Type Bug Fix",
+    domain:   "typescript",
+    expertise: "phd",
+    category: "Software Engineering, TypeScript Type System",
+    outputPaths: [
+      "outputs/fix.patch",
+      "outputs/tsc_report.json",
+      "outputs/type_test_results.json",
+      "outputs/public_api_report.json",
+      "outputs/run_manifest.json",
+    ],
+    inputFiles: [
+      "type_tests/normal_union.ts",
+      "type_tests/nested_promise.ts",
+      "type_tests/never_branch.ts",
+      "type_tests/edge_deeply_nested.ts",
+      "type_tests/invalid_non_thenable.ts",
+      "tsconfig.strict.json",
+      "tsconfig.negative.json",
+      "contracts/public_types.md",
+    ],
+    title:   "TypeScript AwaitedLike<T> conditional type: fix Promise<never> widening without changing public API",
+    snippet: "Fix the custom AwaitedLike<T> conditional type so it correctly resolves Promise<never> branches instead of widening to unknown, while keeping all five typed fixtures correct and all exported type signatures unchanged.",
+    errorIfWrong: "verify.py exits with code 1 — any positive fixture produces a TS diagnostic, the negative fixture does not produce exactly one TS2345, public API signatures changed, or any required output file is missing.",
+    verifierChecks: [
+      "outputs/fix.patch is non-empty and applies cleanly to the original repo",
+      "positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) produce zero diagnostics under tsconfig.strict.json",
+      "negative fixture (invalid_non_thenable.ts) produces exactly one TS2345 under tsconfig.negative.json — not zero, not two",
+      "outputs/tsc_report.json lists all five fixtures with errors count and pass/fail per config",
+      "outputs/public_api_report.json confirms no exported type signature changed against contracts/public_types.md",
+      "outputs/type_test_results.json shows passed:5, failed:0",
+    ],
+    difficultyCore: "requires deep knowledge of TypeScript's distributive conditional types — AwaitedLike<T> must distribute over unions, but Promise<never> is a degenerate case where the never branch collapses to never unless distribution is written correctly. The fix must not change any exported types (checked by the API contract), which rules out the common shortcut of widening the return type to unknown.",
+  },
+  "react-stale-closure": {
+    id:       "react-stale-closure",
+    label:    "React — Stale Closure / Async Race Fix",
+    domain:   "react",
+    expertise: "masters",
+    category: "Software Engineering, React",
+    outputPaths: [
+      "outputs/DataFetcher.fixed.tsx",
+      "outputs/fix.patch",
+      "outputs/test_results.json",
+      "outputs/render_count_report.json",
+      "outputs/run_manifest.json",
+    ],
+    inputFiles: [
+      "src/DataFetcher.tsx",
+      "src/DataFetcher.test.tsx",
+      "jest.config.js",
+      "package.json",
+      "verifier_inputs/expected_render_counts.json",
+      "verifier_inputs/expected_test_results.json",
+      "contracts/component_api.md",
+    ],
+    title:   "React DataFetcher stale closure fix: abort on unmount, correct dependency array",
+    snippet: "Fix a React DataFetcher component that commits stale async results on unmount and rapid prop changes by wiring AbortController cleanup and correcting the dependency array, so all five jest fixtures pass with no unmount warnings.",
+    errorIfWrong: "verify.py exits with code 1 — any jest fixture fails, 'Warning: Can\\'t perform a React state update on an unmounted component' appears in test stderr, render count exceeds the declared limit, or any required output file is missing.",
+    verifierChecks: [
+      "outputs/DataFetcher.fixed.tsx exists and is non-empty",
+      "outputs/fix.patch is non-empty",
+      "outputs/test_results.json shows numPassedTests:5, numFailedTests:0",
+      "test stderr contains zero 'state update on an unmounted component' warnings",
+      "outputs/render_count_report.json shows each fixture within its declared max from expected_render_counts.json",
+      "exported prop types and refs match contracts/component_api.md",
+    ],
+    difficultyCore: "requires understanding React 18 concurrent mode — wrapping fetch in useCallback without fixing the dependency array is the common wrong answer: it passes mount/unmount tests but fails the rapid-update fixture because the stale closure still reads old props. The correct fix requires AbortController + cleanup return + correct deps, which agents get wrong in at least one of three parts.",
+  },
+};
+
+function buildVerifierFromRecipe(recipe, type, scenario, standard) {
+  const outputList = recipe.outputPaths.map((p, i) => `${i + 1}. ${p} — present, non-empty, and valid JSON where applicable.`);
+  const checkList  = recipe.verifierChecks.map((c, i) => `${i + 1}. ${c}.`);
+  return [
+    "verify.py checks in order — fail immediately on first violation:",
+    "Required output files (checked first):",
+    ...outputList,
+    "",
+    "Domain-specific checks:",
+    ...checkList,
+    "",
+    "Exit code 0 = all pass. Exit code 1 = first failing check. Do not use an LLM judge. All checks must be deterministic.",
+  ].join("\n");
+}
+
+function buildFromRecipe(recipeId) {
+  const recipe = TASK_RECIPES[recipeId];
+  if (!recipe) return false;
+
+  els.taskDomainSelect.value = recipe.domain;
+  els.taskExpertise.value    = recipe.expertise;
+
+  const profile  = DOMAIN_DRAFTS[recipe.domain]  || DOMAIN_DRAFTS["biomedical-signal"];
+  const type     = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
+  const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
+  const scenario = pickScenario(recipe.domain);
+
+  lastTemplateState = { domainKey: recipe.domain, profile, scenario };
+
+  // Fields from the recipe (single source of truth — no per-field duplication)
+  if (els.taskCategory) els.taskCategory.value = recipe.category;
+  if (els.taskTitle)    els.taskTitle.value    = recipe.title;
+  if (els.taskSnippet)  els.taskSnippet.value  = recipe.snippet;
+  if (els.taskError)    els.taskError.value    = recipe.errorIfWrong;
+
+  // Fields from domain generation (domain composePrompt already lists recipe.outputPaths)
+  const domainDetails = DOMAIN_DETAILS[recipe.domain];
+  els.taskPrompt.value    = (domainDetails && domainDetails.composePrompt)
+    ? domainDetails.composePrompt(profile, type, standard, scenario)
+    : scenario.composePrompt(profile, type, standard);
+  els.taskResources.value = buildResourceDraft(recipe.domain, profile, scenario, standard);
+  els.taskSolution.value  = buildGoldenSolutionDraft(recipe.domain, profile, scenario);
+
+  // Verifier built from recipe.verifierChecks + recipe.outputPaths (contract-driven)
+  els.taskVerifiers.value = buildVerifierFromRecipe(recipe, type, scenario, standard);
+
+  // Difficulty from recipe.difficultyCore
+  const expLabel = expertiseLabel(recipe.expertise).toLowerCase();
+  els.taskDifficulty.value = `This is ${expLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. ${recipe.difficultyCore} The difficulty comes from domain constraints, implementation judgment, and verifier-aware edge-case design — not from bulk, hidden facts, or wording tricks.`;
+
+  els.taskDomain.value    = `${capitalize(expLabel)} ${scenario.name} task in ${profile.domain}.`;
+  els.taskTime.value      = timeEstimateFor(recipe.expertise, profile.domain);
+  els.taskAgentCheck.value = "Required before submission: test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected.";
+
+  return true;
+}
+
 function fillStarterTemplate() {
   const confirmed = hasTaskDraft() ? confirm("Replace the current draft with a generated domain draft?") : true;
   if (!confirmed) return;
+
+  // If a locked recipe is selected, delegate to the contract-driven builder
+  const recipeSelect = document.querySelector("#task-recipe");
+  const recipeId = recipeSelect ? recipeSelect.value : "";
+  if (recipeId && TASK_RECIPES[recipeId]) {
+    buildFromRecipe(recipeId);
+    buildTaskPackage();
+    return;
+  }
 
   const domainKey = els.taskDomainSelect.value;
   const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["biomedical-signal"];
@@ -5820,6 +6002,15 @@ function renderTaskChecks(fields) {
 
 async function copyTaskPackage() {
   if (!els.generatedTaskPackage.value.trim()) buildTaskPackage();
+  const f = getTaskFields();
+  const consistencyIssues = checkContractConsistency(f);
+  const hardErrors = consistencyIssues.filter(i => i.sev === "error");
+  if (hardErrors.length) {
+    const msg = `This package has ${hardErrors.length} consistency error${hardErrors.length > 1 ? "s" : ""} — output paths in the Prompt don't match the Solution or Verifier.\n\n` +
+      hardErrors.map(i => "• " + i.msg).join("\n") +
+      "\n\nCopy anyway?";
+    if (!confirm(msg)) return;
+  }
   try {
     await navigator.clipboard.writeText(els.generatedTaskPackage.value);
     els.copyTaskPackage.textContent = "Copied";
