@@ -4048,7 +4048,7 @@ if __name__ == "__main__":
     solution: [
       "Run: python solve.py --repo . --out outputs",
       "Inspect src/DataFetcher.tsx — locate the useEffect that calls setState after the component unmounts.",
-      "Fix by wiring an AbortController: create controller = new AbortController() inside useEffect, pass signal to fetch(), call controller.abort() in the cleanup return.",
+      "Fix the async effect so stale or unmounted requests cannot commit state. One valid approach is to wire an AbortController and cleanup path, provided the dependency array and test behavior remain correct.",
       "Audit the dependency array — ensure every value read inside the effect is listed.",
       "Run: npx jest --json --outputFile=outputs/jest_raw.json and verify all 5 tests pass.",
       "Confirm zero 'Warning: Can't perform a React state update on an unmounted component' in stderr.",
@@ -4193,7 +4193,8 @@ if __name__ == "__main__":
     ],
     solution: [
       "Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs",
-      "Clone from repo_before_force.bundle into a work directory: git clone repo_before_force.bundle work_repo",
+      "Clone repo_after_force.bundle into a work directory to start from the post-force-push state: git clone repo_after_force.bundle work_repo",
+      "Fetch the recovered commit objects from repo_before_force.bundle before restoring refs: for each orphaned SHA, run git fetch <path_to_repo_before_force.bundle> <sha>",
       "Parse reflog_export.txt to identify the three orphaned SHAs tagged RECOVER_ME.",
       "Reconstruct refs per commit_graph_spec.json: use git update-ref to point the required branch ref at the specified HEAD SHA so the original commits become reachable. Do not cherry-pick — cherry-pick creates new commit objects with different SHAs.",
       "Run git fsck --connectivity-only and confirm zero missing or corrupt objects. Run git rev-list <branch> and verify all three recovered commit SHAs are reachable. Run git log --format='%H %P %s' and compare parent chains to commit_graph_spec.json.",
@@ -4470,7 +4471,8 @@ const DOMAIN_CODE = {
     imports: ["import subprocess", "import json", "import hashlib", "from pathlib import Path"],
     config: "environment/git_version.txt",
     coreTodo: [
-      "Clone from before bundle: subprocess.run(['git', 'clone', 'repo_before_force.bundle', 'work_repo'], check=True)",
+      "Clone from after bundle (post-force-push state): subprocess.run(['git', 'clone', 'repo_after_force.bundle', 'work_repo'], check=True)",
+      "Fetch recovered commit objects from before bundle: subprocess.run(['git', 'fetch', str(Path('repo_before_force.bundle').resolve()), sha], cwd='work_repo') for each orphaned SHA",
       "Parse reflog_export.txt to extract the three orphaned commit SHAs that need recovery",
       "Restore refs to original commits (not cherry-pick): subprocess.run(['git', 'update-ref', 'refs/heads/TARGET_BRANCH', sha], cwd='work_repo') — this preserves exact SHAs",
       "Verify commit graph: git log --format='%H %P %s' and compare parent SHAs and branch ref targets against commit_graph_spec.json",
@@ -5176,6 +5178,7 @@ const TASK_RECIPES = {
       "branch refs match expected_refs.json (exact original SHAs — cherry-pick SHAs will fail this check)",
       "repair_log.json and commit_graph_report.json are present and valid JSON with required fields",
     ],
+    scenarioLabel: "force-push recovery",
     difficultyCore: "requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
   },
   "typescript-awaited-type": {
@@ -5212,6 +5215,7 @@ const TASK_RECIPES = {
       "outputs/public_api_report.json confirms no exported type signature changed against contracts/public_types.md",
       "outputs/type_test_results.json shows passed:5, failed:0",
     ],
+    scenarioLabel: "edge-case type-regression",
     difficultyCore: "requires deep knowledge of TypeScript's distributive conditional types — AwaitedLike<T> must distribute over unions, but Promise<never> is a degenerate case where the never branch collapses to never unless distribution is written correctly. The fix must not change any exported types (checked by the API contract), which rules out the common shortcut of widening the return type to unknown.",
   },
   "react-stale-closure": {
@@ -5247,6 +5251,7 @@ const TASK_RECIPES = {
       "outputs/render_count_report.json shows each fixture within its declared max from expected_render_counts.json",
       "exported prop types and refs match contracts/component_api.md",
     ],
+    scenarioLabel: "edge-case regression",
     difficultyCore: "requires understanding React 18 concurrent mode — wrapping fetch in useCallback without fixing the dependency array is the common wrong answer: it passes mount/unmount tests but fails the rapid-update fixture because the stale closure still reads old props. The correct fix requires AbortController + cleanup return + correct deps, which agents get wrong in at least one of three parts.",
   },
 };
@@ -5299,9 +5304,10 @@ function buildFromRecipe(recipeId) {
 
   // Difficulty from recipe.difficultyCore
   const expLabel = expertiseLabel(recipe.expertise).toLowerCase();
-  els.taskDifficulty.value = `This is ${expLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. ${recipe.difficultyCore} The difficulty comes from domain constraints, implementation judgment, and verifier-aware edge-case design — not from bulk, hidden facts, or wording tricks.`;
+  const scenarioDesc = recipe.scenarioLabel || scenario.name;
+  els.taskDifficulty.value = `This is ${expLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow — ${scenarioDesc}. ${recipe.difficultyCore} The difficulty comes from domain constraints, implementation judgment, and verifier-aware edge-case design — not from bulk, hidden facts, or wording tricks.`;
 
-  els.taskDomain.value    = `${capitalize(expLabel)} ${scenario.name} task in ${profile.domain}.`;
+  els.taskDomain.value    = `${capitalize(expLabel)} ${scenarioDesc} task in ${profile.domain}.`;
   els.taskTime.value      = timeEstimateFor(recipe.expertise, profile.domain);
   els.taskAgentCheck.value = "Required before submission: test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected.";
 
@@ -5461,7 +5467,9 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
     "Authoritative answer contract:",
     `- Required final artifact(s): ${profile.artifact}.`,
     "- Every required output path must be named before the workflow starts.",
-    "- Every accepted row, rejected row, conflict decision, tolerance, checksum, and reason code used by the verifier must appear in a machine-readable output.",
+    details && details.solutionCode
+      ? "- Every fixture result, diagnostic count, public API comparison, checksum, and pass/fail reason code used by the verifier must appear in a machine-readable output."
+      : "- Every accepted row, rejected row, conflict decision, tolerance, checksum, and reason code used by the verifier must appear in a machine-readable output.",
     "- Any unresolved record must be emitted separately, not hidden in prose.",
     "",
     "A strong solution would be organized as a reproducible terminal workflow, not a prose-only answer.",
