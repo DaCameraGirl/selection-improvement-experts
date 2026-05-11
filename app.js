@@ -426,6 +426,7 @@ function buildTaskPackage() {
   ].join("\n");
   renderPackagePreview(els.generatedTaskPackage.value);
   renderReadinessDashboard();
+  renderSubmissionAudit();
 }
 
 const DOMAIN_DRAFTS = {
@@ -4127,23 +4128,14 @@ def main():
     # 1. required files present
     results.append(check_files_exist(out))
 
-    # 2. schema checks
-    # TODO: load each CSV and call check_schema() with required column list
-    # Example:
-    # if (out / "report.csv").exists():
-    #     df = pd.read_csv(out / "report.csv")
-    #     results.append(check_schema(df, ["record_id", "value", "status"], "report.csv"))
+${DOMAIN_VERIFIER_CHECKS[domainKey] || `    # 2. schema checks
+    # No domain-specific checks registered — add check_schema() calls here.
 
     # 3. metric tolerance checks
-    # TODO: load metrics JSON and call check_metric() for each threshold
-    # Example:
-    # if (out / "metrics.json").exists():
-    #     m = json.loads((out / "metrics.json").read_text())
-    #     results.append(check_metric(m["sensitivity"], expected.get("sensitivity", 0.97), 0.005, "sensitivity"))
+    # No domain-specific thresholds registered — add check_metric() calls here.
 
     # 4. invalid-input rejection
-    # TODO: confirm the invalid fixture was rejected with the right reason code
-    # results.append(check_invalid_rejected(out, "invalid_sampling_rate", "sampling_rate"))
+    # No fixture rejection checks registered — add check_invalid_rejected() calls here.`}
 
     # 5. run manifest status
     mf_path = out / "run_manifest.json"
@@ -4167,6 +4159,312 @@ def main():
 if __name__ == "__main__":
     main()
 `;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// HARDENED DOMAIN-SPECIFIC VERIFIER CHECKS (replace TODOs in generated verify.py)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const DOMAIN_VERIFIER_CHECKS = {
+  "biomedical-signal": `
+    # 2. schema: beat_validation_report.csv
+    rpt = out / "beat_validation_report.csv"
+    if rpt.exists():
+        df = pd.read_csv(rpt)
+        results.append(check_schema(df, ["record_id","beat_index","detected_time_sec",
+            "nearest_annotation_time_sec","abs_error_ms","match_status",
+            "exclusion_reason","filter_applied","det_source","source_checksum"], "beat_validation_report.csv"))
+        bad_status = set(str(v) for v in df["match_status"].dropna()) - {"MATCH","FP"}
+        results.append(ok("match_status values valid") if not bad_status else fail(f"unexpected match_status values: {bad_status}"))
+
+    # 3. metric tolerances: validation_metrics.json
+    vm = out / "validation_metrics.json"
+    if vm.exists():
+        m = json.loads(vm.read_text())
+        for rid, v in m.items():
+            if rid.startswith("_"): continue
+            exp = expected.get(rid, {})
+            results.append(check_metric(v.get("sensitivity", 0), exp.get("sensitivity", 0.97), 0.005, f"{rid} sensitivity"))
+            results.append(check_metric(v.get("ppv", 0), exp.get("ppv", 0.96), 0.005, f"{rid} PPV"))
+    else:
+        results.append(fail("validation_metrics.json missing — cannot check thresholds"))
+
+    # 4. invalid fixture: record 103 must be EXCLUDED in qc_summary
+    qs = out / "qc_summary.json"
+    if qs.exists():
+        qc = json.loads(qs.read_text())
+        excl = any("103" in str(e.get("record_id","")) and e.get("status") == "EXCLUDED" for e in qc)
+        results.append(ok("record 103 excluded (invalid SR fixture)") if excl else fail("record 103 not EXCLUDED — invalid sampling-rate fixture must be rejected"))
+    # failure_analysis.csv must be populated when FP/FN beats exist
+    fa = out / "failure_analysis.csv"
+    if rpt.exists() and fa.exists():
+        rpt_rows = list(pd.read_csv(rpt).itertuples())
+        fp_count = sum(1 for r in rpt_rows if str(getattr(r, "match_status", "")).upper() == "FP")
+        fa_rows = len(pd.read_csv(fa))
+        if fp_count > 0:
+            results.append(ok(f"failure_analysis.csv has {fa_rows} rows for {fp_count} FP beats") if fa_rows > 0 else fail("failure_analysis.csv empty but FP beats exist"))`,
+
+  "ml-systems": `
+    # 2. schema: metrics.json
+    mf = out / "metrics.json"
+    if mf.exists():
+        m = json.loads(mf.read_text())
+        for col in ["auc","auc_delta","parity_divergence_pct","latency_p99_ms"]:
+            results.append(ok(f"metrics.json has {col}") if col in m else fail(f"metrics.json missing required field: {col}"))
+
+    # 3. metric tolerance checks
+        results.append(ok(f"AUC={m.get('auc')} >= min {expected.get('auc_min',0.83)}") if m.get("auc",0) >= expected.get("auc_min",0.83) else fail(f"AUC={m.get('auc')} below minimum {expected.get('auc_min',0.83)}"))
+        results.append(check_metric(m.get("auc_delta",999),     expected.get("auc_delta_max",0.005),             0.0001, "auc_delta ≤ max"))
+        results.append(check_metric(m.get("parity_divergence_pct",999), expected.get("parity_divergence_pct_max",0.01), 0.0001, "parity_divergence_pct ≤ max"))
+        results.append(check_metric(m.get("latency_p99_ms",9999), expected.get("latency_p99_ms_max",120),         0.1,    "latency_p99_ms ≤ max"))
+
+    # 4. drift_report.json must be present and populated
+    dr = out / "drift_report.json"
+    if dr.exists():
+        drift = json.loads(dr.read_text())
+        results.append(ok("drift_report.json populated") if drift else fail("drift_report.json is empty"))
+    else:
+        results.append(fail("drift_report.json missing"))`,
+
+  "ai-governance": `
+    # 2. schema: fairness_audit.csv
+    fa = out / "fairness_audit.csv"
+    if fa.exists():
+        df = pd.read_csv(fa)
+        results.append(check_schema(df, ["slice","group","count","pass_rate","disparate_impact"], "fairness_audit.csv"))
+
+    # 3. metric tolerance checks: governance_metrics.json
+    gm = out / "governance_metrics.json"
+    if gm.exists():
+        m = json.loads(gm.read_text())
+        di = m.get("disparate_impact", 0)
+        results.append(ok(f"disparate_impact={di} >= {expected.get('disparate_impact_min',0.80)}") if di >= expected.get("disparate_impact_min",0.80) else fail(f"disparate_impact={di} below 0.80 threshold"))
+        results.append(check_metric(m.get("calibration_error",999), expected.get("calibration_error_max",0.03), 0.001, "calibration_error ≤ max"))
+        unexp = m.get("unexplained_exceptions", -1)
+        results.append(ok("zero unexplained exceptions") if unexp == 0 else fail(f"unexplained_exceptions={unexp} — must be 0"))
+
+    # 4. policy exceptions must all have policy_ref
+    pr = out / "policy_exception_report.json"
+    if pr.exists():
+        rpt_data = json.loads(pr.read_text())
+        undefined = [e for e in rpt_data if not e.get("policy_ref")]
+        results.append(ok("all exceptions have policy_ref") if not undefined else fail(f"{len(undefined)} exceptions missing policy_ref — not traceable"))`,
+
+  "software-engineering": `
+    # 2. schema: test_report.json
+    tr = out / "test_report.json"
+    if tr.exists():
+        m = json.loads(tr.read_text())
+        for col in ["passed","failed","total"]:
+            results.append(ok(f"test_report.json has {col}") if col in m else fail(f"test_report.json missing: {col}"))
+
+    # 3. metric checks: zero failures
+        failed_count = m.get("failed", 1)
+        total_count  = m.get("total", 0)
+        results.append(ok(f"all {total_count} regression tests pass") if failed_count == 0 else fail(f"{failed_count}/{total_count} regression test(s) failing"))
+
+    # compatibility_summary: zero API changes
+    cs = out / "compatibility_summary.json"
+    if cs.exists():
+        comp = json.loads(cs.read_text())
+        results.append(ok("zero API signature changes")  if comp.get("api_changes",1)  == 0 else fail(f"api_changes={comp.get('api_changes')} — must be 0"))
+        results.append(ok("zero breaking changes")       if comp.get("breaking_changes",1) == 0 else fail(f"breaking_changes={comp.get('breaking_changes')}"))
+        for fx in comp.get("fixture_results", []):
+            results.append(ok(f"fixture '{fx.get('name')}' passed") if fx.get("pass") else fail(f"fixture '{fx.get('name')}' FAILED"))
+
+    # 4. patch.diff must be non-empty
+    pd_file = out / "patch.diff"
+    if pd_file.exists():
+        content = pd_file.read_text().strip()
+        results.append(ok("patch.diff is non-empty") if content else fail("patch.diff is empty — no changes recorded"))`,
+
+  "climate-geospatial": `
+    # 2. schema: heat_anomaly_by_county.csv
+    hac = out / "heat_anomaly_by_county.csv"
+    if hac.exists():
+        df = pd.read_csv(hac)
+        results.append(check_schema(df, ["county_geoid","county_name","baseline_mean_c","target_mean_c","anomaly_c","station_count","exclusion_reason"], "heat_anomaly_by_county.csv"))
+        orphaned = df[df["anomaly_c"].isna() & df["exclusion_reason"].isna()]
+        results.append(ok("no orphaned rows (all null anomalies have exclusion_reason)") if orphaned.empty else fail(f"{len(orphaned)} rows: anomaly_c=null but no exclusion_reason"))
+
+    # 3. anomaly tolerance
+    if hac.exists() and "reference_anomaly_c" in df.columns:
+        tol = expected.get("anomaly_tolerance_c", 0.1)
+        over = df[abs(df["anomaly_c"].fillna(0) - df["reference_anomaly_c"].fillna(0)) > tol]
+        results.append(ok(f"all anomalies within ±{tol}°C of reference") if over.empty else fail(f"{len(over)} counties exceed ±{tol}°C tolerance"))
+
+    # 4. orphaned stations (zero allowed per spec)
+    cw = out / "coverage_warnings.json"
+    if cw.exists():
+        max_orp = expected.get("orphaned_stations_max", 0)
+        warnings = json.loads(cw.read_text())
+        geo_fails = [w for w in warnings if "ORPHAN" in str(w.get("reason","")).upper()]
+        results.append(ok(f"orphaned station warnings: {len(geo_fails)} (max {max_orp})") if len(geo_fails) <= max_orp else fail(f"{len(geo_fails)} orphaned station warnings — max allowed: {max_orp}"))`,
+
+  "robotics-control": `
+    # 2. schema: trajectory_error.csv
+    te = out / "trajectory_error.csv"
+    if te.exists():
+        df = pd.read_csv(te)
+        results.append(check_schema(df, ["timestamp_s","x_error_m","y_error_m","theta_error_rad","torque_nm"], "trajectory_error.csv"))
+
+    # 3. metric tolerance checks: metrics.json
+    mf = out / "metrics.json"
+    if mf.exists():
+        m = json.loads(mf.read_text())
+        results.append(check_metric(m.get("tracking_error_rms_m",999), expected.get("tracking_error_rms_max_m",0.05), 0.001, "tracking_error_rms_m ≤ max"))
+        results.append(check_metric(m.get("settle_time_s",999),        expected.get("settle_time_max_s",2.0),         0.01,  "settle_time_s ≤ max"))
+
+    # 4. actuator limit violations (torque must stay within ±10% of declared limit)
+    if te.exists() and "torque_nm" in df.columns:
+        max_t = expected.get("max_torque_nm", 2.5)
+        tol   = expected.get("torque_tolerance_fraction", 0.10)
+        viol  = df[abs(df["torque_nm"]) > max_t * (1 + tol)]
+        results.append(ok("no actuator limit violations") if viol.empty else fail(f"{len(viol)} rows exceed torque limit ±{int(tol*100)}%"))`,
+
+  "quant-finance": `
+    # 2. schema: portfolio_risk_report.csv
+    rpt = out / "portfolio_risk_report.csv"
+    if rpt.exists():
+        df = pd.read_csv(rpt)
+        results.append(check_schema(df, ["ticker","period_start","period_end","annualized_return","annualized_vol","sharpe_ratio","max_drawdown","mkt_beta","exclusion_reason"], "portfolio_risk_report.csv"))
+
+    # 3. per-ticker tolerance checks
+        for _, row in df.iterrows():
+            t = row.get("ticker","?"); exp_t = expected.get(t, {})
+            if "annualized_vol" in exp_t:
+                results.append(check_metric(row["annualized_vol"], exp_t["annualized_vol"], expected.get("vol_tolerance_pct",0.002)/100, f"{t} annualized_vol"))
+            if "max_drawdown" in exp_t:
+                results.append(check_metric(row["max_drawdown"], exp_t["max_drawdown"], expected.get("drawdown_tolerance_pp",0.005)/100, f"{t} max_drawdown"))
+
+    # 4. factor_exposures.json structure
+    fe = out / "factor_exposures.json"
+    if fe.exists():
+        fe_data = json.loads(fe.read_text())
+        results.append(ok(f"factor_exposures.json: {len(fe_data)} entries") if isinstance(fe_data, list) and fe_data else fail("factor_exposures.json missing or empty"))`,
+
+  "power-systems": `
+    # 2. schema: contingency_ranking.csv
+    cr = out / "contingency_ranking.csv"
+    if cr.exists():
+        df = pd.read_csv(cr)
+        results.append(check_schema(df, ["contingency_id","from_bus","to_bus","max_loading_pct","voltage_violation","severity_rank"], "contingency_ranking.csv"))
+        results.append(ok(f"{len(df)} contingencies in ranking") if not df.empty else fail("contingency_ranking.csv is empty — no N-1 analysis performed"))
+
+    # 3. voltage bound checks
+    vr = out / "voltage_violation_report.json"
+    if vr.exists():
+        vd = json.loads(vr.read_text())
+        vmin = expected.get("voltage_min_pu", 0.95); vmax = expected.get("voltage_max_pu", 1.05)
+        out_bounds = [(b, v) for b, v in vd.items() if isinstance(v, (int, float)) and not (vmin <= v <= vmax)]
+        results.append(ok(f"all bus voltages within [{vmin}, {vmax}] p.u.") if not out_bounds else fail(f"{len(out_bounds)} buses outside voltage bounds"))
+
+    # 4. thermal violations must be flagged (not hidden)
+    if cr.exists():
+        violations = df[df["max_loading_pct"] > 100]
+        tol = expected.get("thermal_tolerance_mva", 0.1)
+        results.append(ok(f"{len(violations)} N-1 thermal violations flagged correctly"))`,
+};
+
+// ── RED FLAG SCANNER ──────────────────────────────────────────────────────
+
+const RED_FLAG_PATTERNS = [
+  { rx: /\bwhere relevant\b/gi,         label: "where relevant",         fix: "list each relevant item explicitly" },
+  { rx: /\brealistic files?\b/gi,        label: "realistic files",         fix: "real files from [public source URL]" },
+  { rx: /\bdomain.appropriate\b/gi,      label: "domain-appropriate",      fix: "[specific dataset name] from [source URL]" },
+  { rx: /\bsupporting evidence\b/gi,     label: "supporting evidence",     fix: "produce [specific file] with [specific columns]" },
+  { rx: /\bas needed\b/gi,               label: "as needed",               fix: "define exact conditions when this applies" },
+  { rx: /\brepresentative sample\b/gi,   label: "representative sample",   fix: "use records [specific IDs] from [source]" },
+  { rx: /\bany appropriate\b/gi,         label: "any appropriate",         fix: "name the specific method or library" },
+  { rx: /\bmay include\b/gi,             label: "may include",             fix: "use 'must include' or remove the ambiguous item" },
+  { rx: /\betc\.\b/gi,                   label: "etc.",                    fix: "list all items — reviewers reject 'etc.'" },
+  { rx: /\bsimilar to\b/gi,              label: "similar to",              fix: "reference the exact source and version" },
+  { rx: /\bexample data\b/gi,            label: "example data",            fix: "real data from [source] — no synthetic examples" },
+  { rx: /\bsample data\b/gi,             label: "sample data",             fix: "real data from [source]" },
+  { rx: /\bwhere applicable\b/gi,        label: "where applicable",        fix: "specify exact conditions or remove" },
+  { rx: /\bif applicable\b/gi,           label: "if applicable",           fix: "decide yes/no and state it explicitly" },
+  { rx: /\bsome\s+\w+\b/gi,              label: "some [X]",                fix: "name exactly which items or give a count" },
+  { rx: /\bvarious\b/gi,                 label: "various",                 fix: "list the specific items" },
+  { rx: /\bappropriate method\b/gi,      label: "appropriate method",      fix: "name the exact algorithm or library call" },
+  { rx: /\bif necessary\b/gi,            label: "if necessary",            fix: "state the condition explicitly" },
+  { rx: /\band\/or\b/gi,                 label: "and/or",                  fix: "decide: 'and' or 'or', not both" },
+  { rx: /\bfeel free\b/gi,               label: "feel free",               fix: "remove — prescribe the exact approach" },
+  { rx: /\btypically\b/gi,               label: "typically",               fix: "state what MUST happen, not what usually happens" },
+  { rx: /\bpossibly\b/gi,                label: "possibly",                fix: "use 'must' or remove — ambiguity causes rejection" },
+  { rx: /\bcan be\b/gi,                  label: "can be",                  fix: "use 'must be' to make it deterministic" },
+  { rx: /TODO/g,                         label: "TODO",                    fix: "fill in completely before submitting" },
+  { rx: /\bplaceholder\b/gi,             label: "placeholder",             fix: "replace with the real value" },
+];
+
+function scanRedFlags(f) {
+  const fieldsToCheck = [
+    { key: "prompt",      label: "Prompt" },
+    { key: "resources",   label: "Resources" },
+    { key: "solution",    label: "Golden solution" },
+    { key: "verifiers",   label: "Verifier description" },
+    { key: "difficulty",  label: "Difficulty" },
+    { key: "snippet",     label: "Snippet" },
+    { key: "errorIfWrong",label: "Error if wrong" },
+  ];
+  const hits = [];
+  for (const { key, label } of fieldsToCheck) {
+    const text = f[key] || "";
+    for (const { rx, label: flagLabel, fix } of RED_FLAG_PATTERNS) {
+      rx.lastIndex = 0;
+      const matches = text.match(rx);
+      if (matches) {
+        hits.push({ field: label, phrase: flagLabel, count: matches.length, fix });
+      }
+    }
+  }
+  return hits;
+}
+
+// ── SUBMISSION FIELD AUDIT ────────────────────────────────────────────────
+
+const FIELD_THRESHOLDS = {
+  prompt:       { min: 200, recommended: 600, label: "Prompt" },
+  snippet:      { min: 60,  recommended: 200, label: "Snippet" },
+  errorIfWrong: { min: 40,  recommended: 120, label: "Error if wrong" },
+  difficulty:   { min: 150, recommended: 400, label: "Difficulty" },
+  resources:    { min: 200, recommended: 600, label: "Resources" },
+  solution:     { min: 300, recommended: 800, label: "Golden solution" },
+  verifiers:    { min: 150, recommended: 400, label: "Verifier description" },
+};
+
+function auditSubmissionFields(f) {
+  const redFlags = scanRedFlags(f);
+  const flagsByField = {};
+  for (const h of redFlags) flagsByField[h.field] = (flagsByField[h.field] || 0) + h.count;
+
+  return Object.entries(FIELD_THRESHOLDS).map(([key, cfg]) => {
+    const text  = f[key] || "";
+    const len   = text.trim().length;
+    const flags = flagsByField[cfg.label] || 0;
+    let status = "READY";
+    if (len === 0) status = "EMPTY";
+    else if (len < cfg.min || flags > 0) status = "WEAK";
+    else if (len < cfg.recommended) status = "OK";
+    return { key, label: cfg.label, len, min: cfg.min, recommended: cfg.recommended, flags, status };
+  });
+}
+
+function renderSubmissionAudit() {
+  const el = document.querySelector("#submission-audit");
+  if (!el) return;
+  const f = getTaskFields();
+  const rows = auditSubmissionFields(f);
+  const redFlags = scanRedFlags(f);
+
+  const statusIcon = { READY: "✓", OK: "~", WEAK: "!", EMPTY: "✗" };
+  const statusCls  = { READY: "audit-ready", OK: "audit-ok", WEAK: "audit-weak", EMPTY: "audit-empty" };
+
+  el.innerHTML = `<table class="audit-table"><thead><tr><th>Field</th><th>Status</th><th>Length</th><th>Flags</th></tr></thead><tbody>` +
+    rows.map((r) => `<tr class="${statusCls[r.status]}"><td>${escapeHtmlInline(r.label)}</td><td>${statusIcon[r.status]} ${r.status}</td><td>${r.len} <small>/ ${r.recommended}</small></td><td>${r.flags ? `<span class="flag-count">${r.flags} phrase${r.flags > 1 ? "s" : ""}</span>` : "—"}</td></tr>`).join("") +
+    `</tbody></table>` +
+    (redFlags.length
+      ? `<details class="flag-detail"><summary>${redFlags.length} rejection phrase${redFlags.length > 1 ? "s" : ""} found — expand to fix</summary><ul>${redFlags.map((h) => `<li><strong>${escapeHtmlInline(h.field)}</strong>: "${escapeHtmlInline(h.phrase)}" — replace with: <em>${escapeHtmlInline(h.fix)}</em></li>`).join("")}</ul></details>`
+      : `<p class="audit-clean">No rejection phrases detected.</p>`);
 }
 
 function renderCodeTemplates() {
@@ -5609,3 +5907,4 @@ load();
 renderAll();
 renderTaskChecks(getTaskFields());
 renderReadinessDashboard();
+renderSubmissionAudit();
