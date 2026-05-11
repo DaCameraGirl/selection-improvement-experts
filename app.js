@@ -68,9 +68,15 @@ function normalize(text) {
 }
 
 function toBriefNoun(brief) {
-  let noun = brief.replace(/^(implement|validate|audit|review|reconcile|screen|rank|replay|triage|build|diagnose|check|verify|investigate|analyze)(\s+and\s+\w+)?\s+/i, "");
+  let noun = brief.replace(/^(implement|validate|audit|review|reconcile|screen|rank|replay|triage|build|diagnose|check|verify|investigate|analyze|recover|fix|test|debug|patch|detect|port|refactor|convert|migrate|repair|resolve|find|identify)(\s+and\s+\w+)?\s+/i, "");
+  noun = noun.replace(/^(a|an|the)\s+/i, "");
   const comma = noun.indexOf(",");
   if (comma > 0 && comma < 90) noun = noun.slice(0, comma);
+  if (noun.length > 70) {
+    const clauseMatch = noun.match(/\s+(where|that|which|causing|when|while|so that)\s/i);
+    if (clauseMatch) noun = noun.slice(0, clauseMatch.index);
+  }
+  if (noun.length > 80) noun = noun.slice(0, 77).replace(/\s+\S*$/, "…");
   return noun;
 }
 
@@ -536,12 +542,12 @@ const DOMAIN_DRAFTS = {
   "typescript": {
     brief: "Fix a TypeScript strict-mode conditional type bug where a union containing Promise<never> causes Awaited<T> to silently infer unknown instead of the correct resolved type",
     domain: "TypeScript type system using conditional types, mapped types, distributive inference, and strict-mode diagnostics with tsc 5.x",
-    artifact: "a patch file, a tsc diagnostic report JSON, and a type-test results JSON",
-    method: "conditional type narrowing analysis, Awaited<T> distributivity inspection, ts-morph AST walking, discriminated union checks, and differential tsc --strict output comparison",
-    data: "a pinned TypeScript project with a broken type utility, tsconfig.json with strict:true, five type-test fixture files that must produce specific compiler diagnostics, and a contracts file listing public type signatures that must not regress",
-    failure: "using a type assertion to silence the error instead of fixing inference, narrowing only the happy-path union member while leaving the never branch unhandled, and producing a patch that changes public-facing type signatures",
-    sourceKit: "src/utils/awaited_util.ts (broken utility), tsconfig.json (strict:true, noEmit:true), type_tests/normal_union.ts, type_tests/nested_promise.ts, type_tests/never_branch.ts, type_tests/edge_deeply_nested.ts, type_tests/invalid_non_thenable.ts, contracts/public_types.md, verifier_inputs/expected_diagnostics.json, environment/package.json (typescript@5.4.5)",
-    threshold: "tsc --strict must exit 0 on all five type-test fixtures after the patch; zero public type signatures in contracts/public_types.md may change; the never_branch fixture must produce zero unknown-type errors; invalid_non_thenable must still produce exactly the expected diagnostic code."
+    artifact: "a patch file, a tsc diagnostic report JSON, a type-test results JSON, and a public API report JSON",
+    method: "conditional type narrowing analysis, Awaited<T> distributivity inspection, discriminated union checks, and differential tsc --strict output comparison against a split positive/negative fixture suite",
+    data: "a pinned TypeScript project with a broken type utility, tsconfig.strict.json for positive fixtures, tsconfig.negative.json for the invalid fixture, five type-test fixture files that must produce specific compiler diagnostics, and a contracts file listing public type signatures that must not regress",
+    failure: "using a type assertion to silence the error instead of fixing inference, narrowing only the happy-path union member while leaving the never branch unhandled, producing a patch that changes public-facing type signatures, and running both positive and negative fixtures under the same tsconfig instead of the split configs",
+    sourceKit: "src/utils/awaited_util.ts (broken utility), tsconfig.strict.json (strict:true, noEmit:true), tsconfig.negative.json (strict:true, noEmit:true — used only for invalid_non_thenable.ts), type_tests/normal_union.ts, type_tests/nested_promise.ts, type_tests/never_branch.ts, type_tests/edge_deeply_nested.ts, type_tests/invalid_non_thenable.ts, contracts/public_types.md, verifier_inputs/expected_diagnostics.json, environment/package.json (typescript@5.4.5)",
+    threshold: "The four positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) must compile with zero diagnostics under tsconfig.strict.json; invalid_non_thenable.ts must produce exactly one TS2345 diagnostic under tsconfig.negative.json; zero exported type signatures in contracts/public_types.md may change."
   },
   "react": {
     brief: "Fix a React 18 useEffect stale-closure bug where a data-fetching component updates state after unmount, causing a race condition that produces an incorrect final render value determinable from test output",
@@ -557,11 +563,11 @@ const DOMAIN_DRAFTS = {
     brief: "Recover three commits lost after an accidental git push --force, reconstruct the correct branch topology using the reflog, and validate the repaired history against a commit graph specification",
     domain: "Git internals using the object model, reflog, pack files, cherry-pick, and deterministic commit graph validation",
     artifact: "a repaired git bundle, a repair log JSON, and a commit graph verification report JSON",
-    method: "git reflog parsing, git fsck object integrity checks, git cherry-pick with explicit --no-commit for deterministic message preservation, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
-    data: "a git bundle containing the object store before and after the force-push, a reflog export showing the three orphaned commit SHAs, a commit graph spec JSON declaring expected parent relationships, and expected file checksums at each recovered commit",
-    failure: "cherry-picking with the wrong author date producing different SHAs than expected, recovering commits in wrong order breaking parent chain, using git reset --hard in a way that loses other commits, and failing to verify file contents at each recovered commit match the expected checksums",
-    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing three orphaned SHAs), commit_graph_spec.json (expected parent relationships and commit messages), verifier_inputs/expected_file_checksums.json (file contents at each recovered commit), environment/git_version.txt (git 2.43.0)",
-    threshold: "git fsck on the repaired repository must report zero dangling objects and zero missing objects; all three recovered commits must have the parent SHAs declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
+    method: "git reflog parsing, git fsck --connectivity-only object integrity checks, ref restoration to make original commit objects reachable, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
+    data: "git bundles containing the object store before and after the force-push, a reflog export showing the three orphaned commit SHAs, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
+    failure: "cherry-picking changes into new commits instead of restoring original refs (producing different SHAs than expected), recovering commits in the wrong order breaking the parent chain, leaving recovered commits unreachable from the required branch ref, and failing to verify file contents at each recovered commit match the expected checksums",
+    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing three orphaned SHAs), commit_graph_spec.json (expected parent SHAs, branch ref targets, and commit messages), verifier_inputs/expected_file_checksums.json (file contents at each recovered commit), environment/git_version.txt (git 2.43.0)",
+    threshold: "git fsck --connectivity-only on the repaired repository must report zero missing or corrupt objects; all three recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
   },
   "software-engineering": {
     brief: "Triage a real repository regression where a fix may have broken an existing public API contract",
@@ -796,7 +802,8 @@ const SCENARIO_STYLES = [
     excludedDomains: [
       "computer-science", "software-engineering", "compilers", "distributed-systems",
       "formal-methods", "scientific-computing", "applied-math", "robotics-control",
-      "ml-systems", "databases", "ai-governance", "computational-linguistics"
+      "ml-systems", "databases", "ai-governance", "computational-linguistics",
+      "git-workflows", "typescript", "react"
     ],
     situation: "when two trusted operational systems disagree and the downstream team needs a defensible reconciliation",
     objective: "reconcile the systems into a final output table with reason codes, confidence flags, and a review queue for unresolved records",
@@ -3845,9 +3852,9 @@ if __name__ == "__main__":
       "TypeScript 5.4 release notes (Awaited<T> fixes): https://devblogs.microsoft.com/typescript/announcing-typescript-5-4/"
     ],
     downloads: [
-      "No large downloads — the project is self-contained. Run: npm install inside the zip to restore node_modules.",
-      "[TypeScript 5.4.5 on npm](https://www.npmjs.com/package/typescript/v/5.4.5) — pinned in package.json; npm install will fetch it.",
-      "[ts-morph for AST walking (optional)](https://www.npmjs.com/package/ts-morph) — listed in devDependencies in package.json"
+      "No large downloads — the project is self-contained. Run npm ci once during setup to restore node_modules; the benchmark run itself requires no network access.",
+      "[TypeScript 5.4.5 on npm](https://www.npmjs.com/package/typescript/v/5.4.5) — pinned in package.json; fetched by npm ci during setup.",
+      "[ts-morph for AST walking (optional)](https://www.npmjs.com/package/ts-morph) — listed in devDependencies in package.json; fetched by npm ci."
     ],
     resources: [
       "src/utils/awaited_util.ts — the broken type utility containing the Awaited<T> conditional type definition.",
@@ -3865,13 +3872,14 @@ if __name__ == "__main__":
       "Run: python solve.py --repo . --fixtures type_tests --contracts contracts/public_types.md --out outputs",
       "Inspect the Awaited<T> definition in src/utils/awaited_util.ts — locate the conditional branch that fails to distribute over union members containing never.",
       "Fix the conditional type so that never members are preserved during distributive evaluation rather than collapsing to unknown.",
-      "Verify with: npx tsc --noEmit --strict from the project root; all five type_tests/*.ts files must produce zero errors.",
+      "Verify positive fixtures: npx tsc --noEmit --project tsconfig.strict.json — normal_union.ts, nested_promise.ts, never_branch.ts, and edge_deeply_nested.ts must all produce zero diagnostics.",
+      "Verify negative fixture separately: npx tsc --noEmit --project tsconfig.negative.json — invalid_non_thenable.ts must produce exactly one TS2345 diagnostic.",
       "Check contracts/public_types.md — confirm no exported type signature changed.",
-      "Write outputs/fix.patch (git diff), outputs/tsc_report.json (per-file diagnostics), outputs/type_test_results.json (pass/fail per fixture), outputs/run_manifest.json."
+      "Write outputs/fix.patch (git diff), outputs/tsc_report.json (per-file diagnostics split by config), outputs/type_test_results.json (pass/fail per fixture), outputs/public_api_report.json (signature diff), outputs/run_manifest.json."
     ],
     verifiers: [
-      "Fail if tsc --strict exits non-zero on any of the five type_tests fixtures after the patch is applied.",
-      "Fail if never_branch.ts produces any TS2571 (Object is of type unknown) errors.",
+      "Fail if any of the four positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) produces any diagnostic under tsconfig.strict.json.",
+      "Fail if invalid_non_thenable.ts does not produce exactly one TS2345 diagnostic under tsconfig.negative.json.",
       "Fail if invalid_non_thenable.ts diagnostic count or code differs from expected_diagnostics.json.",
       "Fail if any exported name in contracts/public_types.md changes signature (check via tsc declaration emit diff).",
       "Fail if outputs/fix.patch is missing or empty.",
@@ -4297,10 +4305,10 @@ const DOMAIN_CODE = {
     imports: ["import subprocess", "import json", "import hashlib", "from pathlib import Path"],
     config: "environment/git_version.txt",
     coreTodo: [
-      "Clone from bundle: subprocess.run(['git', 'clone', 'repo_before_force.bundle', 'work_repo'], check=True)",
+      "Clone from before bundle: subprocess.run(['git', 'clone', 'repo_before_force.bundle', 'work_repo'], check=True)",
       "Parse reflog_export.txt to extract the three orphaned commit SHAs that need recovery",
-      "Cherry-pick each SHA in order: subprocess.run(['git', 'cherry-pick', sha, '--no-commit'], cwd='work_repo')",
-      "Verify commit graph: git log --format='%H %P %s' and compare parent SHAs against commit_graph_spec.json",
+      "Restore refs to original commits (not cherry-pick): subprocess.run(['git', 'update-ref', 'refs/heads/TARGET_BRANCH', sha], cwd='work_repo') — this preserves exact SHAs",
+      "Verify commit graph: git log --format='%H %P %s' and compare parent SHAs and branch ref targets against commit_graph_spec.json",
       "Export outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json"
     ]
   }
@@ -4861,6 +4869,21 @@ const RED_FLAG_PATTERNS = [
   { rx: /\bcan be\b/gi,                  label: "can be",                  fix: "use 'must be' to make it deterministic" },
   { rx: /TODO/g,                         label: "TODO",                    fix: "fill in completely before submitting" },
   { rx: /\bplaceholder\b/gi,             label: "placeholder",             fix: "replace with the real value" },
+  // Template residue — data-science/reconciliation language that must not appear in software engineering tasks
+  { rx: /\baccepted record\b/gi,         label: "accepted record [residue]",         fix: "remove — this is data-pipeline language, not software engineering" },
+  { rx: /\brejected row\b/gi,            label: "rejected row [residue]",            fix: "remove — this is data-pipeline language, not software engineering" },
+  { rx: /\bconflict decision\b/gi,       label: "conflict decision [residue]",       fix: "remove — this is reconciliation language, not the right domain" },
+  { rx: /\bconfidence flag\b/gi,         label: "confidence flag [residue]",         fix: "remove — this is ML/reconciliation language" },
+  { rx: /\breview queue\b/gi,            label: "review queue [residue]",            fix: "remove — this is reconciliation language, not the right domain" },
+  { rx: /\bstatistical validation\b/gi,  label: "statistical validation [residue]",  fix: "replace with specific validation relevant to this domain" },
+  { rx: /\boptimization under domain constraints\b/gi, label: "optimization under domain constraints [residue]", fix: "remove — generic data-science filler" },
+  { rx: /\bcoordinate[/ ]time convention\b/gi, label: "coordinate/time convention [residue]", fix: "remove — geospatial language, wrong domain" },
+  { rx: /\bwrong units\b/gi,             label: "wrong units [residue]",             fix: "remove unless this domain actually uses physical units" },
+  { rx: /\bsplit integrity\b/gi,         label: "split integrity [residue]",         fix: "remove — ML benchmark language, not software engineering" },
+  { rx: /\bablation\b/gi,               label: "ablation [residue]",               fix: "remove — ML research language, not software engineering" },
+  { rx: /\bseed reproducibility\b/gi,   label: "seed reproducibility [residue]",   fix: "remove — ML benchmark language; use 'deterministic output' instead" },
+  { rx: /\btolerance band\b/gi,          label: "tolerance band [residue]",          fix: "replace with the actual numeric threshold for this domain" },
+  { rx: /\btwo trusted operational systems\b/gi, label: "two trusted operational systems [residue]", fix: "remove — reconciliation scenario boilerplate, wrong domain" },
 ];
 
 function scanRedFlags(f) {
@@ -4967,10 +4990,16 @@ function fillStarterTemplate() {
   els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
+  const swDomains = new Set(["typescript", "react", "git-workflows", "software-engineering", "computer-science", "distributed-systems", "databases", "compilers", "ml-systems"]);
+  const isSWDomain = swDomains.has(domainKey);
   const expertiseDepthSuffix = {
-    professional: " The solution must meet production-quality standards: correct validation under edge cases, tolerance-aware comparisons, and engineering-grade reproducibility.",
-    masters: " A correct solution requires careful algorithm selection, statistical validation, optimization under domain constraints, and baseline comparison rather than naive implementation.",
-    phd: " PhD-level solutions require methodological rigor, systematic research-level analysis, asymptotic or statistical justification of key design choices, and principled handling of edge cases."
+    professional: " The solution must meet production-quality standards: correct handling of edge cases, deterministic outputs, and engineering-grade reproducibility.",
+    masters: isSWDomain
+      ? " A correct solution requires precise domain knowledge, careful handling of edge cases the verifier specifically targets, and implementation choices that produce exact reproducible outputs rather than plausible-looking approximations."
+      : " A correct solution requires careful algorithm selection, statistical validation, optimization under domain constraints, and baseline comparison rather than naive implementation.",
+    phd: isSWDomain
+      ? " A correct solution requires deep knowledge of language/system semantics, principled handling of corner cases, and rigorous proof that the fix is sound rather than coincidentally passing."
+      : " PhD-level solutions require methodological rigor, systematic research-level analysis, asymptotic or statistical justification of key design choices, and principled handling of edge cases."
   }[els.taskExpertise.value] || "";
   els.taskDifficulty.value = `This is ${expertise} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}`;
   els.taskTime.value = timeEstimateFor(els.taskExpertise.value, profile.domain);
