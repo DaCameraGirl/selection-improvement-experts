@@ -5559,10 +5559,22 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
     "Confirm repeated runs produce identical machine-readable outputs."
   ];
 
+  // Build explicit file-existence checks from expectedOutputs so every promised output
+  // path appears in the verifier text — prevents false positives from the consistency checker
+  const outputFileLine = (() => {
+    if (!details || !Array.isArray(details.expectedOutputs)) return null;
+    const paths = details.expectedOutputs
+      .filter(line => line.startsWith("- outputs/"))
+      .map(line => line.slice(2).trim());
+    if (!paths.length) return null;
+    return `Fail if any required output file is missing or empty: ${paths.join(", ")}.`;
+  })();
+
   return [
     `A deterministic verifier should ${type.verifier} and ${scenario.verifier}.`,
     "",
     "Required verifier behavior:",
+    ...(outputFileLine ? [`- ${outputFileLine}`] : []),
     ...domainVerifierChecks.map((item) => `- ${item}`),
     "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs.",
     "- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence.",
