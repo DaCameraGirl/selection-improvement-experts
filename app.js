@@ -3983,10 +3983,44 @@ def run(repo_dir, fixtures_dir, contracts_path, out_dir):
         "typescript_version": "5.4.5",
         "positive_exit_code": exit_pos, "negative_exit_code": exit_neg,
         "fixtures": results}, indent=2))
+
+    # Compare exported declarations against public_api_baseline.d.ts to detect API changes
+    baseline_dts = Path(repo_dir) / "contracts" / "public_api_baseline.d.ts"
+    decl_tmp = out / "_decl_tmp"
+    api_changed = False
+    changed_exports = []
+    removed_exports = []
+    added_exports = []
+    diff_summary = ""
+    if baseline_dts.exists():
+        subprocess.run(
+            ["npx", "tsc", "--declaration", "--emitDeclarationOnly", "--noEmit", "false",
+             "--outDir", str(decl_tmp), "--project", "tsconfig.strict.json"],
+            capture_output=True, text=True, cwd=repo_dir)
+        decl_files = sorted(decl_tmp.glob("**/*.d.ts")) if decl_tmp.exists() else []
+        if decl_files:
+            generated = "\\n".join(f.read_text() for f in decl_files)
+            baseline = baseline_dts.read_text()
+            if generated.strip() != baseline.strip():
+                api_changed = True
+                b_lines = [l for l in baseline.splitlines() if l.strip()]
+                g_lines = [l for l in generated.splitlines() if l.strip()]
+                removed_exports = [l for l in b_lines if l not in g_lines][:20]
+                added_exports = [l for l in g_lines if l not in b_lines][:20]
+                diff_summary = f"{len(removed_exports)} line(s) removed, {len(added_exports)} line(s) added vs baseline"
+            else:
+                diff_summary = "Declarations match baseline — no API changes"
+        else:
+            diff_summary = "tsc --emitDeclarationOnly produced no .d.ts files — check tsconfig"
+    else:
+        diff_summary = "contracts/public_api_baseline.d.ts not found — add baseline to contracts/ and re-run"
+
     (out/"type_test_results.json").write_text(json.dumps({
-        "passed": passed, "failed": len(results)-passed, "public_api_changed": False}, indent=2))
+        "passed": passed, "failed": len(results)-passed, "public_api_changed": api_changed}, indent=2))
     (out/"public_api_report.json").write_text(json.dumps({
-        "checked_against": contracts_path, "signatures_changed": False, "changes": []}, indent=2))
+        "checked_against": str(baseline_dts), "signatures_changed": api_changed,
+        "changed_exports": changed_exports, "removed_exports": removed_exports,
+        "added_exports": added_exports, "diff_summary": diff_summary}, indent=2))
     (out/"run_manifest.json").write_text(json.dumps({
         "python": sys.version, "positive_exit_code": exit_pos, "negative_exit_code": exit_neg,
         "fixtures_run": len(results), "passed": passed}, indent=2))
@@ -4017,13 +4051,13 @@ if __name__ == "__main__":
       const openers = {
         "post-migration validation": "After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves. Repair the component so this never happens. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
         "regression triage": "A regression in DataFetcher allows a stale async result to overwrite the final rendered value under rapid prop changes or unmount-before-resolve conditions. The bug is reproducible with the provided Jest fixtures. Repair the component and produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "compliance audit": "A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing 'state update on an unmounted component' warnings and stale rendered values. Repair the component without changing its exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "compliance audit": "A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing 'Can\\'t perform a React state update on an unmounted component' warnings and stale rendered values. Repair the component without changing its exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
         "edge-case benchmark": "The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures. Repair the component so all five fixtures pass and no stale state updates occur. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json."
       };
       const opener = openers[scenario && scenario.name] || openers["regression triage"];
       return [
         opener,
-        "All 5 Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr. Render counts for each fixture must stay within the limits declared in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
+        "All 5 Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero 'Can\\'t perform a React state update on an unmounted component' warnings in Jest stderr. Render counts for each fixture must stay within the limits declared in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
         "The JSON reports must include per-test status, final rendered value, warning counts, render counts per fixture, package versions, input file checksums, and pass/fail reason codes. The verifier will grade only the submitted component, patch, and output reports, not the specific implementation method."
       ].join("\n\n");
     },
@@ -5247,7 +5281,7 @@ const TASK_RECIPES = {
       "outputs/DataFetcher.fixed.tsx exists and is non-empty",
       "outputs/fix.patch is non-empty",
       "outputs/test_results.json shows numPassedTests:5, numFailedTests:0",
-      "test stderr contains zero 'state update on an unmounted component' warnings",
+      "test stderr contains zero 'Can\\'t perform a React state update on an unmounted component' warnings",
       "outputs/render_count_report.json shows each fixture within its declared max from expected_render_counts.json",
       "exported prop types and refs match contracts/component_api.md",
     ],
@@ -5470,7 +5504,11 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
     details && details.solutionCode
       ? "- Every fixture result, diagnostic count, public API comparison, checksum, and pass/fail reason code used by the verifier must appear in a machine-readable output."
       : "- Every accepted row, rejected row, conflict decision, tolerance, checksum, and reason code used by the verifier must appear in a machine-readable output.",
-    "- Any unresolved record must be emitted separately, not hidden in prose.",
+    details && details.solutionCode
+      ? (domainKey === "react"
+        ? "- Any unresolved test failure, warning mismatch, render-count violation, or API mismatch must be emitted separately in the JSON reports, not hidden in prose."
+        : "- Any unresolved fixture failure, unexpected diagnostic, or public API mismatch must be emitted separately in the JSON reports, not hidden in prose.")
+      : "- Any unresolved record must be emitted separately, not hidden in prose.",
     "",
     "A strong solution would be organized as a reproducible terminal workflow, not a prose-only answer.",
     "",
