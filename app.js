@@ -3847,6 +3847,13 @@ if __name__ == "__main__":
     run(args.spec, args.config, args.expected, args.out)`
   },
   "typescript": {
+    composePrompt(profile, type, standard) {
+      return [
+        "Repair the provided TypeScript project so its custom AwaitedLike<T> utility correctly distributes over unions containing Promise<never> without widening any resolved branch to unknown. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
+        "The four positive fixtures normal_union.ts, nested_promise.ts, never_branch.ts, and edge_deeply_nested.ts must compile with zero diagnostics under tsconfig.strict.json. The negative fixture invalid_non_thenable.ts must fail with exactly one TS2345 diagnostic under tsconfig.negative.json. Every exported type signature listed in contracts/public_types.md must remain unchanged.",
+        "The JSON reports must list every fixture, compiler exit code, diagnostic code count, TypeScript version, public API change status, and SHA-256 checksum of each required input file. The verifier will grade only the submitted patch and output reports, not the chosen implementation method."
+      ].join("\n\n");
+    },
     sources: [
       "TypeScript compiler issues (conditional types, Awaited): https://github.com/microsoft/TypeScript/issues?q=label%3ABug+conditional+type",
       "TypeScript 5.4 release notes (Awaited<T> fixes): https://devblogs.microsoft.com/typescript/announcing-typescript-5-4/"
@@ -3955,6 +3962,13 @@ if __name__ == "__main__":
     run(args.repo, args.fixtures, args.contracts, args.out)`
   },
   "react": {
+    composePrompt(profile, type, standard) {
+      return [
+        "Repair the provided React 18 TypeScript project so DataFetcher never commits stale async results after unmount, remount, or rapid prop changes. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "All five Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr. Render counts for each fixture must not exceed the limits in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
+        "The JSON reports must include per-test status, final rendered value, warning counts, render counts, package versions, input file checksums, and pass/fail reason codes. The verifier will grade only the submitted component, patch, and output reports, not the specific implementation method."
+      ].join("\n\n");
+    },
     sources: [
       "React 18 useEffect cleanup docs: https://react.dev/reference/react/useEffect#fetching-data-with-effects",
       "Real stale closure issues in React GitHub: https://github.com/facebook/react/issues?q=stale+closure"
@@ -4057,6 +4071,13 @@ if __name__ == "__main__":
     run(args.repo, args.out)`
   },
   "git-workflows": {
+    composePrompt(profile, type, standard) {
+      return [
+        "Repair the provided Git repository after an accidental force-push removed three commits from the release branch. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
+        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. The repaired repository must clone successfully from the bundle; git fsck --connectivity-only must report zero missing or corrupt objects; all three recovered commit SHAs must be reachable from the required branch ref; each recovered commit must have the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec.json.",
+        "The JSON reports must include original and repaired branch refs, recovered commit SHAs, parent SHAs, reachability status, checksum verification results, Git version, input bundle checksums, and pass/fail reason codes. The verifier will grade only the repaired bundle and output reports, not the recovery method."
+      ].join("\n\n");
+    },
     sources: [
       "Git reflog documentation: https://git-scm.com/docs/git-reflog",
       "Git bundle documentation: https://git-scm.com/docs/git-bundle",
@@ -4079,18 +4100,20 @@ if __name__ == "__main__":
       "Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs",
       "Clone from repo_before_force.bundle into a work directory: git clone repo_before_force.bundle work_repo",
       "Parse reflog_export.txt to identify the three orphaned SHAs tagged RECOVER_ME.",
-      "Check out the branch at the post-force-push HEAD, then cherry-pick each orphaned SHA in the order declared in commit_graph_spec.json.",
-      "Run git fsck to confirm zero dangling objects; run git log --format='%H %P %s' and compare to commit_graph_spec.json.",
-      "Verify file checksums at each recovered commit against expected_file_checksums.json.",
-      "Export outputs/repaired_repo.bundle (git bundle create), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json."
+      "Reconstruct refs per commit_graph_spec.json: use git update-ref to point the required branch ref at the specified HEAD SHA so the original commits become reachable. Do not cherry-pick — cherry-pick creates new commit objects with different SHAs.",
+      "Run git fsck --connectivity-only and confirm zero missing or corrupt objects. Run git rev-list <branch> and verify all three recovered commit SHAs are reachable. Run git log --format='%H %P %s' and compare parent chains to commit_graph_spec.json.",
+      "Verify file checksums at each recovered commit: git show <sha>:<file> | sha256sum, compare to expected_file_checksums.json.",
+      "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json."
     ],
     verifiers: [
-      "Fail if git fsck on the repaired repository reports any dangling commit, tree, or blob objects.",
-      "Fail if any of the three recovered commit SHAs do not match the parent chain declared in commit_graph_spec.json.",
+      "Fail if outputs/repaired_repo.bundle is missing or cannot be cloned into a fresh directory.",
+      "Fail if git fsck --connectivity-only reports any missing or corrupt object.",
+      "Fail if any recovered commit SHA listed in commit_graph_spec.json is not reachable from the required branch ref (git rev-list).",
+      "Fail if the branch HEAD does not match the SHA declared in commit_graph_spec.json.",
+      "Fail if any recovered commit parent chain differs from commit_graph_spec.json.",
       "Fail if any file checksum at a recovered commit does not match expected_file_checksums.json.",
-      "Fail if outputs/repaired_repo.bundle is missing or cannot be cloned.",
-      "Fail if outputs/repair_log.json does not list all three recovered SHAs with their recovery method.",
-      "Fail if branch HEAD does not point to the SHA declared in commit_graph_spec.json."
+      "Fail if outputs/repair_log.json, outputs/commit_graph_report.json, or outputs/run_manifest.json is missing or has the wrong schema.",
+      "Fail if repeated verifier runs produce different reported refs, checksums, or pass/fail results."
     ],
     expectedOutputs: [
       "Expected output paths:",
@@ -4102,18 +4125,18 @@ if __name__ == "__main__":
       "Example repair_log.json:",
       "{",
       "  \"recovered_commits\": [",
-      "    { \"sha\": \"abc1234...\", \"method\": \"cherry-pick\", \"message\": \"feat: add validation\", \"parent\": \"def5678...\" },",
-      "    { \"sha\": \"bcd2345...\", \"method\": \"cherry-pick\", \"message\": \"fix: null guard\", \"parent\": \"abc1234...\" }",
+      "    { \"sha\": \"abc1234...\", \"method\": \"ref-restore\", \"message\": \"feat: add validation\", \"parent\": \"def5678...\", \"reachable\": true },",
+      "    { \"sha\": \"bcd2345...\", \"method\": \"ref-restore\", \"message\": \"fix: null guard\", \"parent\": \"abc1234...\", \"reachable\": true }",
       "  ],",
-      "  \"fsck_clean\": true",
+      "  \"fsck_connectivity_clean\": true",
       "}",
       "",
       "Example commit_graph_report.json:",
-      "{ \"topology_match\": true, \"branch_head_correct\": true, \"fsck_dangling_objects\": 0 }"
+      "{ \"topology_match\": true, \"branch_head_correct\": true, \"fsck_missing_objects\": 0, \"all_commits_reachable\": true }"
     ],
-    solutionCode: `# solve.py — Git force-push recovery: clone bundle, cherry-pick orphaned commits, verify graph
+    solutionCode: `# solve.py — Git force-push recovery: fetch original commits, restore refs, verify topology
 # Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs
-import sys, json, subprocess, re, argparse, shutil
+import sys, json, subprocess, re, argparse, hashlib, shutil
 from pathlib import Path
 
 def git(args, cwd=None, check=True):
@@ -4131,35 +4154,82 @@ def run(before_bundle, after_bundle, reflog_path, spec_path, out_dir):
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
     work = out / "work_repo"
     if work.exists(): shutil.rmtree(work)
-    git(["clone", str(Path(before_bundle).resolve()), str(work)])
+
+    # Start from the post-force-push state (what the remote now has)
+    git(["clone", str(Path(after_bundle).resolve()), str(work)])
+
     orphaned_shas = parse_reflog(reflog_path)
     spec = json.load(open(spec_path)) if Path(spec_path).exists() else {}
+
+    # Fetch original commit objects from the before-bundle without checking them out
+    before_abs = str(Path(before_bundle).resolve())
+    for sha in orphaned_shas:
+        git(["fetch", before_abs, sha], cwd=work, check=False)
+
+    # Restore branch ref to the expected recovered HEAD (preserves original SHAs)
+    branches = spec.get("branches", {})
+    branch_results = {}
+    for branch_name, branch_spec in branches.items():
+        expected_head = branch_spec.get("head", "")
+        r = git(["update-ref", f"refs/heads/{branch_name}", expected_head], cwd=work, check=False)
+        branch_results[branch_name] = {"expected": expected_head, "ok": r.returncode == 0}
+
+    # Connectivity check — do NOT use --no-dangling (suppresses output, defeats the check)
+    fsck = git(["fsck", "--connectivity-only"], cwd=work, check=False)
+    fsck_output = fsck.stdout + fsck.stderr
+    connectivity_ok = fsck.returncode == 0 and not re.search(
+        r"\\b(missing|corrupt|broken|error:)\\b", fsck_output, re.IGNORECASE)
+
+    # Verify all recovered commits are reachable from the restored branch ref
+    default_branch = list(branches.keys())[0] if branches else "release"
+    rev_list = git(["rev-list", f"refs/heads/{default_branch}"], cwd=work, check=False)
+    reachable_shas = set(rev_list.stdout.splitlines())
     recovered = []
     for sha in orphaned_shas:
-        r = git(["cherry-pick", sha, "--no-commit"], cwd=work, check=False)
-        if r.returncode == 0:
-            git(["commit", "--no-edit", "--allow-empty"], cwd=work, check=False)
-            log = git(["log", "-1", "--format=%H %P %s", sha], cwd=work, check=False)
-            parts = log.stdout.strip().split(" ", 2)
-            recovered.append({"sha": sha, "method": "cherry-pick",
-                               "message": parts[2] if len(parts) > 2 else "",
-                               "parent": parts[1] if len(parts) > 1 else ""})
-        else:
-            recovered.append({"sha": sha, "method": "cherry-pick", "error": r.stderr[:200]})
-    fsck = git(["fsck", "--no-dangling"], cwd=work, check=False)
-    dangling = len(re.findall(r"dangling", fsck.stdout + fsck.stderr))
-    git(["bundle", "create", str((out/"repaired_repo.bundle").resolve()), "--all"], cwd=work)
+        log = git(["log", "-1", "--format=%H %P %s", sha], cwd=work, check=False)
+        parts = log.stdout.strip().split(" ", 2)
+        recovered.append({
+            "sha": sha, "method": "ref-restore",
+            "message": parts[2] if len(parts) > 2 else "",
+            "parent": parts[1] if len(parts) > 1 else "",
+            "reachable": sha in reachable_shas
+        })
+
+    # Parent chain validation
     log_out = git(["log", "--format=%H %P %s", "-20"], cwd=work)
     graph_rows = [dict(zip(["sha","parent","message"], l.split(" ",2))) for l in log_out.stdout.strip().splitlines() if l]
-    topology_match = all(any(r["sha"].startswith(c.get("sha","")[:7]) for r in graph_rows)
-                         for c in spec.get("expected_commits", []))
-    (out/"repair_log.json").write_text(json.dumps({"recovered_commits": recovered, "fsck_clean": dangling == 0}, indent=2))
+    expected_commits = spec.get("expected_commits", [])
+    topology_match = all(
+        any(r["sha"].startswith(c.get("sha","")[:7]) and r["parent"].startswith(c.get("parent","")[:7])
+            for r in graph_rows)
+        for c in expected_commits
+    )
+    branch_head_sha = git(["rev-parse", f"refs/heads/{default_branch}"], cwd=work, check=False).stdout.strip()
+    expected_head = branches.get(default_branch, {}).get("head", "")
+    branch_head_correct = branch_head_sha.startswith(expected_head[:7]) if expected_head else False
+
+    git(["bundle", "create", str((out/"repaired_repo.bundle").resolve()), "--all"], cwd=work)
+
+    (out/"repair_log.json").write_text(json.dumps({
+        "recovered_commits": recovered,
+        "branch_results": branch_results,
+        "fsck_connectivity_clean": connectivity_ok,
+        "fsck_exit_code": fsck.returncode
+    }, indent=2))
     (out/"commit_graph_report.json").write_text(json.dumps({
-        "topology_match": topology_match, "branch_head_correct": True,
-        "fsck_dangling_objects": dangling}, indent=2))
+        "topology_match": topology_match,
+        "branch_head_correct": branch_head_correct,
+        "fsck_missing_objects": 0 if connectivity_ok else -1,
+        "all_commits_reachable": all(c["reachable"] for c in recovered)
+    }, indent=2))
     (out/"run_manifest.json").write_text(json.dumps({
-        "python": sys.version, "recovered": len(recovered), "fsck_clean": dangling == 0}, indent=2))
-    print(f"Done. Recovered={len(recovered)}, fsck dangling={dangling}")
+        "python": sys.version,
+        "recovered": len(recovered),
+        "connectivity_ok": connectivity_ok,
+        "before_bundle_sha256": hashlib.sha256(Path(before_bundle).read_bytes()).hexdigest(),
+        "after_bundle_sha256": hashlib.sha256(Path(after_bundle).read_bytes()).hexdigest()
+    }, indent=2))
+    print(f"Done. Recovered={len(recovered)}, connectivity_ok={connectivity_ok}")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -4987,7 +5057,10 @@ function fillStarterTemplate() {
   if (els.taskCategory) els.taskCategory.value = DOMAIN_CATEGORY[domainKey] || profile.domain;
   if (els.taskTitle) els.taskTitle.value = profile.brief || `${capitalize(expertise)} ${scenario.name} task`;
 
-  els.taskPrompt.value = scenario.composePrompt(profile, type, standard);
+  const domainDetails = DOMAIN_DETAILS[domainKey];
+  els.taskPrompt.value = (domainDetails && domainDetails.composePrompt)
+    ? domainDetails.composePrompt(profile, type, standard)
+    : scenario.composePrompt(profile, type, standard);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
   const swDomains = new Set(["typescript", "react", "git-workflows", "software-engineering", "computer-science", "distributed-systems", "databases", "compilers", "ml-systems"]);
