@@ -5764,9 +5764,7 @@ Optional agent difficulty checks using frontier models such as Claude, GPT-4o, o
 Frontier model test: test against a frontier model with full terminal access before submission. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected.
 Professional time estimates should be realistic for a qualified professional: 3 to 6 hours for senior professional, 5 to 9 hours for master's level, 8 to 16 hours for PhD or research level.
 Scope down the time estimate if work volume rather than intellectual difficulty is what makes it long.`
-    }
-  ];
-
+    },
     {
       id: uid(),
       title: "Outlier Master Ruleset — Tips for Designing Challenging Tasks",
