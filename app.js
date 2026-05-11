@@ -3859,7 +3859,7 @@ if __name__ == "__main__":
       "package-lock.json — exact dependency tree for npm ci reproducibility",
       "version_manifest.json — TypeScript version, Node version, and OS"
     ],
-    standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits.",
+    standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The TypeScript project and fixture files in this zip are synthetically constructed to reproduce the known type-inference bug; no proprietary code is included.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
         "post-migration validation": "After upgrading a shared type utility package, the custom AwaitedLike<T> conditional type now silently widens union members containing Promise<never> to unknown instead of the correct resolved type. Repair the provided TypeScript project so AwaitedLike<T> distributes correctly over all union members without widening. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
@@ -4012,7 +4012,7 @@ if __name__ == "__main__":
       "package-lock.json — exact dependency tree for npm ci reproducibility",
       "version_manifest.json — React version, Node version, and OS"
     ],
-    standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits.",
+    standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The component and test fixtures in this zip are synthetically constructed to reproduce the known stale-closure bug; no proprietary code is included.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
         "post-migration validation": "After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves. Repair the component so this never happens. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
@@ -4023,7 +4023,7 @@ if __name__ == "__main__":
       const opener = openers[scenario && scenario.name] || openers["regression triage"];
       return [
         opener,
-        "All five Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr. Render counts for each fixture must not exceed the limits in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
+        "All 5 Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr. Render counts for each fixture must stay within the limits declared in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
         "The JSON reports must include per-test status, final rendered value, warning counts, render counts per fixture, package versions, input file checksums, and pass/fail reason codes. The verifier will grade only the submitted component, patch, and output reports, not the specific implementation method."
       ].join("\n\n");
     },
@@ -5816,7 +5816,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "No vague resource placeholders",
-      pass: !hasAny(resources, ["realistic source-grounded files", "domain-appropriate", "where relevant", "etc.", "and anything", "some files", "real life examples", "supporting evidence", "use provided resources", "as appropriate", "relevant materials"]),
+      pass: !hasAny(resources, ["realistic source-grounded files", "domain-appropriate", "where relevant", "and anything", "some files", "real life examples", "supporting evidence", "use provided resources", "as appropriate", "relevant materials"]) && !/\betc\b/i.test(resources),
       message: "Avoid placeholder resource language that could read as generated or underspecified."
     },
     {
@@ -5841,7 +5841,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Golden solution not boilerplate",
-      pass: !hasAny(solution, ["domain inputs", "domain constraints", "as appropriate", "where relevant", "etc.", "realistic", "supporting evidence files"]),
+      pass: !hasAny(solution, ["domain inputs", "domain constraints", "as appropriate", "where relevant", "realistic", "supporting evidence files"]) && !/\betc\b/i.test(solution),
       message: "Avoid generic golden-solution wording that could apply to any task."
     },
     {
