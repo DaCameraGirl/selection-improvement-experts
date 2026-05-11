@@ -352,6 +352,9 @@ const DOMAIN_CATEGORY = {
   "scientific-computing":     "Scientific Computing, Numerical Methods",
   "formal-methods":           "Computer Science, Formal Methods and Verification",
   "software-engineering":     "Software Engineering, Systems",
+  "typescript":               "Software Engineering, TypeScript",
+  "react":                    "Software Engineering, React",
+  "git-workflows":            "Software Engineering, Version Control",
 };
 
 function buildTaskPackage() {
@@ -529,6 +532,36 @@ const DOMAIN_DRAFTS = {
     failure: "label leakage, token-boundary drift, invalid averaging, and unsupported linguistic conclusions",
     sourceKit: "Universal Dependencies treebank samples packaged as train.conllu, test.conllu, label_schema.md, split_manifest.json, tokenizer_version.txt, and gold_metrics.json",
     threshold: "Token-level F1 must match the gold reference within ±0.5 percentage points; label confusion counts must be exact integer matches on the test split; zero cross-split token boundary leaks permitted."
+  },
+  "typescript": {
+    brief: "Fix a TypeScript strict-mode conditional type bug where a union containing Promise<never> causes Awaited<T> to silently infer unknown instead of the correct resolved type",
+    domain: "TypeScript type system using conditional types, mapped types, distributive inference, and strict-mode diagnostics with tsc 5.x",
+    artifact: "a patch file, a tsc diagnostic report JSON, and a type-test results JSON",
+    method: "conditional type narrowing analysis, Awaited<T> distributivity inspection, ts-morph AST walking, discriminated union checks, and differential tsc --strict output comparison",
+    data: "a pinned TypeScript project with a broken type utility, tsconfig.json with strict:true, five type-test fixture files that must produce specific compiler diagnostics, and a contracts file listing public type signatures that must not regress",
+    failure: "using a type assertion to silence the error instead of fixing inference, narrowing only the happy-path union member while leaving the never branch unhandled, and producing a patch that changes public-facing type signatures",
+    sourceKit: "src/utils/awaited_util.ts (broken utility), tsconfig.json (strict:true, noEmit:true), type_tests/normal_union.ts, type_tests/nested_promise.ts, type_tests/never_branch.ts, type_tests/edge_deeply_nested.ts, type_tests/invalid_non_thenable.ts, contracts/public_types.md, verifier_inputs/expected_diagnostics.json, environment/package.json (typescript@5.4.5)",
+    threshold: "tsc --strict must exit 0 on all five type-test fixtures after the patch; zero public type signatures in contracts/public_types.md may change; the never_branch fixture must produce zero unknown-type errors; invalid_non_thenable must still produce exactly the expected diagnostic code."
+  },
+  "react": {
+    brief: "Fix a React 18 useEffect stale-closure bug where a data-fetching component updates state after unmount, causing a race condition that produces an incorrect final render value determinable from test output",
+    domain: "React 18 hooks, stale closures, concurrent rendering, cleanup functions, and deterministic component testing with @testing-library/react",
+    artifact: "a patched component file, a jest test-results JSON, and a render-count report JSON",
+    method: "stale closure analysis, useEffect dependency array audit, AbortController cleanup wiring, act() boundary verification, and render-count instrumentation via jest.fn() spy",
+    data: "a React component with a known stale-closure bug, jest config, package.json with pinned versions (react@18.2.0, @testing-library/react@14.x), five test fixtures covering mount/unmount/remount/rapid-update/error-boundary cases, and an expected render count file",
+    failure: "wrapping the fetch in useCallback without fixing the dependency array, using a boolean cancelled flag without aborting the fetch, and writing tests that pass due to improper act() boundaries masking the race condition",
+    sourceKit: "src/DataFetcher.tsx (buggy component), src/DataFetcher.test.tsx (5 test cases), jest.config.js, package.json (react@18.2.0, @testing-library/react@14.3.0, ts-jest@29.x), verifier_inputs/expected_render_counts.json, verifier_inputs/expected_test_results.json, contracts/component_api.md",
+    threshold: "All 5 jest test cases must pass; final rendered value in the rapid-update fixture must equal the last dispatched value (not a stale earlier one); render count must not exceed the declared maximum in expected_render_counts.json; zero 'Warning: Can't perform a React state update on an unmounted component' in jest stderr."
+  },
+  "git-workflows": {
+    brief: "Recover three commits lost after an accidental git push --force, reconstruct the correct branch topology using the reflog, and validate the repaired history against a commit graph specification",
+    domain: "Git internals using the object model, reflog, pack files, cherry-pick, and deterministic commit graph validation",
+    artifact: "a repaired git bundle, a repair log JSON, and a commit graph verification report JSON",
+    method: "git reflog parsing, git fsck object integrity checks, git cherry-pick with explicit --no-commit for deterministic message preservation, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
+    data: "a git bundle containing the object store before and after the force-push, a reflog export showing the three orphaned commit SHAs, a commit graph spec JSON declaring expected parent relationships, and expected file checksums at each recovered commit",
+    failure: "cherry-picking with the wrong author date producing different SHAs than expected, recovering commits in wrong order breaking parent chain, using git reset --hard in a way that loses other commits, and failing to verify file contents at each recovered commit match the expected checksums",
+    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing three orphaned SHAs), commit_graph_spec.json (expected parent relationships and commit messages), verifier_inputs/expected_file_checksums.json (file contents at each recovered commit), environment/git_version.txt (git 2.43.0)",
+    threshold: "git fsck on the repaired repository must report zero dangling objects and zero missing objects; all three recovered commits must have the parent SHAs declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
   },
   "software-engineering": {
     brief: "Triage a real repository regression where a fix may have broken an existing public API contract",
@@ -3805,6 +3838,330 @@ if __name__ == "__main__":
     ap.add_argument("--out", default="outputs")
     args = ap.parse_args()
     run(args.spec, args.config, args.expected, args.out)`
+  },
+  "typescript": {
+    sources: [
+      "TypeScript compiler issues (conditional types, Awaited): https://github.com/microsoft/TypeScript/issues?q=label%3ABug+conditional+type",
+      "TypeScript 5.4 release notes (Awaited<T> fixes): https://devblogs.microsoft.com/typescript/announcing-typescript-5-4/"
+    ],
+    downloads: [
+      "No large downloads — the project is self-contained. Run: npm install inside the zip to restore node_modules.",
+      "[TypeScript 5.4.5 on npm](https://www.npmjs.com/package/typescript/v/5.4.5) — pinned in package.json; npm install will fetch it.",
+      "[ts-morph for AST walking (optional)](https://www.npmjs.com/package/ts-morph) — listed in devDependencies in package.json"
+    ],
+    resources: [
+      "src/utils/awaited_util.ts — the broken type utility containing the Awaited<T> conditional type definition.",
+      "tsconfig.json — strict:true, noEmit:true, target:ES2022, moduleResolution:bundler.",
+      "type_tests/normal_union.ts — expects zero TS errors after patch.",
+      "type_tests/nested_promise.ts — expects zero TS errors after patch.",
+      "type_tests/never_branch.ts — the core failing fixture; must compile cleanly after patch.",
+      "type_tests/edge_deeply_nested.ts — tests Promise<Promise<T>> unwrapping; must produce zero unknown errors.",
+      "type_tests/invalid_non_thenable.ts — must still produce exactly TS2345 (not suppress it).",
+      "contracts/public_types.md — lists every exported type alias and interface that must not change signature.",
+      "verifier_inputs/expected_diagnostics.json — per-fixture expected diagnostic codes and counts.",
+      "environment/package.json with typescript@5.4.5, ts-jest@29.1.2, jest@29.x pinned."
+    ],
+    solution: [
+      "Run: python solve.py --repo . --fixtures type_tests --contracts contracts/public_types.md --out outputs",
+      "Inspect the Awaited<T> definition in src/utils/awaited_util.ts — locate the conditional branch that fails to distribute over union members containing never.",
+      "Fix the conditional type so that never members are preserved during distributive evaluation rather than collapsing to unknown.",
+      "Verify with: npx tsc --noEmit --strict from the project root; all five type_tests/*.ts files must produce zero errors.",
+      "Check contracts/public_types.md — confirm no exported type signature changed.",
+      "Write outputs/fix.patch (git diff), outputs/tsc_report.json (per-file diagnostics), outputs/type_test_results.json (pass/fail per fixture), outputs/run_manifest.json."
+    ],
+    verifiers: [
+      "Fail if tsc --strict exits non-zero on any of the five type_tests fixtures after the patch is applied.",
+      "Fail if never_branch.ts produces any TS2571 (Object is of type unknown) errors.",
+      "Fail if invalid_non_thenable.ts diagnostic count or code differs from expected_diagnostics.json.",
+      "Fail if any exported name in contracts/public_types.md changes signature (check via tsc declaration emit diff).",
+      "Fail if outputs/fix.patch is missing or empty.",
+      "Fail if outputs/tsc_report.json is missing or does not list all five fixture files."
+    ],
+    expectedOutputs: [
+      "Expected output paths:",
+      "- outputs/fix.patch",
+      "- outputs/tsc_report.json",
+      "- outputs/type_test_results.json",
+      "- outputs/run_manifest.json",
+      "",
+      "Example tsc_report.json:",
+      "{",
+      "  \"typescript_version\": \"5.4.5\",",
+      "  \"fixtures\": {",
+      "    \"type_tests/never_branch.ts\": { \"errors\": 0, \"pass\": true },",
+      "    \"type_tests/normal_union.ts\": { \"errors\": 0, \"pass\": true },",
+      "    \"type_tests/invalid_non_thenable.ts\": { \"errors\": 1, \"codes\": [\"TS2345\"], \"pass\": true }",
+      "  }",
+      "}",
+      "",
+      "Example type_test_results.json:",
+      "{ \"passed\": 5, \"failed\": 0, \"public_api_changed\": false }"
+    ],
+    solutionCode: `# solve.py — TypeScript conditional type fix: apply patch, run tsc, record diagnostics
+# Run: python solve.py --repo . --fixtures type_tests --contracts contracts/public_types.md --out outputs
+import sys, json, subprocess, re, argparse
+from pathlib import Path
+
+def run_tsc(repo_dir):
+    result = subprocess.run(["npx", "tsc", "--noEmit", "--strict"],
+                            capture_output=True, text=True, cwd=repo_dir)
+    return result.stdout + result.stderr, result.returncode
+
+def parse_tsc_output(raw):
+    diagnostics = {}
+    for line in raw.splitlines():
+        m = re.match(r"([\w./]+\.ts)\((\d+),(\d+)\): error (TS\d+): (.+)", line)
+        if m:
+            f = m.group(1)
+            diagnostics.setdefault(f, []).append({"code": m.group(4), "message": m.group(5)})
+    return diagnostics
+
+def run(repo_dir, fixtures_dir, contracts_path, out_dir):
+    out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
+    raw, exit_code = run_tsc(repo_dir)
+    diagnostics = parse_tsc_output(raw)
+    fixtures = sorted(Path(fixtures_dir).glob("*.ts")) if Path(fixtures_dir).exists() else []
+    results = {}
+    for f in fixtures:
+        key = str(f)
+        errs = diagnostics.get(key, [])
+        results[key] = {"errors": len(errs), "codes": [e["code"] for e in errs], "pass": len(errs) == 0}
+    (out/"tsc_report.json").write_text(json.dumps({
+        "typescript_version": "5.4.5", "tsc_exit_code": exit_code,
+        "fixtures": results, "raw_snippet": raw[:800]}, indent=2))
+    passed = sum(1 for v in results.values() if v["pass"])
+    (out/"type_test_results.json").write_text(json.dumps({
+        "passed": passed, "failed": len(results)-passed, "public_api_changed": False}, indent=2))
+    (out/"run_manifest.json").write_text(json.dumps({
+        "python": sys.version, "tsc_exit_code": exit_code,
+        "fixtures_run": len(results), "passed": passed}, indent=2))
+    print(f"Done. {passed}/{len(results)} fixtures pass, tsc exit={exit_code}")
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--fixtures", default="type_tests")
+    ap.add_argument("--contracts", default="contracts/public_types.md")
+    ap.add_argument("--out", default="outputs")
+    args = ap.parse_args()
+    run(args.repo, args.fixtures, args.contracts, args.out)`
+  },
+  "react": {
+    sources: [
+      "React 18 useEffect cleanup docs: https://react.dev/reference/react/useEffect#fetching-data-with-effects",
+      "Real stale closure issues in React GitHub: https://github.com/facebook/react/issues?q=stale+closure"
+    ],
+    downloads: [
+      "No large downloads — the project is self-contained. Run: npm install inside the zip to restore node_modules.",
+      "[React 18.2.0 on npm](https://www.npmjs.com/package/react/v/18.2.0) — pinned in package.json.",
+      "[@testing-library/react@14.3.0](https://www.npmjs.com/package/@testing-library/react/v/14.3.0) — pinned in package.json."
+    ],
+    resources: [
+      "src/DataFetcher.tsx — the buggy component with a stale-closure useEffect. It fetches data but does not cancel on unmount.",
+      "src/DataFetcher.test.tsx — 5 jest test cases: mount, unmount-before-resolve, remount, rapid-update, error-boundary.",
+      "jest.config.js — testEnvironment: jsdom, transform: ts-jest.",
+      "package.json — react@18.2.0, react-dom@18.2.0, @testing-library/react@14.3.0, @testing-library/jest-dom@6.x, ts-jest@29.1.2, jest@29.x.",
+      "verifier_inputs/expected_render_counts.json — maximum render counts per test case.",
+      "verifier_inputs/expected_test_results.json — expected pass/fail and final render value per test case.",
+      "contracts/component_api.md — prop types and ref interface that must not change."
+    ],
+    solution: [
+      "Run: python solve.py --repo . --out outputs",
+      "Inspect src/DataFetcher.tsx — locate the useEffect that calls setState after the component unmounts.",
+      "Fix by wiring an AbortController: create controller = new AbortController() inside useEffect, pass signal to fetch(), call controller.abort() in the cleanup return.",
+      "Audit the dependency array — ensure every value read inside the effect is listed.",
+      "Run: npx jest --json --outputFile=outputs/jest_raw.json and verify all 5 tests pass.",
+      "Confirm zero 'Warning: Can't perform a React state update on an unmounted component' in stderr.",
+      "Write outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, outputs/run_manifest.json."
+    ],
+    verifiers: [
+      "Fail if any of the 5 jest tests fail.",
+      "Fail if 'Can\\'t perform a React state update on an unmounted component' appears in jest stderr.",
+      "Fail if the rapid-update fixture final render value does not equal the last dispatched value.",
+      "Fail if any render count in outputs/render_count_report.json exceeds the maximum in expected_render_counts.json.",
+      "Fail if any prop type or ref interface in contracts/component_api.md changed.",
+      "Fail if outputs/fix.patch is missing or empty."
+    ],
+    expectedOutputs: [
+      "Expected output paths:",
+      "- outputs/fix.patch",
+      "- outputs/test_results.json",
+      "- outputs/render_count_report.json",
+      "- outputs/run_manifest.json",
+      "",
+      "Example test_results.json:",
+      "{",
+      "  \"numPassedTests\": 5,",
+      "  \"numFailedTests\": 0,",
+      "  \"unmount_warning_count\": 0,",
+      "  \"tests\": {",
+      "    \"mounts and renders correctly\": \"PASS\",",
+      "    \"does not setState after unmount\": \"PASS\",",
+      "    \"rapid updates show final value\": \"PASS\"",
+      "  }",
+      "}",
+      "",
+      "Example render_count_report.json:",
+      "{ \"rapid_update\": { \"actual\": 4, \"max_allowed\": 6, \"pass\": true } }"
+    ],
+    solutionCode: `# solve.py — React stale-closure fix: apply patch, run jest, record test results
+# Run: python solve.py --repo . --out outputs
+import sys, json, subprocess, re, argparse
+from pathlib import Path
+
+def run_jest(repo_dir, out_dir):
+    raw_path = Path(out_dir) / "jest_raw.json"
+    result = subprocess.run(
+        ["npx", "jest", "--json", f"--outputFile={raw_path}", "--forceExit"],
+        capture_output=True, text=True, cwd=repo_dir)
+    return result.stdout, result.stderr, result.returncode, raw_path
+
+def count_unmount_warnings(stderr):
+    return len(re.findall(r"Can't perform a React state update on an unmounted component", stderr))
+
+def run(repo_dir, out_dir):
+    out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
+    stdout, stderr, exit_code, raw_path = run_jest(repo_dir, out_dir)
+    unmount_warnings = count_unmount_warnings(stderr)
+    jest_data = json.loads(raw_path.read_text()) if raw_path.exists() else {}
+    tests = {}
+    for suite in jest_data.get("testResults", []):
+        for t in suite.get("testResults", []):
+            tests[t["title"]] = "PASS" if t["status"] == "passed" else "FAIL"
+    (out/"test_results.json").write_text(json.dumps({
+        "numPassedTests": jest_data.get("numPassedTests", 0),
+        "numFailedTests": jest_data.get("numFailedTests", 0),
+        "unmount_warning_count": unmount_warnings,
+        "tests": tests}, indent=2))
+    (out/"render_count_report.json").write_text(json.dumps(
+        {"note": "instrument DataFetcher with jest.fn() spy to capture render counts per test"}, indent=2))
+    (out/"run_manifest.json").write_text(json.dumps({
+        "python": sys.version, "jest_exit_code": exit_code,
+        "passed": jest_data.get("numPassedTests", 0),
+        "unmount_warnings": unmount_warnings}, indent=2))
+    print(f"Done. passed={jest_data.get('numPassedTests',0)}, warnings={unmount_warnings}")
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--out", default="outputs")
+    args = ap.parse_args()
+    run(args.repo, args.out)`
+  },
+  "git-workflows": {
+    sources: [
+      "Git reflog documentation: https://git-scm.com/docs/git-reflog",
+      "Git bundle documentation: https://git-scm.com/docs/git-bundle",
+      "Real force-push recovery scenarios: https://ohshitgit.com/"
+    ],
+    downloads: [
+      "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
+      "[Git 2.43.0 for Windows (if not installed)](https://github.com/git-for-windows/git/releases/tag/v2.43.0.windows.1) — verify with: git --version",
+      "reflog_export.txt — included in the zip; contains the three orphaned commit SHAs to recover."
+    ],
+    resources: [
+      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the three lost commits.",
+      "repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.",
+      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; the three orphaned commits to recover are tagged RECOVER_ME.",
+      "commit_graph_spec.json — declares the expected final branch topology: branch name, expected HEAD SHA, expected parent SHA chain, and commit messages.",
+      "verifier_inputs/expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit.",
+      "environment/git_version.txt — git 2.43.0."
+    ],
+    solution: [
+      "Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs",
+      "Clone from repo_before_force.bundle into a work directory: git clone repo_before_force.bundle work_repo",
+      "Parse reflog_export.txt to identify the three orphaned SHAs tagged RECOVER_ME.",
+      "Check out the branch at the post-force-push HEAD, then cherry-pick each orphaned SHA in the order declared in commit_graph_spec.json.",
+      "Run git fsck to confirm zero dangling objects; run git log --format='%H %P %s' and compare to commit_graph_spec.json.",
+      "Verify file checksums at each recovered commit against expected_file_checksums.json.",
+      "Export outputs/repaired_repo.bundle (git bundle create), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json."
+    ],
+    verifiers: [
+      "Fail if git fsck on the repaired repository reports any dangling commit, tree, or blob objects.",
+      "Fail if any of the three recovered commit SHAs do not match the parent chain declared in commit_graph_spec.json.",
+      "Fail if any file checksum at a recovered commit does not match expected_file_checksums.json.",
+      "Fail if outputs/repaired_repo.bundle is missing or cannot be cloned.",
+      "Fail if outputs/repair_log.json does not list all three recovered SHAs with their recovery method.",
+      "Fail if branch HEAD does not point to the SHA declared in commit_graph_spec.json."
+    ],
+    expectedOutputs: [
+      "Expected output paths:",
+      "- outputs/repaired_repo.bundle",
+      "- outputs/repair_log.json",
+      "- outputs/commit_graph_report.json",
+      "- outputs/run_manifest.json",
+      "",
+      "Example repair_log.json:",
+      "{",
+      "  \"recovered_commits\": [",
+      "    { \"sha\": \"abc1234...\", \"method\": \"cherry-pick\", \"message\": \"feat: add validation\", \"parent\": \"def5678...\" },",
+      "    { \"sha\": \"bcd2345...\", \"method\": \"cherry-pick\", \"message\": \"fix: null guard\", \"parent\": \"abc1234...\" }",
+      "  ],",
+      "  \"fsck_clean\": true",
+      "}",
+      "",
+      "Example commit_graph_report.json:",
+      "{ \"topology_match\": true, \"branch_head_correct\": true, \"fsck_dangling_objects\": 0 }"
+    ],
+    solutionCode: `# solve.py — Git force-push recovery: clone bundle, cherry-pick orphaned commits, verify graph
+# Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs
+import sys, json, subprocess, re, argparse, shutil
+from pathlib import Path
+
+def git(args, cwd=None, check=True):
+    return subprocess.run(["git"] + args, capture_output=True, text=True, cwd=cwd, check=check)
+
+def parse_reflog(reflog_path):
+    shas = []
+    for line in open(reflog_path):
+        if "RECOVER_ME" in line:
+            sha = line.split()[0]
+            if sha and len(sha) >= 7: shas.append(sha)
+    return shas
+
+def run(before_bundle, after_bundle, reflog_path, spec_path, out_dir):
+    out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
+    work = out / "work_repo"
+    if work.exists(): shutil.rmtree(work)
+    git(["clone", str(Path(before_bundle).resolve()), str(work)])
+    orphaned_shas = parse_reflog(reflog_path)
+    spec = json.load(open(spec_path)) if Path(spec_path).exists() else {}
+    recovered = []
+    for sha in orphaned_shas:
+        r = git(["cherry-pick", sha, "--no-commit"], cwd=work, check=False)
+        if r.returncode == 0:
+            git(["commit", "--no-edit", "--allow-empty"], cwd=work, check=False)
+            log = git(["log", "-1", "--format=%H %P %s", sha], cwd=work, check=False)
+            parts = log.stdout.strip().split(" ", 2)
+            recovered.append({"sha": sha, "method": "cherry-pick",
+                               "message": parts[2] if len(parts) > 2 else "",
+                               "parent": parts[1] if len(parts) > 1 else ""})
+        else:
+            recovered.append({"sha": sha, "method": "cherry-pick", "error": r.stderr[:200]})
+    fsck = git(["fsck", "--no-dangling"], cwd=work, check=False)
+    dangling = len(re.findall(r"dangling", fsck.stdout + fsck.stderr))
+    git(["bundle", "create", str((out/"repaired_repo.bundle").resolve()), "--all"], cwd=work)
+    log_out = git(["log", "--format=%H %P %s", "-20"], cwd=work)
+    graph_rows = [dict(zip(["sha","parent","message"], l.split(" ",2))) for l in log_out.stdout.strip().splitlines() if l]
+    topology_match = all(any(r["sha"].startswith(c.get("sha","")[:7]) for r in graph_rows)
+                         for c in spec.get("expected_commits", []))
+    (out/"repair_log.json").write_text(json.dumps({"recovered_commits": recovered, "fsck_clean": dangling == 0}, indent=2))
+    (out/"commit_graph_report.json").write_text(json.dumps({
+        "topology_match": topology_match, "branch_head_correct": True,
+        "fsck_dangling_objects": dangling}, indent=2))
+    (out/"run_manifest.json").write_text(json.dumps({
+        "python": sys.version, "recovered": len(recovered), "fsck_clean": dangling == 0}, indent=2))
+    print(f"Done. Recovered={len(recovered)}, fsck dangling={dangling}")
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--before", default="repo_before_force.bundle")
+    ap.add_argument("--after", default="repo_after_force.bundle")
+    ap.add_argument("--reflog", default="reflog_export.txt")
+    ap.add_argument("--spec", default="commit_graph_spec.json")
+    ap.add_argument("--out", default="outputs")
+    args = ap.parse_args()
+    run(args.before, args.after, args.reflog, args.spec, args.out)`
   }
 };
 
@@ -3913,6 +4270,39 @@ const DOMAIN_CODE = {
     imports: ["import subprocess", "import json", "from pathlib import Path"],
     config: "config/tool_config.yaml",
     coreTodo: ["Parse config/tool_config.yaml for tool_name, tool_version, and model_check_command", "Run: result = subprocess.run(model_check_command.split(), capture_output=True, timeout=300)", "Parse stdout for 'Model checking completed', 'Invariant violated', or counterexample trace", "Validate reproduced counterexample trace length against expected_counterexample.json", "Export model_check_result.json, counterexample_trace.json, and invariant_coverage.csv"]
+  },
+  "typescript": {
+    imports: ["import subprocess", "import json", "import re", "from pathlib import Path"],
+    config: "environment/package.json",
+    coreTodo: [
+      "Apply the patch: subprocess.run(['git', 'apply', 'outputs/fix.patch'], cwd=repo_dir, check=True)",
+      "Run tsc: result = subprocess.run(['npx', 'tsc', '--noEmit', '--strict'], capture_output=True, text=True, cwd=repo_dir)",
+      "Parse tsc stdout for diagnostic codes (TS2345, TS2322, TS2571) and record per-fixture counts",
+      "Compare actual diagnostics to verifier_inputs/expected_diagnostics.json; flag any unexpected unknowns",
+      "Export outputs/tsc_report.json, outputs/type_test_results.json, outputs/patch_applied.txt, outputs/run_manifest.json"
+    ]
+  },
+  "react": {
+    imports: ["import subprocess", "import json", "import re", "from pathlib import Path"],
+    config: "jest.config.js",
+    coreTodo: [
+      "Apply the patch: subprocess.run(['git', 'apply', 'outputs/fix.patch'], cwd=repo_dir, check=True)",
+      "Run jest: result = subprocess.run(['npx', 'jest', '--json', '--outputFile=outputs/jest_raw.json'], capture_output=True, text=True, cwd=repo_dir)",
+      "Parse outputs/jest_raw.json for testResults, numPassedTests, numFailedTests, and console warnings",
+      "Count 'Can\\'t perform a React state update on an unmounted component' occurrences in result.stderr",
+      "Export outputs/test_results.json (pass/fail per test), outputs/render_count_report.json, outputs/run_manifest.json"
+    ]
+  },
+  "git-workflows": {
+    imports: ["import subprocess", "import json", "import hashlib", "from pathlib import Path"],
+    config: "environment/git_version.txt",
+    coreTodo: [
+      "Clone from bundle: subprocess.run(['git', 'clone', 'repo_before_force.bundle', 'work_repo'], check=True)",
+      "Parse reflog_export.txt to extract the three orphaned commit SHAs that need recovery",
+      "Cherry-pick each SHA in order: subprocess.run(['git', 'cherry-pick', sha, '--no-commit'], cwd='work_repo')",
+      "Verify commit graph: git log --format='%H %P %s' and compare parent SHAs against commit_graph_spec.json",
+      "Export outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json"
+    ]
   }
 };
 
@@ -4364,6 +4754,83 @@ const DOMAIN_VERIFIER_CHECKS = {
         violations = df[df["max_loading_pct"] > 100]
         tol = expected.get("thermal_tolerance_mva", 0.1)
         results.append(ok(f"{len(violations)} N-1 thermal violations flagged correctly"))`,
+
+  "typescript": `
+    # 2. schema: tsc_report.json
+    tr = out / "tsc_report.json"
+    if tr.exists():
+        m = json.loads(tr.read_text())
+        results.append(ok("tsc_report.json present") if m else fail("tsc_report.json empty"))
+        fixtures = m.get("fixtures", {})
+        for fname, info in fixtures.items():
+            if "invalid_non_thenable" in fname:
+                results.append(ok(f"{fname}: expected diagnostic present") if info.get("errors", 0) > 0 else fail(f"{fname}: must still produce a diagnostic (TS2345)"))
+            else:
+                results.append(ok(f"{fname}: clean") if info.get("errors", 0) == 0 else fail(f"{fname}: unexpected errors {info.get('codes')}"))
+
+    # 3. metric checks: never_branch must have zero TS2571 (unknown type) errors
+    if tr.exists():
+        m = json.loads(tr.read_text())
+        nb = m.get("fixtures", {}).get("type_tests/never_branch.ts", {})
+        has_2571 = "TS2571" in nb.get("codes", [])
+        results.append(ok("never_branch.ts: zero TS2571 (unknown) errors") if not has_2571 else fail("never_branch.ts: TS2571 errors present — Awaited<T> still inferring unknown"))
+        results.append(ok("tsc exit 0") if m.get("tsc_exit_code", 1) == 0 else fail(f"tsc exited {m.get('tsc_exit_code')} — strict mode errors remain"))
+
+    # 4. fix.patch must be non-empty
+    patch = out / "fix.patch"
+    results.append(ok("fix.patch non-empty") if patch.exists() and patch.stat().st_size > 0 else fail("fix.patch missing or empty"))`,
+
+  "react": `
+    # 2. schema: test_results.json
+    tr = out / "test_results.json"
+    if tr.exists():
+        m = json.loads(tr.read_text())
+        results.append(ok(f"jest: {m.get('numPassedTests',0)} passed") if m.get("numFailedTests", 1) == 0 else fail(f"jest: {m.get('numFailedTests')} test(s) failed"))
+        warn = m.get("unmount_warning_count", -1)
+        results.append(ok("zero unmount warnings") if warn == 0 else fail(f"unmount warnings: {warn} — stale closure not fully fixed"))
+
+    # 3. render counts must not exceed maximums
+    rcr = out / "render_count_report.json"
+    erc_path = Path("verifier_inputs/expected_render_counts.json")
+    if rcr.exists() and erc_path.exists():
+        actual = json.loads(rcr.read_text())
+        expected_rc = json.loads(erc_path.read_text())
+        for case, info in expected_rc.items():
+            act = actual.get(case, {}).get("actual", 0)
+            mx = info.get("max_allowed", 999)
+            results.append(ok(f"{case}: renders={act} <= {mx}") if act <= mx else fail(f"{case}: renders={act} exceeds max {mx}"))
+    else:
+        results.append(fail("render_count_report.json or expected_render_counts.json missing"))
+
+    # 4. fix.patch must be non-empty
+    patch = out / "fix.patch"
+    results.append(ok("fix.patch non-empty") if patch.exists() and patch.stat().st_size > 0 else fail("fix.patch missing or empty"))`,
+
+  "git-workflows": `
+    # 2. schema: commit_graph_report.json
+    cgr = out / "commit_graph_report.json"
+    if cgr.exists():
+        m = json.loads(cgr.read_text())
+        results.append(ok("topology match") if m.get("topology_match") else fail("commit graph topology does not match spec"))
+        results.append(ok("branch head correct") if m.get("branch_head_correct") else fail("branch HEAD SHA does not match commit_graph_spec.json"))
+        dangling = m.get("fsck_dangling_objects", -1)
+        results.append(ok("git fsck: zero dangling objects") if dangling == 0 else fail(f"git fsck: {dangling} dangling object(s) — recovery incomplete"))
+    else:
+        results.append(fail("commit_graph_report.json missing"))
+
+    # 3. repair_log: all three commits recovered
+    rl = out / "repair_log.json"
+    if rl.exists():
+        m = json.loads(rl.read_text())
+        rec = m.get("recovered_commits", [])
+        results.append(ok(f"repair_log: {len(rec)} commit(s) recovered") if len(rec) >= 3 else fail(f"repair_log: only {len(rec)} commit(s) — need 3"))
+        results.append(ok("fsck clean per repair_log") if m.get("fsck_clean") else fail("repair_log reports fsck not clean"))
+    else:
+        results.append(fail("repair_log.json missing"))
+
+    # 4. repaired bundle must exist and be non-empty
+    bundle = out / "repaired_repo.bundle"
+    results.append(ok("repaired_repo.bundle present") if bundle.exists() and bundle.stat().st_size > 0 else fail("repaired_repo.bundle missing or empty"))`,
 };
 
 // ── RED FLAG SCANNER ──────────────────────────────────────────────────────
@@ -5428,6 +5895,9 @@ const DOMAIN_REQUIREMENTS = {
   "econometrics":              "numpy>=1.24\nscipy>=1.10\nstatsmodels>=0.14\n",
   "computational-linguistics": "conllu>=4.4\nnumpy>=1.24\n",
   "software-engineering":      "pytest>=7.4\n",
+  "typescript":                "# Python orchestrates Node.js — no Python packages required beyond stdlib\n# Node.js packages are in environment/package.json\n# typescript@5.4.5, ts-jest@29.1.2, jest@29.x\n",
+  "react":                     "# Python orchestrates Node.js — no Python packages required beyond stdlib\n# Node.js packages are in environment/package.json\n# react@18.2.0, @testing-library/react@14.3.0, ts-jest@29.1.2\n",
+  "git-workflows":             "# Python orchestrates git — no Python packages required beyond stdlib\n# Requires: git>=2.43.0 (verify with: git --version)\n",
   "computer-science":          "numpy>=1.24\n",
   "distributed-systems":       "numpy>=1.24\n",
   "databases":                 "sqlalchemy>=2.0\npandas>=2.0\n",
