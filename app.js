@@ -5468,7 +5468,9 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
     "",
     ...domainSteps.map((step, index) => `${index + 1}. ${step}`),
     `${domainSteps.length + 1}. Re-run from a clean checkout and confirm that output files, row ordering, checksums, and metrics are identical.`,
-    `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
+    details && details.solutionCode
+      ? `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; confirm all pass/fail results are recorded in the JSON reports listed above.`
+      : `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
     "",
     "Required evidence in the golden solution:",
     "- Exact command used to run the workflow.",
@@ -6397,13 +6399,17 @@ function escapeHtmlInline(s) { return String(s).replace(/&/g,"&amp;").replace(/<
 // ── CROSS-FIELD CONSISTENCY CHECKER ──────────────────────────────────────
 
 function extractOutputPaths(text) {
+  // Strip trailing sentence punctuation so "outputs/foo.json." doesn't mismatch "outputs/foo.json"
   const matches = text.match(/outputs\/[\w.\-]+/g) || [];
-  return new Set(matches);
+  return new Set(matches.map(p => p.replace(/[.,;:!?)\]]+$/, "")));
 }
 
-function extractSourceFiles(text) {
+function extractSourceFiles(text, outputBasenames) {
   const matches = text.match(/\b[\w.\-]+\.(bundle|json|csv|txt|py|tsx|ts|yaml|yml|parquet|gz|zip)\b/g) || [];
-  return new Set(matches.filter(f => !f.startsWith("outputs/")));
+  return new Set(matches.filter(f =>
+    !f.startsWith("outputs/") &&
+    !(outputBasenames && outputBasenames.has(f))
+  ));
 }
 
 function checkContractConsistency(f) {
@@ -6412,6 +6418,11 @@ function checkContractConsistency(f) {
   const promptPaths    = extractOutputPaths(f.prompt    || "");
   const solutionPaths  = extractOutputPaths(f.solution  || "");
   const verifierPaths  = extractOutputPaths(f.verifiers || "");
+
+  // Build basenames of all known output paths so we don't flag them as missing source files
+  const allOutputBasenames = new Set(
+    [...promptPaths, ...solutionPaths, ...verifierPaths].map(p => p.replace(/^outputs\//, ""))
+  );
 
   for (const p of promptPaths) {
     if (!solutionPaths.has(p))
@@ -6428,15 +6439,14 @@ function checkContractConsistency(f) {
       issues.push({ sev: "warn", msg: `"${p}" checked by Verifier but not written by Solution or mentioned in Prompt` });
   }
 
-  // Source files in Prompt must appear in Resources
-  const promptFiles   = extractSourceFiles(f.prompt    || "");
-  const resourceFiles = extractSourceFiles(f.resources || "");
+  // Source files in Prompt must appear in Resources — exclude output-path basenames to avoid false positives
+  const promptFiles   = extractSourceFiles(f.prompt    || "", allOutputBasenames);
+  const resourceFiles = extractSourceFiles(f.resources || "", allOutputBasenames);
   for (const fn of promptFiles) {
     if (!resourceFiles.has(fn))
       issues.push({ sev: "warn", msg: `Source file "${fn}" referenced in Prompt but not listed in Resources` });
   }
 
-  // Warn if Prompt is empty but Solution has output paths
   if (!f.prompt.trim() && solutionPaths.size > 0)
     issues.push({ sev: "warn", msg: "Prompt is empty — output paths in Solution are unanchored" });
 
