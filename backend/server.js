@@ -107,7 +107,7 @@ const FAMILY_RULES = [
   },
   {
     name: "typescript",
-    required: ["tsconfig.strict.json", "tsconfig.negative.json", "type_tests/contracts/public_types.md"],
+    required: ["tsconfig.strict.json", "tsconfig.negative.json", "contracts/public_types.md"],
     optional: ["solve.py", "verify.py", "package.json"]
   },
   {
@@ -130,18 +130,7 @@ function detectTaskFamily(extractedFiles) {
       fileSet.has(f) || extractedFiles.some(ef => ef === f || ef.startsWith(f + "/") || ef.startsWith(f.replace("/", "\\") + "\\"))
     );
 
-    // For directories in required (type_tests/contracts/public_types.md), check if any entry starts with the dir
-    const hasTypeTestsDir = extractedFiles.some(ef => ef.startsWith("type_tests/"));
-    const typeTestsAdjusted = [...rule.required];
-    if (typeTestsAdjusted.includes("type_tests/contracts/public_types.md") && hasTypeTestsDir) {
-      const mdIdx = typeTestsAdjusted.indexOf("type_tests/contracts/public_types.md");
-      if (!extractedFiles.includes("type_tests/contracts/public_types.md") && extractedFiles.some(ef => ef.startsWith("type_tests/contracts/"))) {
-        // Found some contract files — relax the exact match
-        typeTestsAdjusted[mdIdx] = null;
-      }
-    }
-
-    const effectiveRequired = typeTestsAdjusted.filter(Boolean);
+    const effectiveRequired = rule.required;
 
     // Recalculate found/missing with adjusted list
     const adjustedFound = effectiveRequired.filter(f =>
