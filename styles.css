@@ -853,6 +853,123 @@ legend {
   font-size: 0.80rem;
 }
 
+/* ── LLM / REVIEWER RISK CHECKS ────────────────────────────────────────── */
+.risk-checks {
+  margin: 4px 0 8px;
+}
+
+.risk-panel {
+  border: 1px solid #d8b4fe;
+  border-radius: 8px;
+  background: #1e1b2e;
+  color: #e9d5ff;
+  font-size: 0.78rem;
+  overflow: hidden;
+}
+
+.risk-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #2d1a5e;
+  border-bottom: 1px solid #4b3b7a;
+}
+
+.risk-panel-title {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #c084fc;
+}
+
+.risk-overall {
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.risk-legend {
+  display: flex;
+  gap: 12px;
+  padding: 5px 12px;
+  font-size: 0.7rem;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid #312e55;
+}
+
+.risk-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.risk-row {
+  border-bottom: 1px solid #312e55;
+}
+
+.risk-row:last-child {
+  border-bottom: none;
+}
+
+.risk-row td {
+  padding: 5px 8px;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.risk-icon {
+  width: 20px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.risk-label {
+  width: 110px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.risk-status {
+  width: 100px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.risk-detail {
+  color: #a78bfa;
+  font-size: 0.72rem;
+  word-break: break-word;
+}
+
+.risk-pass .risk-icon,
+.risk-pass .risk-status { color: #4ade80; }
+
+.risk-warn .risk-icon,
+.risk-warn .risk-status { color: #fbbf24; }
+
+.risk-block .risk-icon,
+.risk-block .risk-status { color: #f87171; }
+
+.risk-footer {
+  padding: 6px 12px;
+  border-top: 1px solid #312e55;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.risk-footer.risk-pass { color: #4ade80; background: rgba(74,222,128,0.06); }
+.risk-footer.risk-warn { color: #fbbf24; background: rgba(251,191,36,0.06); }
+.risk-footer.risk-block { color: #f87171; background: rgba(248,113,113,0.06); }
+
+.risk-footer-note {
+  padding: 5px 12px 8px;
+  font-size: 0.72rem;
+  color: #fca5a5;
+  background: rgba(248,113,113,0.04);
+}
+
 .consistency-errors,
 .consistency-warns {
   list-style: none;

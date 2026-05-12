@@ -253,6 +253,8 @@
               </section>
 
               <section>
+                <h3>LLM / Reviewer Risk Checks</h3>
+                <div id="risk-checks" class="risk-checks"></div>
                 <h3>Readiness Dashboard</h3>
                 <div id="readiness-dashboard" class="readiness-dashboard"></div>
                 <div id="frontier-sim-results" class="sim-results is-hidden"></div>
@@ -798,6 +800,7 @@ function buildTaskPackage() {
     getTaskChecks(fields).map((check) => `${check.pass ? "PASS" : "NEEDS WORK"} - ${check.title}: ${check.message}`).join("\n")
   ].join("\n");
   renderPackagePreview(els.generatedTaskPackage.value);
+  renderRiskChecks();
   renderReadinessDashboard();
   renderSubmissionAudit();
   renderConsistencyChecker();
@@ -6149,6 +6152,7 @@ function clearTaskDraft() {
   });
   renderPackagePreview("");
   renderTaskChecks(getTaskFields());
+  renderRiskChecks();
   els.taskDomain.focus();
 }
 
@@ -7052,6 +7056,332 @@ function renderConsistencyChecker() {
     (warns.length  ? `<ul class="consistency-warns">${warns .map(i => `<li class="c-warn"><strong>WARN</strong> — ${escapeHtmlInline(i.msg)}</li>`).join("")}</ul>` : "");
 }
 
+// ── LLM / REVIEWER RISK CHECKS ──────────────────────────────────────────
+
+const GENERIC_AI_PHRASES = [
+  "domain constraints",
+  "implementation judgment",
+  "plausible-looking approximations",
+  "extra bulk, hidden facts, or wording tricks",
+  "careful handling of edge cases",
+  "machine-readable diagnosis",
+  "audit-ready evidence package",
+  "documented exclusions",
+  "scenario-specific requirement",
+  "exact reproducible outputs"
+];
+
+const DOMAIN_FORBIDDEN = {
+  react: [
+    "commit sha", "branch ref", "reflog", "ts2345",
+    "diagnostic count", "public type signature",
+    "row count", "migration mapping"
+  ],
+  git: [
+    "component api", "render count", "jest", "ts2345",
+    "public type signature", "dependency array",
+    "act() timing", "row count"
+  ],
+  typescript: [
+    "render count", "unmounted component", "branch ref",
+    "reflog", "file checksum at each recovered commit",
+    "row count", "migration mapping", "wrong units"
+  ]
+};
+
+const PLACEHOLDER_PATTERNS = [
+  /\babc1234\b/i,
+  /\bdef5678\b/i,
+  /\bbcd2345\b/i,
+  /\bfoo\b/i,
+  /\bbar\b/i,
+  /\bTODO\b/i,
+  /\bTBD\b/i,
+  /\bsample only\b/i,
+  /\bexample-only\b/i,
+  /\bplaceholder\b/i
+];
+
+const METHOD_WORDS = [
+  "use abortcontroller",
+  "wire abortcontroller",
+  "correct dependency array",
+  "use update-ref",
+  "use ts-morph",
+  "use cherry-pick",
+  "must use"
+];
+
+const FAKE_SCENARIO_OPENERS = [
+  "the provided git repository contains a ref reconstruction challenge",
+  "before the migration could be validated",
+  "scenario-specific requirement",
+  "plausible-looking approximations",
+  "audit-ready evidence package"
+];
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function splitRiskSentences(text) {
+  return text
+    .split(/\n\n+/)
+    .flatMap(p => p.split(/(?<=[.!?])\s+/))
+    .map(s => s.replace(/^[-*•\d.)\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+function repeatedPhraseRisk(sections) {
+  const text = Object.values(sections).join("\n").toLowerCase();
+  const phrases = [
+    "cherry-picking changes into new commits instead of restoring original refs",
+    "implementation choices that produce exact reproducible outputs rather than plausible-looking approximations",
+    "domain constraints, implementation judgment, reproducible computation",
+    "careful handling of edge cases the verifier specifically targets"
+  ];
+  const repeated = phrases.filter(p =>
+    (text.match(new RegExp(escapeRegex(p), "g")) || []).length > 1
+  );
+
+  const allText = Object.values(sections).join("\n");
+  const sentences = splitRiskSentences(allText);
+  const sentenceCounts = {};
+  for (const s of sentences) {
+    if (s.length < 20) continue;
+    const key = s.toLowerCase();
+    sentenceCounts[key] = (sentenceCounts[key] || 0) + 1;
+  }
+  const repeatedSentences = Object.entries(sentenceCounts)
+    .filter(([, count]) => count >= 3)
+    .map(([s]) => s);
+
+  const difficulty = sections.difficulty || "";
+  const diffSentences = splitRiskSentences(difficulty);
+  const diffPhraseCounts = {};
+  for (const s of diffSentences) {
+    const key = s.toLowerCase();
+    diffPhraseCounts[key] = (diffPhraseCounts[key] || 0) + 1;
+  }
+  const diffRepeats = Object.entries(diffPhraseCounts)
+    .filter(([, count]) => count > 1)
+    .map(([s]) => s);
+
+  return { repeated, repeatedSentences, diffRepeats };
+}
+
+function genericBoilerplateScore(text) {
+  const hits = GENERIC_AI_PHRASES.filter(p => text.toLowerCase().includes(p));
+  return { hits, status: hits.length >= 4 ? "NEEDS WORK" : "PASS" };
+}
+
+function crossDomainResidue(domain, text) {
+  const lower = text.toLowerCase();
+  const domainKey =
+    domain === "git-workflows" ? "git" :
+    domain === "typescript" ? "typescript" :
+    domain === "react" ? "react" : null;
+  if (!domainKey) return [];
+  const forbidden = DOMAIN_FORBIDDEN[domainKey] || [];
+  return forbidden.filter(term => lower.includes(term));
+}
+
+function placeholderRisk(sectionName, text) {
+  if (!text) return { hits: [], status: "PASS" };
+  const hits = PLACEHOLDER_PATTERNS.filter(rx => rx.test(text));
+  const isAllowedExampleSection =
+    /example|schema|format/i.test(sectionName);
+  return {
+    hits: hits.map(rx => rx.source),
+    status: hits.length && !isAllowedExampleSection ? "DO NOT SUBMIT" : "PASS"
+  };
+}
+
+function finalAnswerReadiness() {
+  const solved = window.__taskExecution || {};
+  const required = [
+    "solve_ran", "verify_ran", "verify_passed",
+    "outputs_exist", "no_placeholders_in_final_answer"
+  ];
+  const missing = required.filter(k => !solved[k]);
+  return {
+    status: missing.length ? "DO NOT SUBMIT" : "PASS",
+    missing,
+    note: !missing.length ? "" : "Reference solution has not been executed against fixtures."
+  };
+}
+
+function methodPrescriptionRisk(prompt, title, summary) {
+  const publicText = `${title}\n${summary}\n${prompt}`.toLowerCase();
+  return METHOD_WORDS.filter(w => publicText.includes(w));
+}
+
+function buildVersionCheck(currentVersion) {
+  return {
+    status: currentVersion === APP_VERSION ? "PASS" : "DO NOT SUBMIT",
+    expected: APP_VERSION,
+    actual: currentVersion,
+    reason: currentVersion !== APP_VERSION ? "Generated output is from stale app build." : ""
+  };
+}
+
+function fakeScenarioRisk(prompt) {
+  return FAKE_SCENARIO_OPENERS.filter(p =>
+    prompt.toLowerCase().includes(p)
+  );
+}
+
+function taskSimilarity(a, b) {
+  const wordsA = new Set(a.toLowerCase().split(/\W+/).filter(Boolean));
+  const wordsB = new Set(b.toLowerCase().split(/\W+/).filter(Boolean));
+  const overlap = [...wordsA].filter(w => wordsB.has(w)).length;
+  const union = new Set([...wordsA, ...wordsB]).size;
+  return union ? overlap / union : 0;
+}
+
+function duplicateTaskWarning() {
+  const recipes = Object.values(TASK_RECIPES);
+  if (!recipes || recipes.length < 2) return [];
+  const warnings = [];
+  for (let i = 0; i < recipes.length; i++) {
+    for (let j = i + 1; j < recipes.length; j++) {
+      const score = taskSimilarity(
+        recipes[i].title + " " + recipes[i].snippet,
+        recipes[j].title + " " + recipes[j].snippet
+      );
+      if (score > 0.75) {
+        warnings.push({
+          a: recipes[i].label,
+          b: recipes[j].label,
+          score: Math.round(score * 100),
+          message: "Likely duplicate task variant. Pick one."
+        });
+      }
+    }
+  }
+  return warnings;
+}
+
+function renderRiskChecks() {
+  const el = document.querySelector("#risk-checks");
+  if (!el) return;
+  const fields = getTaskFields();
+  const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+  const allText = [
+    fields.title, fields.prompt, fields.snippet, fields.difficulty,
+    fields.resources, fields.solution, fields.verifiers, fields.errorIfWrong
+  ].join("\n");
+
+  const sections = {
+    title: fields.title, prompt: fields.prompt, snippet: fields.snippet,
+    difficulty: fields.difficulty, resources: fields.resources,
+    solution: fields.solution, verifiers: fields.verifiers,
+    errorIfWrong: fields.errorIfWrong
+  };
+
+  const rep = repeatedPhraseRisk(sections);
+  const bp = genericBoilerplateScore(allText);
+  const xd = crossDomainResidue(domain, allText);
+  let phBlock = false;
+  const phSectionHits = {};
+  for (const [name, text] of Object.entries(sections)) {
+    const r = placeholderRisk(name, text);
+    phSectionHits[name] = r;
+    if (r.status === "DO NOT SUBMIT") phBlock = true;
+  }
+  const fa = finalAnswerReadiness();
+  const mp = methodPrescriptionRisk(fields.prompt, fields.title, fields.snippet);
+  const bv = buildVersionCheck(APP_VERSION);
+  const fso = fakeScenarioRisk(fields.prompt);
+  const dup = duplicateTaskWarning();
+
+  const rows = [];
+  function addRow(id, label, status, detail) {
+    const cls = status === "PASS" ? "risk-pass" : status === "DO NOT SUBMIT" ? "risk-block" : "risk-warn";
+    const icon = status === "PASS" ? "✓" : status === "DO NOT SUBMIT" ? "✗" : "!";
+    rows.push({ id, label, status, detail, cls, icon });
+  }
+
+  addRow("repetition", "1. Repetition",
+    rep.repeated.length || rep.repeatedSentences.length || rep.diffRepeats.length ? "NEEDS WORK" : "PASS",
+    [rep.repeated.length ? `Repeated phrases: ${rep.repeated.join(", ")}` : "",
+     rep.repeatedSentences.length ? `Same sentence in 3+ sections: ${rep.repeatedSentences.slice(0, 3).map(s => s.slice(0, 80) + "...").join(", ")}` : "",
+     rep.diffRepeats.length ? `Duplicated failure mode in Difficulty: "${rep.diffRepeats[0].slice(0, 80)}..."` : ""
+    ].filter(Boolean).join("; ") || "No repetition detected"
+  );
+
+  addRow("boilerplate", "2. Generic Boilerplate", bp.status,
+    bp.hits.length ? `Found: ${bp.hits.join(", ")}` : "No generic template phrases"
+  );
+
+  addRow("cross-domain", "3. Cross-Domain Residue",
+    xd.length ? "NEEDS WORK" : "PASS",
+    xd.length ? `Foreign terms in ${domain}: ${xd.join(", ")}` : "No cross-domain contamination"
+  );
+
+  const phSummary = Object.entries(phSectionHits)
+    .filter(([, r]) => r.hits.length)
+    .map(([name, r]) => `${name}: ${r.hits.join(", ")}`);
+  addRow("placeholder", "4. Placeholder Values",
+    phBlock ? "DO NOT SUBMIT" : "PASS",
+    phSummary.length ? phSummary.join("; ") : "No placeholder values detected"
+  );
+
+  addRow("final-answer", "5. Final Answer Computed", fa.status,
+    fa.note || "All execution gates passed"
+  );
+
+  addRow("method", "6. Method-vs-Output",
+    mp.length ? "NEEDS WORK" : "PASS",
+    mp.length ? `Method prescribed in public fields: ${mp.join(", ")}` : "No method prescription in public fields"
+  );
+
+  addRow("build", "7. Build Version", bv.status,
+    bv.status === "PASS" ? `v${APP_VERSION}` : `Expected ${bv.expected}, got ${bv.actual}`
+  );
+
+  addRow("opener", "8. Fake Scenario Opener",
+    fso.length ? "NEEDS WORK" : "PASS",
+    fso.length ? `Template openers: ${fso.join(", ")}` : "No fake scenario wrappers"
+  );
+
+  addRow("duplicate", "9. Duplicate Variant",
+    dup.length ? "NEEDS WORK" : "PASS",
+    dup.length ? dup.map(d => `${d.a} ~ ${d.b} (${d.score}%): ${d.message}`).join("; ") : "No duplicate variants detected"
+  );
+
+  const statuses = rows.filter(r => r.status !== "PASS").map(r => r.status);
+  const overall = statuses.includes("DO NOT SUBMIT") ? "DO NOT SUBMIT"
+    : statuses.includes("NEEDS WORK") ? "NEEDS WORK"
+    : "PASS";
+  const overallCls = overall === "PASS" ? "risk-pass" : overall === "DO NOT SUBMIT" ? "risk-block" : "risk-warn";
+  const overallIcon = overall === "PASS" ? "✓" : overall === "DO NOT SUBMIT" ? "✗" : "!";
+
+  el.innerHTML = `
+<div class="risk-panel">
+  <div class="risk-panel-header">
+    <span class="risk-panel-title">LLM / Reviewer Risk Checks</span>
+    <span class="risk-overall ${overallCls}">${overallIcon} ${overall}</span>
+  </div>
+  <div class="risk-legend">
+    <span class="risk-pass">✓ PASS</span>
+    <span class="risk-warn">! NEEDS WORK</span>
+    <span class="risk-block">✗ DO NOT SUBMIT</span>
+  </div>
+  <table class="risk-table">
+    ${rows.map(r => `
+    <tr class="risk-row ${r.cls}">
+      <td class="risk-icon">${r.icon}</td>
+      <td class="risk-label">${escapeHtmlInline(r.label)}</td>
+      <td class="risk-status">${r.status}</td>
+      <td class="risk-detail">${escapeHtmlInline(r.detail)}</td>
+    </tr>`).join("")}
+  </table>
+  <div class="risk-footer ${overallCls}">Overall: <strong>${overallIcon} ${overall}</strong></div>
+  ${fa.status === "DO NOT SUBMIT" ? `<div class="risk-footer-note">Final Answer Status: NOT READY — ${fa.note}</div>` : ""}
+</div>`;
+}
+
 // ── CODE TEMPLATE LINTER ──────────────────────────────────────────────────
 
 function lintCodeTemplate(code) {
@@ -7607,6 +7937,7 @@ if (frontierSimBtn) frontierSimBtn.addEventListener("click", renderFrontierSimRe
 
 load();
 renderAll();
+renderRiskChecks();
 renderTaskChecks(getTaskFields());
 renderReadinessDashboard();
 renderSubmissionAudit();
