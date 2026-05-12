@@ -1145,9 +1145,9 @@ app.post("/api/build-task-zip", (req, res) => {
        case "typescript":
          generateTypeScriptPackage(taskDir);
          break;
-       default:
-         res.status(400).json({ ok: false, error: `Unsupported family: ${family}` });
-         return;
+default:
+          res.status(400).json({ ok: false, error: "Unsupported family: " + family + ". Supported: typescript" });
+          return;
      }
 
      // Zip it

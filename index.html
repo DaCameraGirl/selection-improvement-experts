@@ -8172,40 +8172,45 @@ function stopRunnerPolling() {
 let lastBuiltZipId = null;
 
 async function handleBuildTaskZip() {
-   const btn = document.querySelector("#runner-build-zip");
-   const statusEl = document.querySelector("#runner-builder-status");
-   const downloadLink = document.querySelector("#runner-download-zip");
-   if (btn) btn.disabled = true;
-   if (statusEl) statusEl.innerHTML = "Building task package...";
-   if (downloadLink) downloadLink.classList.add("is-hidden");
+    const btn = document.querySelector("#runner-build-zip");
+    const statusEl = document.querySelector("#runner-builder-status");
+    const downloadLink = document.querySelector("#runner-download-zip");
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.innerHTML = "Building task package...";
+    if (downloadLink) downloadLink.classList.add("is-hidden");
 
-   try {
-     // Determine the task family from the prompt maker's domain
-     // First check if a locked recipe is selected (it overrides the domain dropdown)
-     const recipeSelectEl = document.querySelector("#task-recipe");
-     let domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
-     if (recipeSelectEl && recipeSelectEl.value && typeof TASK_RECIPES !== "undefined") {
-       const recipe = TASK_RECIPES[recipeSelectEl.value];
-       if (recipe && recipe.domain) {
-         domain = recipe.domain;
-         // Keep the domain dropdown in sync
-         if (els.taskDomainSelect) els.taskDomainSelect.value = recipe.domain;
-       }
-     }
+    try {
+      // Determine the task family from the prompt maker's domain
+      // First check if a locked recipe is selected (it overrides the domain dropdown)
+      const recipeSelectEl = document.querySelector("#task-recipe");
+      let domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+      if (recipeSelectEl && recipeSelectEl.value && typeof TASK_RECIPES !== "undefined") {
+        const recipe = TASK_RECIPES[recipeSelectEl.value];
+        if (recipe && recipe.domain) {
+          domain = recipe.domain;
+          // Keep the domain dropdown in sync
+          if (els.taskDomainSelect) els.taskDomainSelect.value = recipe.domain;
+        }
+      }
 
-     const family = domain === "react" ? "react"
-       : domain === "git-workflows" ? "git"
-       : domain || "typescript";
+      const family = domain === "react" ? "react"
+        : domain === "git-workflows" ? "git"
+        : domain || "typescript";
 
-     console.log("BUILD REQUEST domain:", domain, "family:", family, "recipe:", recipeSelectEl ? recipeSelectEl.value : "none");
+      console.log("BUILD REQUEST domain:", domain, "family:", family, "recipe:", recipeSelectEl ? recipeSelectEl.value : "none");
 
-     const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({ family })
-     });
-     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-     const data = await resp.json();
+      const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ family, domain })
+      });
+      if (!resp.ok) {
+        const rawText = await resp.text();
+        let errData = {};
+        try { errData = rawText ? JSON.parse(rawText) : {}; } catch { errData = { raw: rawText }; }
+        throw new Error(`HTTP ${resp.status}: ${errData.error || errData.detail || errData.raw || "Build failed"}`);
+      }
+      const data = await resp.json();
 
      lastBuiltZipId = data.task_id;
 
