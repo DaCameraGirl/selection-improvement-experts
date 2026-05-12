@@ -8530,7 +8530,7 @@ async function pollRunStatus() {
       updateRunnerStatusField("runner-copy-status", isCopyUnlocked ? "UNLOCKED" : "LOCKED", isCopyUnlocked ? "runner-check" : "");
 
       // Terminal states
-      const terminalStates = ["OUTPUTS_COLLECTED", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];
+      const terminalStates = ["OUTPUTS_COLLECTED", "OUTPUTS_MISSING", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];
       if (terminalStates.includes(data.status)) {
         if (runnerPollRunInterval) {
           clearInterval(runnerPollRunInterval);

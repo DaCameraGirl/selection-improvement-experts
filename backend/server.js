@@ -274,7 +274,7 @@ function runStep(command, args, cwd, timeoutMs) {
 
     const child = spawn(command, args, {
       cwd,
-      shell: false,
+      shell: process.platform === "win32",
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env }
     });
@@ -319,9 +319,14 @@ async function executePipelineStep(run, stepName, command, args, cwd, timeoutMs)
     : stepName === "solve" ? "SOLVE_RUNNING"
     : "VERIFY_RUNNING";
 
+  const cmdStr = `${command} ${args.join(" ")}`;
+  console.log(`[runner] ${stepName}: running "${cmdStr}" in ${cwd}`);
+
   const result = await runStep(command, args, cwd, timeoutMs);
   run.logs[`${stepName}_stdout`] = result.stdout;
   run.logs[`${stepName}_stderr`] = result.stderr;
+
+  console.log(`[runner] ${stepName}: exit code ${result.code}, stdout ${result.stdout.length} bytes, stderr ${result.stderr.length} bytes`);
 
   if (result.timedOut) {
     run.errors.push(`${stepName} timed out after ${(timeoutMs || RUN_TIMEOUT_MS) / 1000}s`);
@@ -342,17 +347,96 @@ async function executePipelineStep(run, stepName, command, args, cwd, timeoutMs)
   return true;
 }
 
-// ── Create a run ──────────────────────────────────────────────────────
+// ── Run a single step on an existing run ─────────────────────────────────
+async function runSingleStep(run, step) {
+  if (step === "setup") {
+    const hasPackageLock = fs.existsSync(path.join(run.workspace, "package-lock.json")) ||
+                           fs.existsSync(path.join(run.workspace, "yarn.lock"));
+    if (hasPackageLock) {
+      const ok = await executePipelineStep(run, "setup", "npm", ["ci", "--no-audit", "--no-fund"], run.workspace, 120000);
+      if (!ok) return false;
+    } else {
+      // Fall back to npm install (not just ci) when no lockfile
+      run.logs.setup_stdout = "[runner] No package-lock.json found — falling back to npm install";
+      const ok = await executePipelineStep(run, "setup", "npm", ["install", "--no-audit", "--no-fund"], run.workspace, 120000);
+      if (!ok) return false;
+    }
+    run.setupRan = true;
+    run.status = "PACKAGE_UPLOADED";
+    return true;
+  }
+
+  if (step === "solve") {
+    // Reset solve state
+    run.solveRan = false;
+    run.outputsExist = false;
+    const solveCmd = getSolveCommand(run.family, run.workspace);
+    if (!fs.existsSync(path.join(run.workspace, "solve.py"))) {
+      run.errors.push("solve.py not found in package");
+      run.status = "SOLVE_FAILED";
+      return false;
+    }
+    const ok = await executePipelineStep(run, "solve", solveCmd.cmd, solveCmd.args, solveCmd.cwd, RUN_TIMEOUT_MS);
+    if (!ok) return false;
+    run.solveRan = true;
+    const outputsDir = path.join(run.workspace, "outputs");
+    if (!fs.existsSync(outputsDir)) {
+      run.errors.push("outputs/ directory not found after solve — solve did not produce expected output");
+      run.status = "OUTPUTS_MISSING";
+      return false;
+    }
+    run.outputsExist = true;
+    run.status = "OUTPUTS_COLLECTED";
+    return true;
+  }
+
+  if (step === "verify") {
+    if (!fs.existsSync(path.join(run.workspace, "verify.py"))) {
+      run.errors.push("verify.py not found in package");
+      run.status = "VERIFY_FAILED";
+      return false;
+    }
+    const ok = await executePipelineStep(run, "verify", "python", ["verify.py"], run.workspace, RUN_TIMEOUT_MS);
+    if (!ok) return false;
+    run.verifyRan = true;
+    run.verifyPassed = true;
+    run.status = "OUTPUTS_COLLECTED";
+    return true;
+  }
+
+  return false;
+}
+
+// ── Create a run (cumulative — reuses activeRunId per package) ─────────
 async function createRun(packageId, options) {
-  const runId = "run_" + uid();
   const pkg = packages.get(packageId);
   if (!pkg) return { error: "Package not found" };
 
-  // Create run directory (copy of package workspace)
+  // Reuse existing active run for this package
+  if (pkg.activeRunId) {
+    const existingRun = runs.get(pkg.activeRunId);
+    if (existingRun) {
+      if (options.run_setup !== false && !existingRun.setupRan) {
+        if (!await runSingleStep(existingRun, "setup")) return existingRun;
+      }
+      if (options.run_solve !== false && !existingRun.solveRan) {
+        if (!await runSingleStep(existingRun, "solve")) return existingRun;
+      }
+      if (options.run_verify !== false && !existingRun.verifyRan) {
+        if (!await runSingleStep(existingRun, "verify")) return existingRun;
+      }
+      existingRun.status = existingRun.errors.length === 0 && existingRun.outputsExist ? "OUTPUTS_COLLECTED" : existingRun.status;
+      return existingRun;
+    }
+    // Stale activeRunId — clean it and fall through to create fresh
+    pkg.activeRunId = null;
+  }
+
+  // No existing run — create fresh workspace
+  const runId = "run_" + uid();
   const runDir = path.join(WORKSPACES_DIR, runId);
   ensureDir(runDir);
 
-  // Copy files from package workspace to run directory
   try {
     const entries = fs.readdirSync(pkg.workspace, { withFileTypes: true });
     for (const entry of entries) {
@@ -373,13 +457,14 @@ async function createRun(packageId, options) {
     packageId,
     workspace: runDir,
     family: pkg.family,
-    status: "NOT_RUN",
+    status: "PACKAGE_UPLOADED",
     logs: {
       setup_stdout: "", setup_stderr: "",
       solve_stdout: "", solve_stderr: "",
       verify_stdout: "", verify_stderr: ""
     },
     errors: [],
+    setupRan: false,
     solveRan: false,
     verifyRan: false,
     verifyPassed: false,
@@ -387,56 +472,19 @@ async function createRun(packageId, options) {
   };
 
   runs.set(runId, run);
+  pkg.activeRunId = runId;
 
-  // Execute steps asynchronously
-  run.status = "PACKAGE_UPLOADED";
-
-  // Step 1: Setup (npm ci if package.json exists)
   if (options.run_setup !== false) {
-    const hasPackageLock = fs.existsSync(path.join(runDir, "package-lock.json")) ||
-                           fs.existsSync(path.join(runDir, "yarn.lock"));
-    if (hasPackageLock) {
-      const ok = await executePipelineStep(run, "setup", "npm", ["ci", "--no-audit", "--no-fund"], runDir, 120000);
-      if (!ok) return run;
-    } else {
-      run.logs.setup_stdout = "[runner] No package-lock.json found — skipping npm ci";
-    }
+    if (!await runSingleStep(run, "setup")) return run;
   }
-
-  // Step 2: Solve
   if (options.run_solve !== false) {
-    const solveCmd = getSolveCommand(pkg.family, runDir);
-    // Check solve.py exists
-    if (!fs.existsSync(path.join(runDir, "solve.py"))) {
-      run.errors.push("solve.py not found in package");
-      run.status = "SOLVE_FAILED";
-      return run;
-    }
-    const ok = await executePipelineStep(run, "solve", solveCmd.cmd, solveCmd.args, solveCmd.cwd, RUN_TIMEOUT_MS);
-    if (!ok) return run;
-    run.solveRan = true;
-
-    // Collect outputs
-    const outputsDir = path.join(runDir, "outputs");
-    if (fs.existsSync(outputsDir)) {
-      run.outputsExist = true;
-    }
+    if (!await runSingleStep(run, "solve")) return run;
   }
-
-  // Step 3: Verify
   if (options.run_verify !== false) {
-    if (!fs.existsSync(path.join(runDir, "verify.py"))) {
-      run.errors.push("verify.py not found in package");
-      run.status = "VERIFY_FAILED";
-      return run;
-    }
-    const ok = await executePipelineStep(run, "verify", "python", ["verify.py"], runDir, RUN_TIMEOUT_MS);
-    if (!ok) return run;
-    run.verifyRan = true;
-    run.verifyPassed = true;
+    if (!await runSingleStep(run, "verify")) return run;
   }
 
-  run.status = run.errors.length === 0 ? "OUTPUTS_COLLECTED" : run.status;
+  if (run.errors.length === 0 && run.outputsExist) run.status = "OUTPUTS_COLLECTED";
   return run;
 }
 
@@ -830,8 +878,8 @@ function generateTypeScriptPackage(taskDir) {
     "OUT_DIR = Path(\"outputs\")",
     "OUT_DIR.mkdir(parents=True, exist_ok=True)",
     "",
-    "def run(args, cwd=None):",
-    '    return subprocess.run(args, capture_output=True, text=True, cwd=cwd)',
+    "def run(args, cwd=None, shell=False):",
+    '    return subprocess.run(args, capture_output=True, text=True, cwd=cwd, shell=shell)',
     "",
     "def sha256_of(path):",
     "    return hashlib.sha256(Path(path).read_bytes()).hexdigest()",
@@ -868,7 +916,7 @@ function generateTypeScriptPackage(taskDir) {
     "all_pass = True",
     "",
     "for tf in test_files:",
-    "    r = run([\"npx\", \"tsc\", \"--noEmit\", \"--pretty\", \"false\", str(tf)])",
+    "    r = run([\"npx\", \"tsc\", \"--noEmit\", \"--pretty\", \"false\", str(tf)], shell=True)",
     "    errors = len(re.findall(r\"error TS\\d+\", r.stdout + r.stderr))",
     "    passed = errors == 0",
     "    file_results.append({",
@@ -1003,6 +1051,18 @@ function generateTypeScriptPackage(taskDir) {
     language: "TypeScript 5.4+",
     runtimes: RUNTIMES
   }, null, 2));
+
+  // Generate package-lock.json so runner's npm ci works during setup
+  // Use shell:true on Windows (npm is npm.cmd, not npm.exe)
+  const npmResult = spawnSync("npm", ["install", "--package-lock-only", "--no-audit", "--no-fund"], {
+    cwd: taskDir,
+    timeout: 30000,
+    shell: true,
+    stdio: "pipe"
+  });
+  if (npmResult.status !== 0) {
+    console.log("[generator] npm install --package-lock-only exited", npmResult.status, (npmResult.stderr || "").slice(0, 200));
+  }
 }
 
 // ── Build task zip ──────────────────────────────────────────────────────
