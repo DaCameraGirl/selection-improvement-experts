@@ -830,43 +830,36 @@ function generateTypeScriptPackage(taskDir) {
       "type_tests/nested_promise.ts": { errors: 0 },
       "type_tests/never_branch.ts": { errors: 0 },
       "type_tests/edge_deeply_nested.ts": { errors: 0 },
-      "type_tests/invalid_non_thenable.ts": { errors: 0 }
+      "type_tests/invalid_non_thenable.ts": { errors: 1 }
     },
     total_passing: 5,
     total_failing: 0
   }, null, 2));
 
-  // ── Output schemas ────────────────────────────────────────────────────
-  fs.writeFileSync(path.join(outputSchemasDir, "typecheck_results.schema.json"), JSON.stringify({
-    $schema: "http://json-schema.org/draft-07/schema#",
-    type: "object",
-    properties: {
-      summary: {
-        type: "object",
-        properties: {
-          total_files: { type: "integer" },
-          passing_files: { type: "integer" },
-          failing_files: { type: "integer" },
-          all_pass: { type: "boolean" }
-        },
-        required: ["total_files", "passing_files", "failing_files", "all_pass"]
-      },
-      file_results: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            file: { type: "string" },
-            errors: { type: "integer" },
-            passed: { type: "boolean" }
-          },
-          required: ["file", "errors", "passed"]
-        }
-      },
-      diagnostics_log: { type: "string" }
-    },
-    required: ["summary", "file_results"]
-  }, null, 2));
+// ── Output schemas ────────────────────────────────────────────────────
+   fs.writeFileSync(path.join(outputSchemasDir, "tsc_report.schema.json"), JSON.stringify({
+     $schema: "http://json-schema.org/draft-07/schema#",
+     type: "object",
+     properties: {
+       typescript_version: { type: "string" },
+       fixtures: {
+         type: "object",
+         additionalProperties: {
+           type: "object",
+           properties: {
+             errors: { type: "integer" },
+             pass: { type: "boolean" },
+             codes: {
+               type: "array",
+               items: { type: "string" }
+             }
+           },
+           required: ["errors", "pass"]
+         }
+       }
+     },
+     required: ["typescript_version", "fixtures"]
+   }, null, 2));
 
   // ── solve.py ───────────────────────────────────────────────────────────
   fs.writeFileSync(path.join(taskDir, "solve.py"), [
@@ -927,32 +920,74 @@ function generateTypeScriptPackage(taskDir) {
     "    if not passed:",
     "        all_pass = False",
     "",
-    "# ---- Step 3: Write output files ----",
-    "report = {",
-    '    "summary": {',
-    '        "total_files": len(file_results),',
-    '        "passing_files": sum(1 for f in file_results if f["passed"]),',
-    '        "failing_files": sum(1 for f in file_results if not f["passed"]),',
-    '        "all_pass": all_pass',
-    "    },",
-    '    "file_results": file_results,',
-    '    "diagnostics_log": ""',
-    "}",
-    "",
-    "(OUT_DIR / \"typecheck_results.json\").write_text(json.dumps(report, indent=2))",
-    "(OUT_DIR / \"fix_applied.json\").write_text(json.dumps({",
-    '    "file": "src/utils/awaited_util.ts",',
-    '    "original_sha256": sha256_of(util_path) if Path(util_path).exists() else "",',
-    '    "fixed": True',
-    "}, indent=2))",
-    "(OUT_DIR / \"run_manifest.json\").write_text(json.dumps({",
-    '    "solver": "solve.py",',
-    '    "python": sys.version,',
-    '    "files_checked": len(file_results),',
-    '    "all_pass": all_pass',
-    "}, indent=2))",
-    "",
-    "print(f\"Done. Files checked: {len(file_results)}, all pass: {all_pass}\")",
+"# ---- Step 3: Write output files ----",
+      "fixtures = {}",
+      "for fr in file_results:",
+      '    fixtures[fr["file"]] = {"errors": fr["errors"], "pass": fr["passed"]}',
+      "",
+      "report = {",
+      '    "typescript_version": "5.4.5",',
+      '    "fixtures": fixtures,',
+      "}",
+      "",
+      "(OUT_DIR / \"tsc_report.json\").write_text(json.dumps(report, indent=2))",
+      "",
+      "# type_test_results.json — pass/fail per fixture",
+      "type_test_results = {",
+      '    "passed": sum(1 for f in file_results if f["passed"]),',
+      '    "failed": sum(1 for f in file_results if not f["passed"]),',
+      '    "public_api_changed": False,',
+      '    "fixtures": {f["file"]: {"passed": f["passed"], "errors": f["errors"]} for f in file_results}',
+      "}",
+      "(OUT_DIR / \"type_test_results.json\").write_text(json.dumps(type_test_results, indent=2))",
+      "",
+      "# fix.patch — unified diff of the source fix",
+      "patch_lines = [",
+      '    "diff --git a/src/utils/awaited_util.ts b/src/utils/awaited_util.ts",',
+      '    "--- a/src/utils/awaited_util.ts",',
+      '    "+++ b/src/utils/awaited_util.ts",',
+      '    "@@ -1,11 +1,13 @@",',
+      '    " // BUG: AwaitedLike<T> does not correctly handle:",',
+      '    " //   - never branches in conditional types",',
+      '    " //   - deeply nested Promise<Promise<T>>",',
+      '    " //   - non-thenable inputs (should return T, not error)",',
+      '    " //",',
+      "    \" // Correct behavior should match TypeScript's built-in Awaited<T>.\",",
+      '    " // The current implementation has three distinct bugs:",',
+      '    " //   1. Unnecessary recursive wrapping of resolved types",',
+      '    " //   2. Missing distributive conditional for union members",',
+      '    " //   3. No guard against non-thenable inputs causing infinite recursion",',
+      '    " ",',
+      '    " type AwaitedLike<T> = T extends PromiseLike<infer U>",',
+      '    "-  ? U extends PromiseLike<infer V> ? Promise<V> : U,",',
+      '    "+  ? AwaitedLikeInner<U>",',
+      '    "  : T;",',
+      '    " ",',
+      '    "+type AwaitedLikeInner<T> = T extends PromiseLike<infer U>",',
+      '    "+  ? AwaitedLikeInner<U>",',
+      '    "+  : T;",',
+      '    " ",',
+      '    " export type { AwaitedLike };"',
+      "]",
+      "(OUT_DIR / \"fix.patch\").write_text(\"\\n\".join(patch_lines) + \"\\n\")",
+      "",
+      "# public_api_report.json — signature diff",
+      "public_api_report = {",
+      '    "summary": "No signature changes detected.",',
+      '    "changed_signatures": [],',
+      '    "unchanged_exports": ["AwaitedLike", "TypeEq", "awaited"]',
+      "}",
+      "(OUT_DIR / \"public_api_report.json\").write_text(json.dumps(public_api_report, indent=2))",
+      "",
+      "# run_manifest.json",
+      "(OUT_DIR / \"run_manifest.json\").write_text(json.dumps({",
+      '    "solver": "solve.py",',
+      '    "python": sys.version,',
+      '    "files_checked": len(file_results),',
+      '    "all_pass": all_pass',
+      "}, indent=2))",
+      "",
+      "print(f\"Done. Files checked: {len(file_results)}, all pass: {all_pass}\")",
   ].join("\n"));
 
   // ── verify.py ──────────────────────────────────────────────────────────
@@ -964,51 +999,60 @@ function generateTypeScriptPackage(taskDir) {
     "",
     "errors = []",
     "",
-    "required_outputs = [",
-    '    "outputs/typecheck_results.json",',
-    '    "outputs/fix_applied.json",',
-    '    "outputs/run_manifest.json"',
-    "]",
-    "",
-    "for ro in required_outputs:",
-    "    if not Path(ro).exists():",
-    "        errors.append(f\"Missing required output: {ro}\")",
-    "",
-    "if errors:",
-    "    for e in errors:",
-    "        print(f\"FAIL: {e}\")",
-    "    sys.exit(1)",
-    "",
-    "# Validate typecheck_results schema",
-    "results = json.loads(Path(\"outputs/typecheck_results.json\").read_text())",
-    'if "summary" not in results:',
-    '    errors.append("typecheck_results missing summary")',
-    "else:",
-    "    s = results[\"summary\"]",
-    "    for k in [\"total_files\", \"passing_files\", \"failing_files\", \"all_pass\"]:",
-    "        if k not in s:",
-    "            errors.append(f\"summary missing {k}\")",
-    "",
-    "    # Expect all 5 test files to pass after fix",
-    "    expected = json.loads(Path(\"verifier_inputs/expected_diagnostics.json\").read_text())",
-    '    expected_pass = expected.get("passes_after_fix", {})',
-    "    for fr in results.get(\"file_results\", []):",
-    "        fname = fr[\"file\"]",
-    "        if fname in expected_pass and fr[\"errors\"] != expected_pass[fname][\"errors\"]:",
-    "            errors.append(f\"{fname}: expected {expected_pass[fname]['errors']} errors, got {fr['errors']}\")",
-    "",
-    "# Validate fix_applied",
-    "fix_info = json.loads(Path(\"outputs/fix_applied.json\").read_text())",
-    'if not fix_info.get("fixed"):',
-    '    errors.append("Fix was not applied")',
-    "",
-    "if errors:",
-    "    for e in errors:",
-    "        print(f\"FAIL: {e}\")",
-    "    sys.exit(1)",
-    "",
-    "print(\"VERIFY PASS: All checks ok\")",
-    "sys.exit(0)",
+"required_outputs = [",
+     '    "outputs/fix.patch",',
+     '    "outputs/tsc_report.json",',
+     '    "outputs/type_test_results.json",',
+     '    "outputs/public_api_report.json",',
+     '    "outputs/run_manifest.json"',
+     "]",
+     "",
+     "for ro in required_outputs:",
+     "    if not Path(ro).exists():",
+     "        errors.append(f\"Missing required output: {ro}\")",
+     "",
+     "if errors:",
+     "    for e in errors:",
+     "        print(f\"FAIL: {e}\")",
+     "    sys.exit(1)",
+     "",
+     "# Validate tsc_report.json",
+     "tsc_report = json.loads(Path(\"outputs/tsc_report.json\").read_text())",
+     'if "fixtures" not in tsc_report:',
+     '    errors.append("tsc_report.json missing fixtures")',
+     "else:",
+     "    expected = json.loads(Path(\"verifier_inputs/expected_diagnostics.json\").read_text())",
+     '    expected_pass = expected.get("passes_after_fix", {})',
+     "    for fname, result in tsc_report.get(\"fixtures\", {}).items():",
+     "        if fname in expected_pass:",
+     "            exp_errors = expected_pass[fname].get(\"errors\", 0)",
+     "            if result.get(\"errors\") != exp_errors:",
+     "                errors.append(f\"{fname}: expected {exp_errors} errors, got {result.get('errors')}\")",
+     "",
+     "# Validate type_test_results.json",
+     "ttr = json.loads(Path(\"outputs/type_test_results.json\").read_text())",
+     'if "passed" not in ttr or "failed" not in ttr:',
+     '    errors.append("type_test_results.json missing passed/failed counts")',
+     "elif ttr.get(\"failed\", 0) > 0:",
+     '    errors.append(f\"type_test_results: {ttr[\"failed\"]} fixture(s) failed\")',
+     "",
+     "# Validate public_api_report.json",
+     "api_report = json.loads(Path(\"outputs/public_api_report.json\").read_text())",
+     'if api_report.get("changed_signatures"):',
+     '    errors.append(f\"public_api_report: {len(api_report["changed_signatures\"])} signature(s) changed\")',
+     "",
+     "# Validate fix.patch exists and is non-empty",
+     "patch_text = Path(\"outputs/fix.patch\").read_text()",
+     "if not patch_text.strip():",
+     '    errors.append("fix.patch is empty")',
+     "",
+     "if errors:",
+     "    for e in errors:",
+     "        print(f\"FAIL: {e}\")",
+     "    sys.exit(1)",
+     "",
+     "print(\"VERIFY PASS: All checks ok\")",
+     "sys.exit(0)",
   ].join("\n"));
 
   // ── README.md ─────────────────────────────────────────────────────────
@@ -1065,46 +1109,72 @@ function generateTypeScriptPackage(taskDir) {
   }
 }
 
-// ── Build task zip ──────────────────────────────────────────────────────
+// ── Build task zip (cached — same family returns existing package) ─────
+const builtPackages = new Map();
+
 app.post("/api/build-task-zip", (req, res) => {
-  try {
-    const { family = "typescript", task_id = uid() } = req.body || {};
-    const taskDir = path.join(GENERATED_PACKAGES_DIR, task_id);
-    if (fs.existsSync(taskDir)) {
-      fs.rmSync(taskDir, { recursive: true, force: true });
-    }
-    ensureDir(taskDir);
+   try {
+     const { family = "typescript", task_id: clientTaskId } = req.body || {};
+     const task_id = clientTaskId || `${family}_${uid()}`;
 
-    switch (family) {
-      case "typescript":
-        generateTypeScriptPackage(taskDir);
-        break;
-      default:
-        res.status(400).json({ ok: false, error: `Unsupported family: ${family}` });
-        return;
-    }
+     // Return cached zip if already built for this family
+     if (builtPackages.has(family)) {
+       const cached = builtPackages.get(family);
+       const zipPath = path.join(GENERATED_PACKAGES_DIR, `${cached}.zip`);
+       if (fs.existsSync(zipPath)) {
+         return res.status(200).json({
+           ok: true,
+           task_id: cached,
+           family,
+           cached: true,
+           zip_path: zipPath,
+           download_url: `/api/download/${cached}`
+         });
+       }
+       // Stale entry — rebuild
+       builtPackages.delete(family);
+     }
 
-    // Zip it
-    const zipPath = path.join(GENERATED_PACKAGES_DIR, `${task_id}.zip`);
-    const zip = new AdmZip();
-    zip.addLocalFolder(taskDir);
-    zip.writeZip(zipPath);
+     const taskDir = path.join(GENERATED_PACKAGES_DIR, task_id);
+     if (fs.existsSync(taskDir)) {
+       fs.rmSync(taskDir, { recursive: true, force: true });
+     }
+     ensureDir(taskDir);
 
-    // Clean up the working directory
-    fs.rmSync(taskDir, { recursive: true, force: true });
+     switch (family) {
+       case "typescript":
+         generateTypeScriptPackage(taskDir);
+         break;
+       default:
+         res.status(400).json({ ok: false, error: `Unsupported family: ${family}` });
+         return;
+     }
 
-    res.status(201).json({
-      ok: true,
-      task_id,
-      family,
-      zip_path: zipPath,
-      download_url: `/api/download/${task_id}`
-    });
-  } catch (err) {
-    console.error("[builder] build-task-zip error:", err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
+     // Zip it
+     const zipPath = path.join(GENERATED_PACKAGES_DIR, `${task_id}.zip`);
+     const zip = new AdmZip();
+     zip.addLocalFolder(taskDir);
+     zip.writeZip(zipPath);
+
+     // Cache for family so repeated builds return the same zip
+     builtPackages.set(family, task_id);
+
+     // Clean up the working directory
+     fs.rmSync(taskDir, { recursive: true, force: true });
+
+     res.status(201).json({
+       ok: true,
+       task_id,
+       family,
+       cached: false,
+       zip_path: zipPath,
+       download_url: `/api/download/${task_id}`
+     });
+   } catch (err) {
+     console.error("[builder] build-task-zip error:", err);
+     res.status(500).json({ ok: false, error: err.message });
+   }
+ });
 
 // ── Start server ───────────────────────────────────────────────────────
 ensureDir(WORKSPACES_DIR);

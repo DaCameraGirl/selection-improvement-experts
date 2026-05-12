@@ -8172,59 +8172,77 @@ function stopRunnerPolling() {
 let lastBuiltZipId = null;
 
 async function handleBuildTaskZip() {
-  const btn = document.querySelector("#runner-build-zip");
-  const statusEl = document.querySelector("#runner-builder-status");
-  const downloadLink = document.querySelector("#runner-download-zip");
-  if (btn) btn.disabled = true;
-  if (statusEl) statusEl.innerHTML = "Building task package...";
-  if (downloadLink) downloadLink.classList.add("is-hidden");
+   const btn = document.querySelector("#runner-build-zip");
+   const statusEl = document.querySelector("#runner-builder-status");
+   const downloadLink = document.querySelector("#runner-download-zip");
+   if (btn) btn.disabled = true;
+   if (statusEl) statusEl.innerHTML = "Building task package...";
+   if (downloadLink) downloadLink.classList.add("is-hidden");
 
-  try {
-    // Determine the task family from the prompt maker's domain
-    const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "typescript";
-    const family = domain === "react" ? "react"
-      : domain === "git-workflows" ? "git"
-      : "typescript";
+   try {
+     // Determine the task family from the prompt maker's domain
+     // First check if a locked recipe is selected (it overrides the domain dropdown)
+     const recipeSelectEl = document.querySelector("#task-recipe");
+     let domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+     if (recipeSelectEl && recipeSelectEl.value && typeof TASK_RECIPES !== "undefined") {
+       const recipe = TASK_RECIPES[recipeSelectEl.value];
+       if (recipe && recipe.domain) {
+         domain = recipe.domain;
+         // Keep the domain dropdown in sync
+         if (els.taskDomainSelect) els.taskDomainSelect.value = recipe.domain;
+       }
+     }
 
-    const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ family })
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
+     const family = domain === "react" ? "react"
+       : domain === "git-workflows" ? "git"
+       : domain || "typescript";
 
-    lastBuiltZipId = data.task_id;
+     console.log("BUILD REQUEST domain:", domain, "family:", family, "recipe:", recipeSelectEl ? recipeSelectEl.value : "none");
 
-    // Auto-download the zip and upload to runner
-    let uploaded = false;
-    try {
-      const dlResp = await fetch(`${RUNNER_API_BASE}/api/download/${data.task_id}`);
-      if (dlResp.ok) {
-        const blob = await dlResp.blob();
-        const file = new File([blob], `${data.family}-task-${data.task_id.slice(0, 8)}.zip`, { type: "application/zip" });
-        // Create a DataTransfer to set file on the hidden input
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        const input = document.querySelector("#runner-zip-input");
-        if (input) {
-          input.files = dt.files;
-          handleRunnerZipChange({ target: input });
-          uploaded = true;
-        }
-      }
-    } catch {}
+     const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ family })
+     });
+     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+     const data = await resp.json();
 
-    if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Package built: <strong>${data.family}</strong> (${data.task_id})${uploaded ? " — auto-uploaded to Runner" : ""}`;
-    if (downloadLink) {
-      downloadLink.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
-      downloadLink.classList.remove("is-hidden");
-    }
-  } catch (err) {
-    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Build failed: ${escapeHtml(err.message)}`;
-  } finally {
-    if (btn) btn.disabled = false;
-  }
+     lastBuiltZipId = data.task_id;
+
+     // Auto-download the zip and upload to runner
+     let uploaded = false;
+     try {
+       const dlResp = await fetch(`${RUNNER_API_BASE}/api/download/${data.task_id}`);
+       if (dlResp.ok) {
+         const blob = await dlResp.blob();
+         const file = new File([blob], `${data.family}-task-${data.task_id.slice(0, 8)}.zip`, { type: "application/zip" });
+         // Create a DataTransfer to set file on the hidden input
+         const dt = new DataTransfer();
+         dt.items.add(file);
+         const input = document.querySelector("#runner-zip-input");
+         if (input) {
+           input.files = dt.files;
+           handleRunnerZipChange({ target: input });
+           uploaded = true;
+         }
+       }
+     } catch {}
+
+     if (data.cached) {
+       if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Package ready (cached)`;
+     } else {
+       if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Package built: <strong>${data.family}</strong> (${data.task_id})${uploaded ? " — auto-uploaded to Runner" : ""}`;
+     }
+     if (downloadLink) {
+       downloadLink.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
+       downloadLink.classList.remove("is-hidden");
+     }
+   } catch (err) {
+     if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Build failed: ${escapeHtml(err.message)}`;
+   } finally {
+     if (btn) btn.disabled = false;
+   }
+ }
 }
 
 // ── LOCAL RUNNER (Phase 2: upload + detection) ──────────────────────
@@ -8483,44 +8501,81 @@ function updateRunnerStatusField(id, value, className) {
 }
 
 async function startRun(runSetup, runSolve, runVerify) {
-  if (!runnerPackageInfo || !runnerPackageInfo.package_id) return;
+   if (!runnerPackageInfo || !runnerPackageInfo.package_id) return;
 
-  const statusEl = document.querySelector("#runner-status");
-  if (statusEl) statusEl.innerHTML = '<p class="runner-muted">Starting run...</p>';
+   const statusEl = document.querySelector("#runner-status");
 
-  try {
-    const resp = await fetch(`${RUNNER_API_BASE}/api/runs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        package_id: runnerPackageInfo.package_id,
-        run_setup: runSetup,
-        run_solve: runSolve,
-        run_verify: runVerify
-      })
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    runnerCurrentRunId = data.run_id;
-    updateRunnerStatusField("runner-status-value", data.status);
-    // Poll for completion
-    pollRunStatus();
-  } catch (err) {
-    if (statusEl) statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Run error: ${escapeHtml(err.message)}</p>`;
-  }
+   try {
+     const resp = await fetch(`${RUNNER_API_BASE}/api/runs`, {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         package_id: runnerPackageInfo.package_id,
+         run_setup: runSetup,
+         run_solve: runSolve,
+         run_verify: runVerify
+       })
+     });
+
+     // Clear any prior stale message
+     const oldMsg = statusEl ? statusEl.querySelector(".runner-start-msg") : null;
+     if (oldMsg) oldMsg.remove();
+
+     if (!resp.ok) {
+       const err = new Error(`HTTP ${resp.status}`);
+       // Preserve grid — just show error in status value
+       updateRunnerStatusField("runner-status-value", `ERROR ${resp.status}`, "runner-cross");
+       const p = document.createElement("p");
+       p.className = "runner-start-msg runner-muted";
+       p.innerHTML = `<span class="runner-cross">✗</span> Run error: ${escapeHtml(err.message)}`;
+       if (statusEl) statusEl.prepend(p);
+       throw err;
+     }
+
+     const data = await resp.json();
+     runnerCurrentRunId = data.run_id;
+
+     updateRunnerStatusField("runner-status-value", data.status);
+
+     // Show transient "Starting run..." without destroying the grid
+     const p = document.createElement("p");
+     p.className = "runner-start-msg runner-muted";
+     p.textContent = "Starting run...";
+     if (statusEl) statusEl.prepend(p);
+
+     // Poll for completion
+     pollRunStatus();
+   } catch (err) {
+     updateRunnerStatusField("runner-status-value", "ERROR", "runner-cross");
+     const p = document.createElement("p");
+     p.className = "runner-start-msg runner-muted";
+     p.innerHTML = `<span class="runner-cross">✗</span> Run error: ${escapeHtml(err.message)}`;
+     if (statusEl) {
+       const oldMsg = statusEl.querySelector(".runner-start-msg");
+       if (oldMsg) oldMsg.remove();
+       statusEl.prepend(p);
 }
+   }
+ }
 
 async function pollRunStatus() {
-  if (!runnerCurrentRunId) return;
-  if (runnerPollRunInterval) clearInterval(runnerPollRunInterval);
+   if (!runnerCurrentRunId) return;
+   if (runnerPollRunInterval) clearInterval(runnerPollRunInterval);
 
-  const poll = async () => {
-    try {
-      const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}`);
-      if (!resp.ok) return;
-      const data = await resp.json();
+   // Clean up any stale "Starting run..." message
+   const statusEl = document.querySelector("#runner-status");
+   if (statusEl) {
+     const oldMsg = statusEl.querySelector(".runner-start-msg");
+     if (oldMsg) oldMsg.remove();
+   }
 
-      updateRunnerStatusField("runner-status-value", data.status);
+   const poll = async () => {
+     try {
+       const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}`);
+       if (!resp.ok) return;
+       const data = await resp.json();
+
+       updateRunnerStatusField("runner-status-value", data.status);
       updateRunnerStatusField("runner-task-family", data.task_family ? data.task_family.charAt(0).toUpperCase() + data.task_family.slice(1) : "—");
       updateRunnerStatusField("runner-solve-status", data.solve_ran ? data.solve_ran : "—");
       updateRunnerStatusField("runner-verify-status", data.verify_ran ? data.verify_ran : "—");
