@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-12 final-answer";
+const APP_VERSION = "2026-05-12 local-runner";
 
 const state = {
   guides: [],
@@ -7616,6 +7616,94 @@ function stopRunnerPolling() {
   }
 }
 
+// ── LOCAL RUNNER (Phase 2: upload + detection) ──────────────────────
+let runnerPackageInfo = null;
+
+async function uploadTaskPackage(file) {
+  const formData = new FormData();
+  formData.append("package", file);
+
+  const statusEl = document.querySelector("#runner-package");
+  if (!statusEl) return;
+
+  statusEl.innerHTML = `<p class="runner-muted">Uploading and extracting <strong>${escapeHtml(file.name)}</strong>...</p>`;
+
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/packages`, {
+      method: "POST",
+      body: formData
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Upload failed: ${escapeHtml(err.error || "unknown error")}</p>`;
+      return;
+    }
+
+    runnerPackageInfo = await resp.json();
+    renderPackageInfo();
+
+    // Enable execution buttons on successful detection
+    if (runnerPackageInfo.required_inputs_found) {
+      document.querySelector("#runner-run-setup").disabled = false;
+      // Store current run_id for future pipeline steps
+    }
+  } catch (err) {
+    statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Upload error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderPackageInfo() {
+  const el = document.querySelector("#runner-package");
+  if (!el || !runnerPackageInfo) return;
+
+  const info = runnerPackageInfo;
+  const familyLabel = info.detected_family || info.closest_family || "unknown";
+  const detected = info.required_inputs_found;
+
+  // Update family
+  const familyEl = document.querySelector("#runner-task-family");
+  if (familyEl) familyEl.textContent = familyLabel.charAt(0).toUpperCase() + familyLabel.slice(1);
+
+  // Update status value
+  const statusEl = document.querySelector("#runner-status-value");
+  if (statusEl) statusEl.textContent = detected ? "PACKAGE_UPLOADED" : "MISSING_FILES";
+
+  // Render package info box
+  let html = `<p class="runner-muted">Package: <strong>${escapeHtml(info.package_id)}</strong></p>`;
+
+  if (detected) {
+    html += `<p><span class="runner-check">✓</span> Task family: <strong>${familyLabel}</strong></p>`;
+    html += `<p><span class="runner-check">✓</span> ${info.extracted_count} files extracted</p>`;
+    html += `<div class="runner-package-info">`;
+    for (const f of info.found_files || []) {
+      html += `<div><span class="runner-check">✓</span></div><div>${escapeHtml(f)}</div>`;
+    }
+    html += `</div>`;
+  } else {
+    html += `<p><span class="runner-cross">✗</span> Closest family: <strong>${familyLabel}</strong></p>`;
+    html += `<p><span class="runner-cross">✗</span> Missing required inputs:</p>`;
+    html += `<div class="runner-package-info">`;
+    for (const f of info.missing_inputs || []) {
+      html += `<div><span class="runner-cross">✗</span></div><div>${escapeHtml(f)}</div>`;
+    }
+    html += `</div>`;
+    // Disable execution buttons
+    document.querySelector("#runner-run-setup").disabled = true;
+  }
+  el.innerHTML = html;
+}
+
+// ── Upload button handler ────────────────────────────────────────────
+function handleRunnerUploadClick() {
+  const input = document.querySelector("#runner-zip-input");
+  if (input) input.click();
+}
+
+function handleRunnerZipChange(event) {
+  const file = event.target.files && event.target.files[0];
+  if (file) uploadTaskPackage(file);
+}
+
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -7680,6 +7768,26 @@ if (runnerLogsCloseBtn) runnerLogsCloseBtn.addEventListener("click", () => {
   const panel = document.querySelector("#runner-logs-panel");
   if (panel) panel.classList.add("is-hidden");
 });
+
+// Runner upload buttons
+const runnerUploadBtn = document.querySelector("#runner-upload-zip");
+if (runnerUploadBtn) runnerUploadBtn.addEventListener("click", handleRunnerUploadClick);
+const runnerZipInput = document.querySelector("#runner-zip-input");
+if (runnerZipInput) runnerZipInput.addEventListener("change", handleRunnerZipChange);
+
+// Runner execution buttons (Phase 2: enable state only; Phase 3: wire handlers)
+const runnerSetupBtn = document.querySelector("#runner-run-setup");
+if (runnerSetupBtn) runnerSetupBtn.addEventListener("click", () => { /* Phase 3 */ });
+const runnerSolveBtn = document.querySelector("#runner-run-solve");
+if (runnerSolveBtn) runnerSolveBtn.addEventListener("click", () => { /* Phase 3 */ });
+const runnerVerifyBtn = document.querySelector("#runner-run-verify");
+if (runnerVerifyBtn) runnerVerifyBtn.addEventListener("click", () => { /* Phase 3 */ });
+const runnerComputeFaBtn = document.querySelector("#runner-compute-fa");
+if (runnerComputeFaBtn) runnerComputeFaBtn.addEventListener("click", () => { /* Phase 3 */ });
+const runnerOpenLogsBtn = document.querySelector("#runner-open-logs");
+if (runnerOpenLogsBtn) runnerOpenLogsBtn.addEventListener("click", () => { /* Phase 3 */ });
+const runnerImportOutputsBtn = document.querySelector("#runner-import-outputs");
+if (runnerImportOutputsBtn) runnerImportOutputsBtn.addEventListener("click", () => { /* Phase 3 */ });
 
 startRunnerPolling();
 
