@@ -357,7 +357,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-11 final-polish";
+const APP_VERSION = "2026-05-12 final-answer";
 
 const state = {
   guides: [],
@@ -764,6 +764,9 @@ function buildTaskPackage() {
     "",
     "── FIELD: Golden solution steps ────────────────────",
     packageText(fields.solution, "Show where the task is actually solved: authoritative computation, commands, code/scripts, expected outputs, schemas, and failure decisions."),
+    "",
+    "── FIELD: Final answer / Expected solution outputs ──",
+    packageText(buildExpectedFinalAnswer(packageDomainKey), "No expected outputs defined for this domain."),
     "",
     "── FIELD: Verifier description ─────────────────────",
     packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
@@ -6188,6 +6191,49 @@ function getTaskFields() {
     verifiers: els.taskVerifiers.value.trim(),
     agentCheck: els.taskAgentCheck.value.trim()
   };
+}
+
+function buildExpectedFinalAnswer(domainKey) {
+  const details = DOMAIN_DETAILS[domainKey];
+  if (!details || !Array.isArray(details.expectedOutputs)) return "";
+
+  const lines = details.expectedOutputs;
+  const outputPaths = lines.filter(l => l.startsWith("- outputs/"));
+
+  // Split into output paths header + example data sections
+  const pathsSection = outputPaths.length
+    ? ["Output files produced by a correct solution:", ...outputPaths]
+    : [];
+
+  // Extract example content (everything after "Example <name>:" labels)
+  const examples = [];
+  let block = null;
+  for (const line of lines) {
+    const m = line.match(/^Example (.+?)(:| object for| row for)/);
+    if (m) {
+      if (block) examples.push(block.join("\n"));
+      block = [`=== ${m[1].trim()} ===`];
+    } else if (block) {
+      block.push(line);
+    }
+    // reset on empty delim after a block
+    if (line === "" && block && block.length > 1) {
+      examples.push(block.join("\n"));
+      block = null;
+    }
+  }
+  if (block && block.length > 1) examples.push(block.join("\n"));
+
+  const placeholderNote = domainKey === "git-workflows"
+    ? ["", "NOTE: SHAs, checksums, and refs shown below depend on fixture files. Replace placeholder values (abc1234...) with actual computed values after running solve.py.", ""]
+    : [];
+
+  return [
+    ...pathsSection,
+    ...placeholderNote,
+    ...(examples.length ? ["", "Expected content of each output file (what a correct solution writes):", ""] : []),
+    ...examples,
+  ].join("\n");
 }
 
 function packageText(value, fallback) {
