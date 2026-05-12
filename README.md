@@ -29,6 +29,30 @@ Then open the text file, paste the extracted guideline text into the Library, an
 
 If the script says no selectable text was found, the PDF is probably scanned images and needs OCR.
 
+## Local Runner Backend
+
+The `backend/` directory contains an Express.js server that executes task packages locally:
+
+```powershell
+cd backend
+npm install
+npm start
+```
+
+The runner listens on `http://127.0.0.1:8787`. Upload a task ZIP, and the runner detects the task family (React / TypeScript / Git-workflows), runs `solve.py` and `verify.py`, collects computed outputs, and populates the Final Answer field.
+
+## Vercel Deployment
+
+The app includes `vercel.json` for static deployment on Vercel. To deploy:
+
+1. Push the repo to GitHub (private repo recommended)
+2. Import the repo in Vercel dashboard
+3. Vercel auto-detects the static SPA — no build command needed
+4. The runner backend is NOT deployed (local-only). The prompt builder and all quality gates work fully as a static site.
+
+To make the GitHub repo private:
+- Go to repo Settings → Danger Zone → Change visibility → Make private
+
 ## Repo notes
 
 This app is intentionally dependency-free: no build step, no server, and no package install. The browser stores your guideline library locally.

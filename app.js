@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-12 local-runner";
+const APP_VERSION = "2026-05-12 final-answer";
 
 const state = {
   guides: [],
@@ -364,22 +364,12 @@ const DOMAIN_CATEGORY = {
   "git-workflows":            "Software Engineering, Version Control",
 };
 
-function buildTaskPackage() {
-  const fields = getTaskFields();
-  renderTaskChecks(fields);
-
-  if (taskContentValues(fields).every((value) => !value)) {
-    els.generatedTaskPackage.value = "Use Generate Draft or enter your own task details, then click Build Package.";
-    renderPackagePreview("");
-    return;
-  }
-
-  // React and Git are senior/master's tasks — cap PhD label display
+function buildTaskPackageLines(fields) {
   const packagePhdCapped = new Set(["react", "git-workflows"]);
   const packageDomainKey = els.taskDomainSelect.value;
   const packageEffectiveExpertise = packagePhdCapped.has(packageDomainKey) && fields.expertise === "phd" ? "masters" : fields.expertise;
 
-  els.generatedTaskPackage.value = [
+  return [
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     " OUTLIER TBench — SUBMISSION FIELDS",
     `  Generated ${APP_VERSION}  ·  Expertise: ${expertiseLabel(packageEffectiveExpertise)}`,
@@ -448,7 +438,20 @@ function buildTaskPackage() {
     "INTERNAL CHECKLIST - Do Not Submit Unless Needed",
     "----------------------------------------------",
     getTaskChecks(fields).map((check) => `${check.pass ? "PASS" : "NEEDS WORK"} - ${check.title}: ${check.message}`).join("\n")
-  ].join("\n");
+  ];
+}
+
+function buildTaskPackage() {
+  const fields = getTaskFields();
+  renderTaskChecks(fields);
+
+  if (taskContentValues(fields).every((value) => !value)) {
+    els.generatedTaskPackage.value = "Use Generate Draft or enter your own task details, then click Build Package.";
+    renderPackagePreview("");
+    return;
+  }
+
+  els.generatedTaskPackage.value = buildTaskPackageLines(fields).join("\n");
   renderPackagePreview(els.generatedTaskPackage.value);
   renderRiskChecks();
   renderReadinessDashboard();
@@ -5832,6 +5835,7 @@ function capitalize(text) {
 function getTaskFields() {
   return {
     domain: els.taskDomain.value.trim(),
+    domainKey: els.taskDomainSelect ? els.taskDomainSelect.value : "",
     expertise: els.taskExpertise.value,
     category: els.taskCategory ? els.taskCategory.value.trim() : "",
     title: els.taskTitle ? els.taskTitle.value.trim() : "",
@@ -5847,11 +5851,107 @@ function getTaskFields() {
   };
 }
 
+// ── TEMPLATE SCENT AUTO-FIX FUNCTIONS ────────────────────────────────
+const SCENARIO_OPENER_PATTERNS = [
+  /^A\s+(production\s+)?migration\s+of\s+/i,
+  /^A\s+(regression\s+)?triage\s+(of|for)\s+/i,
+  /^A\s+(compliance\s+)?audit\s+(of|for)\s+/i,
+  /^An\s+(edge-case\s+)?benchmark\s+(of|for)\s+/i,
+  /^A\s+post-migration\s+validation\s+(of|for)\s+/i,
+  /^Using\s+the\s+provided\s+/i,
+  /^The\s+provided\s+/i,
+];
+
+const BOILERPLATE_PHRASES = [
+  "domain constraints",
+  "implementation judgment",
+  "verifier-aware edge-case",
+  "domain reasoning, implementation",
+  "edge-case handling beyond a happy-path solution",
+  "applied experience in",
+  "Replace with real data",
+  "Fill in the details",
+  "TBD based on",
+  "Example:",
+];
+
+function destripScenarioOpeners(text) {
+  let result = text;
+  for (const pattern of SCENARIO_OPENER_PATTERNS) {
+    if (pattern.test(result)) {
+      result = result.replace(pattern, "");
+      result = result.charAt(0).toUpperCase() + result.slice(1);
+    }
+  }
+  return result;
+}
+
+function destripBoilerplate(text) {
+  let result = text;
+  for (const phrase of BOILERPLATE_PHRASES) {
+    const re = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    result = result.replace(re, "");
+  }
+  result = result.replace(/\n{3,}/g, "\n\n").trim();
+  return result;
+}
+
+function addDataProvenance(resources, domainKey) {
+  if (/synthetic|real data|open.?source|based on|perturbed|modified/i.test(resources)) return resources;
+  const provenance = {
+    "git-workflows": "The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
+    "typescript": "The TypeScript project files and type-test fixtures are synthetically constructed to reproduce the known conditional-type inference bug; no proprietary code is included.",
+    "react": "The React component and test files are synthetically constructed to reproduce the stale closure bug; no proprietary code is included.",
+  };
+  const note = provenance[domainKey];
+  if (!note) return resources;
+  if (!resources.includes(note)) {
+    return resources + (resources ? "\n\n" : "") + note;
+  }
+  return resources;
+}
+
+function autoFixPrompt(text) {
+  let result = text;
+  result = destripScenarioOpeners(result);
+  result = destripBoilerplate(result);
+  return result;
+}
+
+function autoFixAll() {
+  const fields = getTaskFields();
+  const domainKey = els.taskDomainSelect?.value || "";
+
+  // Fix prompt, snippet, difficulty
+  const promptFixed = autoFixPrompt(fields.prompt);
+  const snippetFixed = fields.snippet ? destripScenarioOpeners(destripBoilerplate(fields.snippet)) : "";
+  const difficultyFixed = fields.difficulty ? destripBoilerplate(fields.difficulty) : "";
+  const resourcesFixed = addDataProvenance(fields.resources, domainKey);
+
+  // Update DOM fields with fixed values
+  if (els.taskPrompt) els.taskPrompt.value = promptFixed;
+  if (els.taskSnippet) els.taskSnippet.value = snippetFixed;
+  if (els.taskDifficulty) els.taskDifficulty.value = difficultyFixed;
+  if (els.taskResources) els.taskResources.value = resourcesFixed;
+}
+
+function handleAutoFix() {
+  autoFixAll();
+  if (els.generatedTaskPackage) els.generatedTaskPackage.value = "";
+  renderRiskChecks();
+}
+
 function buildExpectedFinalAnswer(domainKey) {
   const details = DOMAIN_DETAILS[domainKey];
   if (!details || !Array.isArray(details.expectedOutputs)) return "";
 
   const isComputed = window.__taskExecution?.no_placeholders_in_final_answer;
+  const hasRunnerOutputs = runnerComputedOutputs?.files && Object.keys(runnerComputedOutputs.files).length > 0;
+
+  if (isComputed && hasRunnerOutputs) {
+    return buildComputedFinalAnswer(domainKey, runnerComputedOutputs);
+  }
+
   const statusLine = isComputed
     ? "FINAL ANSWER (computed from solver execution against real fixtures):"
     : "Expected output schema only — not a computed final answer. Run solve.py and verify.py against real fixtures, then replace these examples with actual computed outputs below.";
@@ -7645,7 +7745,9 @@ async function uploadTaskPackage(file) {
     // Enable execution buttons on successful detection
     if (runnerPackageInfo.required_inputs_found) {
       document.querySelector("#runner-run-setup").disabled = false;
-      // Store current run_id for future pipeline steps
+      document.querySelector("#runner-run-solve").disabled = false;
+      document.querySelector("#runner-run-verify").disabled = false;
+      document.querySelector("#runner-open-logs").disabled = false;
     }
   } catch (err) {
     statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Upload error: ${escapeHtml(err.message)}</p>`;
@@ -7704,6 +7806,245 @@ function handleRunnerZipChange(event) {
   if (file) uploadTaskPackage(file);
 }
 
+// ── LOCAL RUNNER (Phase 3: execution) ────────────────────────────────
+let runnerCurrentRunId = null;
+let runnerPollRunInterval = null;
+
+// ── Phase 4: computed outputs store ──────────────────────────────────
+let runnerComputedOutputs = null;
+
+function buildComputedFinalAnswer(domainKey, outputs) {
+  const lines = [];
+  lines.push("FINAL ANSWER (computed from solver execution against real fixtures):");
+  lines.push("");
+
+  const outputFiles = outputs?.files || {};
+  const fileKeys = Object.keys(outputFiles);
+  if (fileKeys.length) {
+    lines.push("Output files produced:");
+    for (const key of fileKeys.sort()) {
+      const info = outputFiles[key];
+      const sizeStr = info.size !== undefined ? ` (${info.size} bytes, SHA-256: ${info.sha256})` : "";
+      lines.push(`- outputs/${key}${sizeStr}`);
+    }
+    lines.push("");
+    for (const key of fileKeys.sort()) {
+      const info = outputFiles[key];
+      if (info.type === "binary") {
+        lines.push(`=== ${key} (binary) ===`);
+        lines.push(`Size: ${info.size} bytes`);
+        lines.push(`SHA-256: ${info.sha256}`);
+      } else if (info.type === "json" && info.content !== null) {
+        lines.push(`=== ${key} ===`);
+        lines.push(JSON.stringify(info.content, null, 2));
+      } else if (info.type === "text" && info.content !== null) {
+        lines.push(`=== ${key} ===`);
+        lines.push(String(info.content).trim());
+      }
+      lines.push("");
+    }
+  } else {
+    lines.push("No output files found. The solver may not have produced outputs/.");
+  }
+
+  return lines.join("\n");
+}
+
+function buildComputedTaskPackage(domainKey, fields) {
+  const faText = buildComputedFinalAnswer(domainKey, runnerComputedOutputs);
+  const parts = buildTaskPackageLines(fields);
+  const faIdx = parts.findIndex(l => l.startsWith("── FIELD: Final answer / Expected solution outputs"));
+  if (faIdx !== -1) {
+    const nextField = parts.slice(faIdx + 1).findIndex(l => l.startsWith("── FIELD:"));
+    const endIdx = nextField !== -1 ? faIdx + 1 + nextField : parts.length;
+    parts.splice(faIdx, endIdx - faIdx, "── FIELD: Final answer / Expected solution outputs ──", faText, "");
+  }
+  return parts.join("\n");
+}
+
+const PLACEHOLDER_SCAN_PATTERNS = [
+  /\babcd1234\b/, /\bdef5678\b/, /\bbcd2345\b/,
+  /\bfoo\b/, /\bbar\b/,
+  /\bTODO\b/, /\bTBD\b/, /\bplaceholder\b/i,
+  /replace after running solve\.py/i,
+];
+
+function scanForPlaceholders(outputs) {
+  const files = outputs?.files || {};
+  const allText = Object.entries(files)
+    .filter(([, info]) => info.type === "text" || info.type === "json")
+    .map(([, info]) => typeof info.content === "string" ? info.content : JSON.stringify(info.content))
+    .join("\n");
+  for (const pattern of PLACEHOLDER_SCAN_PATTERNS) {
+    if (pattern.test(allText)) {
+      return { clean: false, match: pattern.source };
+    }
+  }
+  return { clean: true };
+}
+
+async function handleComputeFinalAnswer() {
+  if (!runnerCurrentRunId) return;
+  const btn = document.querySelector("#runner-compute-fa");
+  if (btn) btn.disabled = true;
+
+  updateRunnerStatusField("runner-status-value", "COMPUTING...", "runner-running");
+  updateRunnerStatusField("runner-placeholder-status", "scanning", "runner-warn");
+
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/outputs`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    runnerComputedOutputs = data;
+
+    const outputsExist = Object.keys(data.files || {}).length > 0;
+    const hasVerifyPassed = data.status === "OUTPUTS_COLLECTED";
+    const placeholderScan = outputsExist ? scanForPlaceholders(data) : { clean: false };
+    const faReady = outputsExist && hasVerifyPassed && placeholderScan.clean;
+
+    window.__taskExecution = window.__taskExecution || {};
+    window.__taskExecution.solve_ran = true;
+    window.__taskExecution.verify_ran = hasVerifyPassed;
+    window.__taskExecution.verify_passed = hasVerifyPassed;
+    window.__taskExecution.outputs_exist = outputsExist;
+    window.__taskExecution.no_placeholders_in_final_answer = faReady;
+
+    if (faReady) {
+      updateRunnerStatusField("runner-status-value", "COMPUTED", "runner-check");
+      updateRunnerStatusField("runner-placeholder-status", "clean", "runner-check");
+      document.querySelector("#runner-import-outputs").disabled = false;
+    } else {
+      const reason = !outputsExist ? "no outputs found"
+        : !hasVerifyPassed ? "verify not run"
+        : `placeholder detected: ${placeholderScan.match}`;
+      updateRunnerStatusField("runner-status-value", "COMPUTE_FAILED", "runner-cross");
+      updateRunnerStatusField("runner-placeholder-status", placeholderScan.clean ? "clean" : `blocked: ${placeholderScan.match}`, "runner-cross");
+      const statusEl = document.querySelector("#runner-status");
+      if (statusEl) {
+        const errMsg = document.createElement("p");
+        errMsg.className = "runner-muted";
+        errMsg.innerHTML = `<span class="runner-cross">✗</span> Final Answer blocked: ${escapeHtml(reason)}`;
+        statusEl.appendChild(errMsg);
+      }
+    }
+
+    renderRiskChecks();
+  } catch (err) {
+    updateRunnerStatusField("runner-status-value", "COMPUTE_FAILED", "runner-cross");
+    const statusEl = document.querySelector("#runner-status");
+    if (statusEl) {
+      const errMsg = document.createElement("p");
+      errMsg.className = "runner-muted";
+      errMsg.innerHTML = `<span class="runner-cross">✗</span> Compute error: ${escapeHtml(err.message)}`;
+      statusEl.appendChild(errMsg);
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleImportComputedOutputs() {
+  const fields = getTaskFields();
+  const domainKey = fields.domainKey;
+  const computedPkg = buildComputedTaskPackage(domainKey, fields);
+
+  if (els.generatedTaskPackage) els.generatedTaskPackage.value = computedPkg;
+  if (els.generatedTaskPreview) els.generatedTaskPreview.innerHTML = `<pre>${escapeHtml(computedPkg)}</pre>`;
+
+  updateRunnerStatusField("runner-copy-status", "UNLOCKED", "runner-check");
+
+  try {
+    await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "COMPUTED_PASS" })
+    });
+  } catch {}
+
+  updateRunnerStatusField("runner-status-value", "COMPUTED_PASS", "runner-check");
+  renderRiskChecks();
+}
+
+function updateRunnerStatusField(id, value, className) {
+  const el = document.querySelector(`#${id}`);
+  if (el) { el.textContent = value; if (className) el.className = `runner-value ${className}`; }
+}
+
+async function startRun(runSetup, runSolve, runVerify) {
+  if (!runnerPackageInfo || !runnerPackageInfo.package_id) return;
+
+  const statusEl = document.querySelector("#runner-status");
+  if (statusEl) statusEl.innerHTML = '<p class="runner-muted">Starting run...</p>';
+
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        package_id: runnerPackageInfo.package_id,
+        run_setup: runSetup,
+        run_solve: runSolve,
+        run_verify: runVerify
+      })
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    runnerCurrentRunId = data.run_id;
+    updateRunnerStatusField("runner-status-value", data.status);
+    // Poll for completion
+    pollRunStatus();
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Run error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function pollRunStatus() {
+  if (!runnerCurrentRunId) return;
+  if (runnerPollRunInterval) clearInterval(runnerPollRunInterval);
+
+  const poll = async () => {
+    try {
+      const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      updateRunnerStatusField("runner-status-value", data.status);
+      updateRunnerStatusField("runner-task-family", data.task_family ? data.task_family.charAt(0).toUpperCase() + data.task_family.slice(1) : "—");
+      updateRunnerStatusField("runner-solve-status", data.solve_ran ? data.solve_ran : "—");
+      updateRunnerStatusField("runner-verify-status", data.verify_ran ? data.verify_ran : "—");
+      updateRunnerStatusField("runner-outputs-status", data.outputs_exist ? "found" : "—");
+      // Dynamic copy gate — COMPUTED_PASS from backend unlocks it
+      const isCopyUnlocked = data.status === "COMPUTED_PASS";
+      updateRunnerStatusField("runner-copy-status", isCopyUnlocked ? "UNLOCKED" : "LOCKED", isCopyUnlocked ? "runner-check" : "");
+
+      // Terminal states
+      const terminalStates = ["OUTPUTS_COLLECTED", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];
+      if (terminalStates.includes(data.status)) {
+        if (runnerPollRunInterval) {
+          clearInterval(runnerPollRunInterval);
+          runnerPollRunInterval = null;
+        }
+        // Enable compute FA button when outputs collected
+        if (data.status === "OUTPUTS_COLLECTED") {
+          document.querySelector("#runner-compute-fa").disabled = false;
+        }
+        // Enable import outputs button when COMPUTED_PASS
+        if (data.status === "COMPUTED_PASS") {
+          document.querySelector("#runner-import-outputs").disabled = false;
+        }
+      }
+    } catch {
+      // Poll will retry
+    }
+  };
+
+  await poll();
+  if (!runnerPollRunInterval) {
+    runnerPollRunInterval = setInterval(poll, 2000);
+  }
+}
+
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -7758,6 +8099,9 @@ if (buildZipBtn) buildZipBtn.addEventListener("click", buildAndDownloadZip);
 const frontierSimBtn = document.querySelector("#run-frontier-sim");
 if (frontierSimBtn) frontierSimBtn.addEventListener("click", renderFrontierSimResults);
 
+const autoFixBtn = document.querySelector("#auto-fix-fields");
+if (autoFixBtn) autoFixBtn.addEventListener("click", handleAutoFix);
+
 // Runner refresh button
 const runnerRefreshBtn = document.querySelector("#runner-refresh");
 if (runnerRefreshBtn) runnerRefreshBtn.addEventListener("click", checkRunnerHealth);
@@ -7775,19 +8119,38 @@ if (runnerUploadBtn) runnerUploadBtn.addEventListener("click", handleRunnerUploa
 const runnerZipInput = document.querySelector("#runner-zip-input");
 if (runnerZipInput) runnerZipInput.addEventListener("change", handleRunnerZipChange);
 
-// Runner execution buttons (Phase 2: enable state only; Phase 3: wire handlers)
+// Runner execution buttons
 const runnerSetupBtn = document.querySelector("#runner-run-setup");
-if (runnerSetupBtn) runnerSetupBtn.addEventListener("click", () => { /* Phase 3 */ });
+if (runnerSetupBtn) runnerSetupBtn.addEventListener("click", () => startRun(true, false, false));
 const runnerSolveBtn = document.querySelector("#runner-run-solve");
-if (runnerSolveBtn) runnerSolveBtn.addEventListener("click", () => { /* Phase 3 */ });
+if (runnerSolveBtn) runnerSolveBtn.addEventListener("click", () => startRun(false, true, false));
 const runnerVerifyBtn = document.querySelector("#runner-run-verify");
-if (runnerVerifyBtn) runnerVerifyBtn.addEventListener("click", () => { /* Phase 3 */ });
+if (runnerVerifyBtn) runnerVerifyBtn.addEventListener("click", () => startRun(false, false, true));
 const runnerComputeFaBtn = document.querySelector("#runner-compute-fa");
-if (runnerComputeFaBtn) runnerComputeFaBtn.addEventListener("click", () => { /* Phase 3 */ });
+if (runnerComputeFaBtn) runnerComputeFaBtn.addEventListener("click", handleComputeFinalAnswer);
 const runnerOpenLogsBtn = document.querySelector("#runner-open-logs");
-if (runnerOpenLogsBtn) runnerOpenLogsBtn.addEventListener("click", () => { /* Phase 3 */ });
+if (runnerOpenLogsBtn) runnerOpenLogsBtn.addEventListener("click", async () => {
+  if (!runnerCurrentRunId) return;
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/logs`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const logContent = data.logs ? [
+      "=== SETUP STDOUT ===", data.logs.setup_stdout || "(empty)",
+      "=== SETUP STDERR ===", data.logs.setup_stderr || "(empty)",
+      "=== SOLVE STDOUT ===", data.logs.solve_stdout || "(empty)",
+      "=== SOLVE STDERR ===", data.logs.solve_stderr || "(empty)",
+      "=== VERIFY STDOUT ===", data.logs.verify_stdout || "(empty)",
+      "=== VERIFY STDERR ===", data.logs.verify_stderr || "(empty)",
+    ].join("\n") : "No logs available.";
+    const panel = document.querySelector("#runner-logs-panel");
+    const content = document.querySelector("#runner-logs-content");
+    if (content) content.textContent = logContent;
+    if (panel) panel.classList.remove("is-hidden");
+  } catch {}
+});
 const runnerImportOutputsBtn = document.querySelector("#runner-import-outputs");
-if (runnerImportOutputsBtn) runnerImportOutputsBtn.addEventListener("click", () => { /* Phase 3 */ });
+if (runnerImportOutputsBtn) runnerImportOutputsBtn.addEventListener("click", handleImportComputedOutputs);
 
 startRunnerPolling();
 

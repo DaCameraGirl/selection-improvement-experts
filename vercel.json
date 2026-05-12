@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "public": false,
+  "builds": [
+    { "use": "@vercel/static", "src": "index.html" },
+    { "use": "@vercel/static", "src": "styles.css" },
+    { "use": "@vercel/static", "src": "app.js" },
+    { "use": "@vercel/static", "src": "favicon.ico" }
+  ],
+  "routes": [
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/(.*)", "dest": "/$1" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  }
+}

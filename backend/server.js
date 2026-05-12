@@ -246,6 +246,342 @@ app.post("/api/packages", upload.single("package"), (req, res) => {
   }
 });
 
+// ── Domain adapter commands ────────────────────────────────────────────
+function getSolveCommand(family, workspace) {
+  switch (family) {
+    case "react":
+      return {
+        cmd: "python",
+        args: ["solve.py", "--repo", ".", "--out", "outputs"],
+        cwd: workspace
+      };
+    case "typescript":
+      return {
+        cmd: "python",
+        args: ["solve.py", "--repo", ".", "--fixtures", "type_tests", "--contracts", "contracts/public_types.md", "--out", "outputs"],
+        cwd: workspace
+      };
+    case "git":
+      return {
+        cmd: "python",
+        args: ["solve.py", "--before", "repo_before_force.bundle", "--after", "repo_after_force.bundle", "--reflog", "reflog_export.txt", "--spec", "commit_graph_spec.json", "--out", "outputs"],
+        cwd: workspace
+      };
+    default:
+      return {
+        cmd: "python",
+        args: ["solve.py", "--out", "outputs"],
+        cwd: workspace
+      };
+  }
+}
+
+// ── Subprocess execution (promise-wrapped spawn, no shell:true) ──────
+function runStep(command, args, cwd, timeoutMs) {
+  return new Promise((resolve) => {
+    const stdout = [];
+    const stderr = [];
+    let timedOut = false;
+
+    const child = spawn(command, args, {
+      cwd,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env }
+    });
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      // Give it a moment then SIGKILL
+      setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, 3000);
+    }, timeoutMs || RUN_TIMEOUT_MS);
+
+    child.stdout.on("data", (chunk) => { stdout.push(chunk.toString()); });
+    child.stderr.on("data", (chunk) => { stderr.push(chunk.toString()); });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({
+        code: code !== null ? code : (timedOut ? -1 : null),
+        signal: timedOut ? "SIGTERM" : null,
+        stdout: stdout.join(""),
+        stderr: stderr.join(""),
+        timedOut
+      });
+    });
+
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      resolve({
+        code: null,
+        signal: null,
+        stdout: stdout.join(""),
+        stderr: stderr.join("") + `\n[spawn error: ${err.message}]`,
+        timedOut: false
+      });
+    });
+  });
+}
+
+// ── Run an execution step, log results ────────────────────────────────
+async function executePipelineStep(run, stepName, command, args, cwd, timeoutMs) {
+  run.status = stepName === "setup" ? "SETUP_RUNNING"
+    : stepName === "solve" ? "SOLVE_RUNNING"
+    : "VERIFY_RUNNING";
+
+  const result = await runStep(command, args, cwd, timeoutMs);
+  run.logs[`${stepName}_stdout`] = result.stdout;
+  run.logs[`${stepName}_stderr`] = result.stderr;
+
+  if (result.timedOut) {
+    run.errors.push(`${stepName} timed out after ${(timeoutMs || RUN_TIMEOUT_MS) / 1000}s`);
+    run.status = stepName === "setup" ? "SETUP_FAILED"
+      : stepName === "solve" ? "SOLVE_FAILED"
+      : "VERIFY_FAILED";
+    return false;
+  }
+
+  if (result.code !== 0 && result.code !== null) {
+    run.errors.push(`${stepName} exited with code ${result.code}`);
+    run.status = stepName === "setup" ? "SETUP_FAILED"
+      : stepName === "solve" ? "SOLVE_FAILED"
+      : "VERIFY_FAILED";
+    return false;
+  }
+
+  return true;
+}
+
+// ── Create a run ──────────────────────────────────────────────────────
+async function createRun(packageId, options) {
+  const runId = "run_" + uid();
+  const pkg = packages.get(packageId);
+  if (!pkg) return { error: "Package not found" };
+
+  // Create run directory (copy of package workspace)
+  const runDir = path.join(WORKSPACES_DIR, runId);
+  ensureDir(runDir);
+
+  // Copy files from package workspace to run directory
+  try {
+    const entries = fs.readdirSync(pkg.workspace, { withFileTypes: true });
+    for (const entry of entries) {
+      const src = path.join(pkg.workspace, entry.name);
+      const dst = path.join(runDir, entry.name);
+      if (entry.isDirectory()) {
+        fs.cpSync(src, dst, { recursive: true });
+      } else {
+        fs.copyFileSync(src, dst);
+      }
+    }
+  } catch (copyErr) {
+    return { error: `Failed to copy workspace: ${copyErr.message}` };
+  }
+
+  const run = {
+    runId,
+    packageId,
+    workspace: runDir,
+    family: pkg.family,
+    status: "NOT_RUN",
+    logs: {
+      setup_stdout: "", setup_stderr: "",
+      solve_stdout: "", solve_stderr: "",
+      verify_stdout: "", verify_stderr: ""
+    },
+    errors: [],
+    solveRan: false,
+    verifyRan: false,
+    verifyPassed: false,
+    outputsExist: false
+  };
+
+  runs.set(runId, run);
+
+  // Execute steps asynchronously
+  run.status = "PACKAGE_UPLOADED";
+
+  // Step 1: Setup (npm ci if package.json exists)
+  if (options.run_setup !== false) {
+    const hasPackageLock = fs.existsSync(path.join(runDir, "package-lock.json")) ||
+                           fs.existsSync(path.join(runDir, "yarn.lock"));
+    if (hasPackageLock) {
+      const ok = await executePipelineStep(run, "setup", "npm", ["ci", "--no-audit", "--no-fund"], runDir, 120000);
+      if (!ok) return run;
+    } else {
+      run.logs.setup_stdout = "[runner] No package-lock.json found — skipping npm ci";
+    }
+  }
+
+  // Step 2: Solve
+  if (options.run_solve !== false) {
+    const solveCmd = getSolveCommand(pkg.family, runDir);
+    // Check solve.py exists
+    if (!fs.existsSync(path.join(runDir, "solve.py"))) {
+      run.errors.push("solve.py not found in package");
+      run.status = "SOLVE_FAILED";
+      return run;
+    }
+    const ok = await executePipelineStep(run, "solve", solveCmd.cmd, solveCmd.args, solveCmd.cwd, RUN_TIMEOUT_MS);
+    if (!ok) return run;
+    run.solveRan = true;
+
+    // Collect outputs
+    const outputsDir = path.join(runDir, "outputs");
+    if (fs.existsSync(outputsDir)) {
+      run.outputsExist = true;
+    }
+  }
+
+  // Step 3: Verify
+  if (options.run_verify !== false) {
+    if (!fs.existsSync(path.join(runDir, "verify.py"))) {
+      run.errors.push("verify.py not found in package");
+      run.status = "VERIFY_FAILED";
+      return run;
+    }
+    const ok = await executePipelineStep(run, "verify", "python", ["verify.py"], runDir, RUN_TIMEOUT_MS);
+    if (!ok) return run;
+    run.verifyRan = true;
+    run.verifyPassed = true;
+  }
+
+  run.status = run.errors.length === 0 ? "OUTPUTS_COLLECTED" : run.status;
+  return run;
+}
+
+// ── Create run endpoint ────────────────────────────────────────────────
+app.post("/api/runs", async (req, res) => {
+  try {
+    const { package_id, run_setup = true, run_solve = true, run_verify = true } = req.body || {};
+    if (!package_id || !packages.has(package_id)) {
+      res.status(404).json({ ok: false, error: "Package not found" });
+      return;
+    }
+
+    const run = await createRun(package_id, { run_setup, run_solve, run_verify });
+    if (run.error) {
+      res.status(400).json({ ok: false, error: run.error });
+      return;
+    }
+
+    res.status(201).json({
+      ok: true,
+      run_id: run.runId,
+      status: run.status
+    });
+  } catch (err) {
+    console.error("[runner] run error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Get run status ─────────────────────────────────────────────────────
+app.get("/api/runs/:runId", (req, res) => {
+  const run = runs.get(req.params.runId);
+  if (!run) {
+    res.status(404).json({ ok: false, error: "Run not found" });
+    return;
+  }
+  res.json({
+    ok: true,
+    run_id: run.runId,
+    status: run.status,
+    task_family: run.family,
+    solve_ran: run.solveRan,
+    verify_ran: run.verifyRan,
+    verify_passed: run.verifyPassed,
+    outputs_exist: run.outputsExist
+  });
+});
+
+// ── Get run logs ───────────────────────────────────────────────────────
+app.get("/api/runs/:runId/logs", (req, res) => {
+  const run = runs.get(req.params.runId);
+  if (!run) {
+    res.status(404).json({ ok: false, error: "Run not found" });
+    return;
+  }
+  res.json({
+    ok: true,
+    run_id: run.runId,
+    logs: run.logs,
+    errors: run.errors
+  });
+});
+
+// ── Get run outputs (file names, sizes, checksums, parsed contents) ──
+app.get("/api/runs/:runId/outputs", (req, res) => {
+  const run = runs.get(req.params.runId);
+  if (!run) {
+    res.status(404).json({ ok: false, error: "Run not found" });
+    return;
+  }
+
+  const outputsDir = path.join(run.workspace, "outputs");
+  if (!fs.existsSync(outputsDir)) {
+    res.status(404).json({ ok: false, error: "No outputs directory found" });
+    return;
+  }
+
+  const files = {};
+  try {
+    const entries = fs.readdirSync(outputsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const filePath = path.join(outputsDir, entry.name);
+      if (entry.isFile()) {
+        const stat = fs.statSync(filePath);
+        const buf = fs.readFileSync(filePath);
+        const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+        const isBinary = /\.(bundle|zip|png|jpg|jpeg|gif|ico|pdf|exe|dll|so|dylib)$/i.test(entry.name);
+        const info = {
+          name: entry.name,
+          size: stat.size,
+          sha256,
+        };
+        if (isBinary) {
+          info.type = "binary";
+          info.content = null;
+        } else if (/\.json$/i.test(entry.name)) {
+          try {
+            info.type = "json";
+            info.content = JSON.parse(buf.toString("utf8"));
+          } catch {
+            info.type = "text";
+            info.content = buf.toString("utf8");
+          }
+        } else {
+          info.type = "text";
+          info.content = buf.toString("utf8");
+        }
+        files[entry.name] = info;
+      }
+    }
+    res.json({ ok: true, run_id: run.runId, status: run.status, files });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Update run status (COMPUTED_PASS / DO_NOT_SUBMIT) ─────────────────
+app.patch("/api/runs/:runId/status", (req, res) => {
+  const run = runs.get(req.params.runId);
+  if (!run) {
+    res.status(404).json({ ok: false, error: "Run not found" });
+    return;
+  }
+
+  const { status } = req.body || {};
+  if (!status || !["COMPUTED_PASS", "DO_NOT_SUBMIT"].includes(status)) {
+    res.status(400).json({ ok: false, error: "Invalid status. Must be COMPUTED_PASS or DO_NOT_SUBMIT." });
+    return;
+  }
+
+  run.status = status;
+  res.json({ ok: true, run_id: run.runId, status: run.status });
+});
+
 // ── Start server ───────────────────────────────────────────────────────
 ensureDir(WORKSPACES_DIR);
 
