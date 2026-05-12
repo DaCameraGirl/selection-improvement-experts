@@ -357,7 +357,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-11 all-domain-fixes-complete";
+const APP_VERSION = "2026-05-11 scorer-polish";
 
 const state = {
   guides: [],
@@ -4406,7 +4406,7 @@ if __name__ == "__main__":
   "react": {
     domainLabel: "React 18 stale-closure debugging task — fix async cleanup and state management in a data-fetching component",
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of React 18's useEffect cleanup semantics, stale closure capture in async callbacks, and proper act() boundary management in tests. A weak solution can look plausible while still failing due to ${profile.failure}, or by writing tests that pass due to improper act() boundaries masking the race condition. The task is performed by a front-end engineer specializing in React 18 concurrent patterns, async lifecycle management, and Jest test architecture.`;
+      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of React 18's useEffect cleanup semantics, stale closure capture in async callbacks, and proper act() boundary management in tests. A weak solution can look plausible while still failing due to ${profile.failure}. The task is performed by a front-end engineer specializing in React 18 concurrent patterns, async lifecycle management, and Jest test architecture.`;
     },
     verifierIntro: "A deterministic verifier must confirm all 5 test cases pass, no unmounted state-update warnings in stderr, render counts stay within limits, and the exported component API remains unchanged.",
     readmeLine: "Describe each component file, test fixture, config, and expected output path.",
@@ -6087,7 +6087,13 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
     ...domainVerifierChecks.map((item) => `- ${item}`),
     ...typeAwareChecks,
     ...cleanCheckoutNote,
-    "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs.",
+    (domainKey === "react"
+      ? "- Assert exact output schema, required files, expected render counts, no unmounted state-update warnings, and reproducibility across repeated runs."
+      : domainKey === "typescript"
+        ? "- Assert exact output schema, required files, per-fixture pass/fail results, no public API signature drift, and reproducibility across repeated runs."
+        : domainKey === "git-workflows"
+          ? "- Assert exact output schema, required files, object connectivity, parent-chain integrity, checksum consistency, and reproducibility across repeated runs."
+          : "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs."),
     details && details.solutionCode
       ? (domainKey === "git-workflows"
         ? "- Fail on missing files, unclonable repaired bundle, missing or corrupt Git objects, unreachable recovered commits, wrong branch HEAD SHA, parent-chain mismatch, checksum mismatch, invalid JSON schema, missing Git or Python version metadata, or non-deterministic reported refs or checksums."
@@ -6308,7 +6314,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Open usable data",
-      pass: !hasAny(resources, ["private dataset", "paywalled", "login required", "credentials required", "all source content is original and free from licensing restrictions", "restricted license", "not publicly available"]),
+      pass: hasAny(resources, ["synthetically constructed", "all source content is original", "free from licensing restrictions"]) || !hasAny(resources, ["private dataset", "paywalled", "login required", "credentials required", "restricted license", "not publicly available"]),
       message: "Data and resources should be available without usage restrictions, credentials, or hidden access."
     },
     {
