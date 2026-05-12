@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-11 scorer-polish";
+const APP_VERSION = "2026-05-11 cross-field-fix";
 
 const state = {
   guides: [],
@@ -3896,6 +3896,8 @@ if __name__ == "__main__":
     resources: [
       "src/utils/awaited_util.ts — the broken type utility containing the Awaited<T> conditional type definition.",
       "tsconfig.json — strict:true, noEmit:true, target:ES2022, moduleResolution:bundler.",
+      "tsconfig.strict.json — positive-fixture config (strict, noEmit).",
+      "tsconfig.negative.json — isolated config for the invalid-fixture check.",
       "type_tests/normal_union.ts — expects zero TS errors after patch.",
       "type_tests/nested_promise.ts — expects zero TS errors after patch.",
       "type_tests/never_branch.ts — the core failing fixture; must compile cleanly after patch.",
@@ -6580,7 +6582,7 @@ function escapeHtmlInline(s) { return String(s).replace(/&/g,"&amp;").replace(/<
 
 function extractOutputPaths(text) {
   // Strip trailing sentence punctuation so "outputs/foo.json." doesn't mismatch "outputs/foo.json"
-  const matches = text.match(/outputs\/[\w.\-]+/g) || [];
+  const matches = text.match(/outputs\/[\w.\-\/]+/g) || [];
   return new Set(matches.map(p => p.replace(/[.,;:!?)\]]+$/, "")));
 }
 
