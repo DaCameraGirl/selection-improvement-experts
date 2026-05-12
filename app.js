@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-11 zip-builder";
+const APP_VERSION = "2026-05-11 all-domain-fixes-complete";
 
 const state = {
   guides: [],
@@ -374,10 +374,15 @@ function buildTaskPackage() {
     return;
   }
 
+  // React and Git are senior/master's tasks — cap PhD label display
+  const packagePhdCapped = new Set(["react", "git-workflows"]);
+  const packageDomainKey = els.taskDomainSelect.value;
+  const packageEffectiveExpertise = packagePhdCapped.has(packageDomainKey) && fields.expertise === "phd" ? "masters" : fields.expertise;
+
   els.generatedTaskPackage.value = [
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     " OUTLIER TBench — SUBMISSION FIELDS",
-    `  Generated ${APP_VERSION}  ·  Expertise: ${expertiseLabel(fields.expertise)}`,
+    `  Generated ${APP_VERSION}  ·  Expertise: ${expertiseLabel(packageEffectiveExpertise)}`,
     " Paste each section into the matching field in the Outlier form.",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "",
@@ -552,7 +557,7 @@ const DOMAIN_DRAFTS = {
     threshold: "The four positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) must compile with zero diagnostics under tsconfig.strict.json; invalid_non_thenable.ts must produce exactly one TS2345 diagnostic under tsconfig.negative.json; zero exported type signatures in contracts/public_types.md may change."
   },
   "react": {
-    brief: "Fix a React 18 useEffect stale-closure bug where a data-fetching component updates state after unmount, causing a race condition that produces an incorrect final render value determinable from test output",
+    brief: "Validate that a React 18 data-fetching component produces correct final render values across mount, unmount, remount, and rapid-update scenarios",
     domain: "React 18 hooks, stale closures, concurrent rendering, cleanup functions, and deterministic component testing with @testing-library/react",
     artifact: "a patched component file, a jest test-results JSON, and a render-count report JSON",
     method: "stale closure analysis, useEffect dependency array audit, AbortController cleanup wiring, act() boundary verification, and render-count instrumentation via jest.fn() spy",
@@ -562,14 +567,14 @@ const DOMAIN_DRAFTS = {
     threshold: "All 5 jest test cases must pass; final rendered value in the rapid-update fixture must equal the last dispatched value (not a stale earlier one); render count must not exceed the declared maximum in expected_render_counts.json; zero 'Warning: Can't perform a React state update on an unmounted component' in jest stderr."
   },
   "git-workflows": {
-    brief: "Recover three commits lost after an accidental git push --force, reconstruct the correct branch topology using the reflog, and validate the repaired history against a commit graph specification",
+    brief: "Recover 3 commits lost after an accidental git push --force, reconstruct the correct branch topology using the reflog, and validate the repaired history against a commit graph specification",
     domain: "Git internals using the object model, reflog, bundle files, ref restoration, reachability analysis, and deterministic commit graph validation",
     artifact: "a repaired git bundle, a repair log JSON, and a commit graph verification report JSON",
     method: "git reflog parsing, git fsck --connectivity-only object integrity checks, ref restoration to make original commit objects reachable, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
-    data: "git bundles containing the object store before and after the force-push, a reflog export showing the three orphaned commit SHAs, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
+    data: "git bundles containing the object store before and after the force-push, a reflog export showing the 3 orphaned commit SHAs, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
     failure: "cherry-picking changes into new commits instead of restoring original refs (producing different SHAs than expected), recovering commits in the wrong order breaking the parent chain, leaving recovered commits unreachable from the required branch ref, and failing to verify file contents at each recovered commit match the expected checksums",
-    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing three orphaned SHAs), commit_graph_spec.json (expected parent SHAs, branch ref targets, and commit messages), verifier_inputs/expected_file_checksums.json (file contents at each recovered commit), environment/git_version.txt (git 2.43.0)",
-    threshold: "git fsck --connectivity-only on the repaired repository must report zero missing or corrupt objects; all three recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
+    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing 3 orphaned SHAs), commit_graph_spec.json (expected parent SHAs, branch ref targets, and commit messages), verifier_inputs/expected_file_checksums.json (file contents at each recovered commit), environment/git_version.txt (git 2.43.0)",
+    threshold: "git fsck --connectivity-only on the repaired repository must report 0 missing or corrupt objects; all 3 recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
   },
   "software-engineering": {
     brief: "Triage a real repository regression where a fix may have broken an existing public API contract",
@@ -3849,6 +3854,11 @@ if __name__ == "__main__":
     run(args.spec, args.config, args.expected, args.out)`
   },
   "typescript": {
+    domainLabel: "TypeScript type-system debugging task — fix a distributive conditional type's never-branch handling",
+    difficultyDraft(effectiveExpertiseLabel, profile) {
+      return `This is ${effectiveExpertiseLabel} difficulty because it requires precise understanding of TypeScript's distributive conditional type evaluation, never-branch collapsing behavior, and strict-mode diagnostic interpretation. A weak solution can look plausible while still failing due to ${profile.failure}, or by producing a patch that suppresses the diagnostic instead of fixing the underlying inference logic. The task is performed by a front-end infrastructure engineer specializing in type-system utilities and compiler diagnostics.`;
+    },
+    verifierIntro: "A deterministic verifier must confirm the tsc diagnostic output matches per-fixture expected codes and counts, public type signatures have not changed, and the patch is a minimal diff.",
     readmeLine: "Describe each TypeScript source file, fixture file, config, and expected output path.",
     scenarioEvidence: [
       "baseline_tsc_report.json — tsc diagnostic output before the fix (shows which errors exist)",
@@ -4036,6 +4046,11 @@ if __name__ == "__main__":
     run(args.repo, args.fixtures, args.contracts, args.out)`
   },
   "react": {
+    domainLabel: "React 18 stale-closure debugging task — fix async cleanup and state management in a data-fetching component",
+    difficultyDraft(effectiveExpertiseLabel, profile) {
+      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of React 18's useEffect cleanup semantics, stale closure capture in async callbacks, and proper act() boundary management in tests. A weak solution can look plausible while still failing due to ${profile.failure}, or by writing tests that pass due to improper act() boundaries masking the race condition. The task is performed by a front-end engineer specializing in React 18 concurrent patterns, async lifecycle management, and Jest test architecture.`;
+    },
+    verifierIntro: "A deterministic verifier must confirm all 5 test cases pass, no unmounted state-update warnings in stderr, render counts stay within limits, and the exported component API remains unchanged.",
     readmeLine: "Describe each component file, test fixture, config, and expected output path.",
     scenarioEvidence: [
       "baseline_test_results.json — Jest output before the fix (which tests fail and how)",
@@ -4180,11 +4195,16 @@ if __name__ == "__main__":
     run(args.repo, args.out)`
   },
   "git-workflows": {
+    domainLabel: "Git ref-recovery task — reconstruct lost commits after an accidental force-push",
+    difficultyDraft(effectiveExpertiseLabel, profile) {
+      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of Git's object model, ref mechanics, reflog parsing, reachability analysis, and commit graph topology validation. A weak solution can look plausible while still failing due to ${profile.failure}, or by cherry-picking changes into new commits instead of restoring original refs. The task is performed by a DevOps engineer or release manager specializing in Git object recovery, ref surgery, and repository forensics.`;
+    },
+    verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
     scenarioEvidence: [
-      "repo_before_force.bundle — object store before the force-push, including the three orphaned commits",
+      "repo_before_force.bundle — object store before the force-push, including the 3 orphaned commits",
       "repo_after_force.bundle — object store after the force-push (what the remote now has)",
-      "reflog_export.txt — three orphaned commit SHAs tagged RECOVER_ME",
+      "reflog_export.txt — 3 orphaned commit SHAs tagged RECOVER_ME",
       "commit_graph_spec.json — expected branch ref targets, parent SHA chains, and commit messages",
       "expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit",
       "expected_refs.json — exact branch ref → SHA mappings the verifier will check",
@@ -4215,12 +4235,12 @@ if __name__ == "__main__":
     downloads: [
       "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
       "[Git 2.43.0 for Windows (if not installed)](https://github.com/git-for-windows/git/releases/tag/v2.43.0.windows.1) — verify with: git --version",
-      "reflog_export.txt — included in the zip; contains the three orphaned commit SHAs to recover."
+      "reflog_export.txt — included in the zip; contains the 3 orphaned commit SHAs to recover."
     ],
     resources: [
-      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the three lost commits.",
+      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the 3 lost commits.",
       "repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.",
-      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; the three orphaned commits to recover are tagged RECOVER_ME.",
+      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; the 3 orphaned commits to recover are tagged RECOVER_ME.",
       "commit_graph_spec.json — declares the expected final branch topology: branch name, expected HEAD SHA, expected parent SHA chain, and commit messages.",
       "verifier_inputs/expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit.",
       "environment/git_version.txt — git 2.43.0."
@@ -4231,7 +4251,7 @@ if __name__ == "__main__":
       "Parse reflog_export.txt to identify the 3 orphaned SHAs tagged RECOVER_ME — you must know the SHAs before fetching.",
       "Fetch the 3 recovered commit objects from repo_before_force.bundle: for each orphaned SHA, run git fetch <path_to_repo_before_force.bundle> <sha>",
       "Reconstruct refs per commit_graph_spec.json: use git update-ref to point the required branch ref at the specified HEAD SHA so the original commits become reachable. Do not cherry-pick — cherry-pick creates new commit objects with different SHAs.",
-      "Run git fsck --connectivity-only and confirm zero missing or corrupt objects. Run git rev-list <branch> and verify all three recovered commit SHAs are reachable. Run git log --format='%H %P %s' and compare parent chains to commit_graph_spec.json.",
+      "Run git fsck --connectivity-only and confirm 0 missing or corrupt objects. Run git rev-list <branch> and verify all recovered commit SHAs are reachable. Run git log --format='%H %P %s' and compare parent chains to commit_graph_spec.json.",
       "Verify file checksums at each recovered commit: git show <sha>:<file> | sha256sum, compare to expected_file_checksums.json.",
       "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json."
     ],
@@ -5027,7 +5047,7 @@ const DOMAIN_VERIFIER_CHECKS = {
     else:
         results.append(fail("commit_graph_report.json missing"))
 
-    # 3. repair_log: all three commits recovered
+    # 3. repair_log: all 3 commits recovered
     rl = out / "repair_log.json"
     if rl.exists():
         m = json.loads(rl.read_text())
@@ -5384,12 +5404,16 @@ function fillStarterTemplate() {
   const expertise = expertiseLabel(els.taskExpertise.value).toLowerCase();
 
   lastTemplateState = { domainKey, profile, scenario };
-  els.taskDomain.value = `${capitalize(expertise)} ${scenario.name} task in ${profile.domain}.`;
+  const domainDetails = DOMAIN_DETAILS[domainKey];
+  const domainLabel = (domainDetails && domainDetails.domainLabel) || `${scenario.name} task in ${profile.domain}`;
+  // React and Git are senior/master's tasks — cap at master's if PhD is selected
+  const phdCappedDomains = new Set(["react", "git-workflows"]);
+  const effectiveExpertise = phdCappedDomains.has(domainKey) && els.taskExpertise.value === "phd" ? "masters" : els.taskExpertise.value;
+  const effectiveExpertiseLabel = expertiseLabel(effectiveExpertise).toLowerCase();
+  els.taskDomain.value = `${capitalize(effectiveExpertiseLabel)} ${domainLabel}.`;
 
   if (els.taskCategory) els.taskCategory.value = DOMAIN_CATEGORY[domainKey] || profile.domain;
-  if (els.taskTitle) els.taskTitle.value = profile.brief || `${capitalize(expertise)} ${scenario.name} task`;
-
-  const domainDetails = DOMAIN_DETAILS[domainKey];
+  if (els.taskTitle) els.taskTitle.value = profile.brief || `${capitalize(effectiveExpertiseLabel)} ${domainLabel}.`;
   els.taskPrompt.value = (domainDetails && domainDetails.composePrompt)
     ? domainDetails.composePrompt(profile, type, standard, scenario)
     : scenario.composePrompt(profile, type, standard);
@@ -5397,10 +5421,6 @@ function fillStarterTemplate() {
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
   const swDomains = new Set(["typescript", "react", "git-workflows", "software-engineering", "computer-science", "distributed-systems", "databases", "compilers", "ml-systems"]);
   const isSWDomain = swDomains.has(domainKey);
-  // React and Git are senior/master's tasks — cap at master's if PhD is selected
-  const phdCappedDomains = new Set(["react", "git-workflows"]);
-  const effectiveExpertise = phdCappedDomains.has(domainKey) && els.taskExpertise.value === "phd" ? "masters" : els.taskExpertise.value;
-  const effectiveExpertiseLabel = expertiseLabel(effectiveExpertise).toLowerCase();
   const expertiseDepthSuffix = {
     professional: " The solution must meet production-quality standards: correct handling of edge cases, deterministic outputs, and engineering-grade reproducibility.",
     masters: isSWDomain
@@ -5410,7 +5430,18 @@ function fillStarterTemplate() {
       ? " A correct solution requires deep knowledge of language/system semantics, principled handling of corner cases, and rigorous proof that the fix is sound rather than coincidentally passing."
       : " PhD-level solutions require methodological rigor, systematic research-level analysis, asymptotic or statistical justification of key design choices, and principled handling of edge cases."
   }[effectiveExpertise] || "";
-  els.taskDifficulty.value = `This is ${effectiveExpertiseLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}. The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}`;
+  const difficultyCore = domainKey === "react"
+    ? " Core failure modes: overlapping async effects, stale closure capture, cleanup ordering, dep-array correctness, act() timing, stderr warning detection, render-count instrumentation."
+    : domainKey === "git-workflows"
+    ? " Core failure modes: reachability analysis, topology mismatch, cherry-pick vs ref-restore confusion, connectivity gaps, checksum divergence."
+    : domainKey === "typescript"
+    ? " Core failure modes: distributive conditional types, never-branch collapsing, type-system boundary cases, strict-mode diagnostics, public API regressions."
+    : "";
+  const scenarioDifficultyIntro = `This is ${effectiveExpertiseLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}.`;
+  const difficultyIntro = (domainDetails && domainDetails.difficultyDraft)
+    ? domainDetails.difficultyDraft(effectiveExpertiseLabel, profile, scenario)
+    : scenarioDifficultyIntro;
+  els.taskDifficulty.value = `${difficultyIntro} The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}${difficultyCore}`;
   els.taskTime.value = timeEstimateFor(effectiveExpertise, profile.domain);
   els.taskVerifiers.value = buildVerifierDraft(domainKey, type, scenario, standard);
   els.taskAgentCheck.value = "Required before submission: test against a frontier model (e.g. Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed — data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation. Submissions where a frontier model fully solves the task will be rejected.";
@@ -5460,17 +5491,17 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
     "Source data and task fixtures:",
     ...domainResources.map((item) => `- ${item}`),
     "",
-    "Scenario evidence:",
+    "Task evidence files:",
     ...(details && details.scenarioEvidence
       ? details.scenarioEvidence.map((item) => `- ${item}`)
       : [`- ${scenario.resource}.`,
          "- audit_log_template.csv with fields for input file, checksum, validation status, exclusion reason, output artifact, and rerun timestamp."]),
     "",
-    "Expected output contract:",
+    "Required deliverables:",
     `- The submitted solution must create ${profile.artifact}.`,
     "- Include schemas for every required output and one example row or object for each artifact.",
     "",
-    "Test fixtures:",
+    "Verifier test cases:",
     "- Include one normal case, one edge case, and one intentionally invalid case.",
     "- Include expected pass/fail reason codes for the verifier fixtures.",
     "",
@@ -5510,8 +5541,16 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
     `Write ${profile.artifact}, outputs/qc_summary.json, and outputs/run_manifest.json with deterministic ordering.`
   ];
 
+  const goldenIntro = domainKey === "react"
+    ? "This golden solution proves the task is solvable by showing the patched component, Jest test output confirming all fixtures pass, render-count evidence, and unmount-warning verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail."
+    : domainKey === "git-workflows"
+    ? "This golden solution proves the task is solvable by showing the repaired bundle, git fsck output, ref topology confirmation, and file checksum verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail."
+    : domainKey === "typescript"
+    ? "This golden solution proves the task is solvable by showing the TypeScript patch, tsc diagnostic output confirming per-fixture expected codes, and public API unchanged evidence. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail."
+    : "This is the proof that the task is solvable, not a checklist. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail.";
+
   const parts = [
-    "This is the proof that the task is solvable, not a checklist. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail.",
+    goldenIntro,
     "",
     "Authoritative answer contract:",
     `- Required final artifact(s): ${profile.artifact}.`,
@@ -5540,12 +5579,7 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
       : `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
     "",
     "Required evidence in the golden solution:",
-    "- Exact command used to run the workflow.",
-    "- Expected output file paths.",
-    "- Required output columns or JSON fields.",
-    "- Numeric tolerances, thresholds, or schema rules used by the verifier.",
-    "- Known failure modes and how the solution detects them.",
-    "- Input checksums, rejected-input reasons, and package versions.",
+    ...goldenEvidenceFor(domainKey),
     "",
     `Important edge cases: ${profile.failure}.`
   ];
@@ -5575,6 +5609,39 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   }
 
   return parts.join("\n");
+}
+
+function goldenEvidenceFor(domainKey) {
+  if (domainKey === "react") {
+    return [
+      "- Exact command used to run the workflow.",
+      "- Expected output file paths.",
+      "- Required output columns or JSON fields.",
+      "- Numeric tolerances, thresholds, or schema rules used by the verifier.",
+      "- Known failure modes and how the solution detects them.",
+      "- Input checksums, rejected-input reasons, and package versions.",
+      "- Per-test pass/fail status, unmount warning count, render-count result per fixture."
+    ];
+  }
+  if (domainKey === "git-workflows") {
+    return [
+      "- Exact command used to run the workflow.",
+      "- Expected output file paths.",
+      "- Required output columns or JSON fields.",
+      "- Numeric tolerances, thresholds, or schema rules used by the verifier.",
+      "- Known failure modes and how the solution detects them.",
+      "- Input checksums, rejected-input reasons, and package versions.",
+      "- Recovered commit SHA, branch ref, parent-chain comparison, reachability result."
+    ];
+  }
+  return [
+    "- Exact command used to run the workflow.",
+    "- Expected output file paths.",
+    "- Required output columns or JSON fields.",
+    "- Numeric tolerances, thresholds, or schema rules used by the verifier.",
+    "- Known failure modes and how the solution detects them.",
+    "- Input checksums, rejected-input reasons, and package versions."
+  ];
 }
 
 function buildExpectedGoldenOutputsDraft(details, profile) {
@@ -5637,12 +5704,28 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
     return `Fail if any required output file is missing or empty: ${paths.join(", ")}.`;
   })();
 
+  const domainSolutions = details ? details.solution : [];
+  const outputsStr = domainSolutions.join(" ");
+  const hasPatch = /\.patch\b/.test(outputsStr);
+  const hasFixedTsx = /\.fixed\.tsx\b/.test(outputsStr);
+  const needsCleanCheckout = hasPatch || hasFixedTsx;
+
+  const typeAwareChecks = [
+    "- Output file content is type-checked by extension: .tsx files must contain valid TypeScript; .patch files must be valid unified diff (git apply --check); .bundle files must be cloneable via git clone; .json files must parse as valid JSON."
+  ];
+
+  const cleanCheckoutNote = needsCleanCheckout
+    ? ["- The verifier must apply the fix from a clean checkout (git clone or git clean -fdx), re-run tests, and confirm output passes independently of any pre-existing state."]
+    : [];
+
   return [
-    `A deterministic verifier should ${type.verifier} and ${scenario.verifier}.`,
+    (details && details.verifierIntro) || `A deterministic verifier should ${type.verifier} and ${scenario.verifier}.`,
     "",
     "Required verifier behavior:",
     ...(outputFileLine ? [`- ${outputFileLine}`] : []),
     ...domainVerifierChecks.map((item) => `- ${item}`),
+    ...typeAwareChecks,
+    ...cleanCheckoutNote,
     "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs.",
     details && details.solutionCode
       ? (domainKey === "git-workflows"
@@ -5864,7 +5947,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Open usable data",
-      pass: !hasAny(resources, ["private dataset", "paywalled", "login required", "credentials required", "proprietary", "restricted license", "not publicly available"]),
+      pass: !hasAny(resources, ["private dataset", "paywalled", "login required", "credentials required", "all source content is original and free from licensing restrictions", "restricted license", "not publicly available"]),
       message: "Data and resources should be available without usage restrictions, credentials, or hidden access."
     },
     {
@@ -6069,9 +6152,11 @@ function hasExpertiseDepth(fields) {
   const professionalTerms = ["professional", "industry", "engineering", "validation", "edge case", "tolerance", "quality", "standard"];
   const mastersTerms = ["statistical", "algorithm", "optimization", "simulation", "validation", "nontrivial", "baseline", "tolerance", "regression", "inference", "concurrent", "closure", "topology", "reachabl", "dependency array"];
   const phdTerms = ["research", "paper", "methodolog", "bayesian", "stochastic", "asymptotic", "causal", "finite element", "peer reviewed", "ablation", "theorem", "distributive", "type system", "inference", "soundness", "formal"];
-  const terms = fields.expertise === "phd" ? phdTerms : fields.expertise === "masters" ? mastersTerms : professionalTerms;
+  const phdCappedDomains = new Set(["react", "git-workflows"]);
+  const effectiveExpertise = phdCappedDomains.has(els.taskDomainSelect.value) && fields.expertise === "phd" ? "masters" : fields.expertise;
+  const terms = effectiveExpertise === "phd" ? phdTerms : effectiveExpertise === "masters" ? mastersTerms : professionalTerms;
   const hits = terms.filter((term) => text.includes(normalize(term))).length;
-  return fields.expertise === "professional" ? hits >= 2 : hits >= 3;
+  return effectiveExpertise === "professional" ? hits >= 2 : hits >= 3;
 }
 
 function renderTaskChecks(fields) {
