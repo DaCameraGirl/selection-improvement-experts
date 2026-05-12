@@ -3920,7 +3920,10 @@ if __name__ == "__main__":
       "Fail if invalid_non_thenable.ts diagnostic count or code differs from expected_diagnostics.json.",
       "Fail if any exported name in contracts/public_types.md changes signature (check via tsc declaration emit diff).",
       "Fail if outputs/fix.patch is missing or empty.",
-      "Fail if outputs/tsc_report.json is missing or does not list all five fixture files."
+      "Fail if outputs/tsc_report.json is missing or does not list all five fixture files.",
+      "Fail if outputs/type_test_results.json is missing or does not include pass/fail per fixture.",
+      "Fail if outputs/public_api_report.json is missing or shows any signature change.",
+      "Fail if outputs/run_manifest.json is missing or does not list TypeScript version and fixture counts."
     ],
     expectedOutputs: [
       "Expected output paths:",
@@ -4109,7 +4112,10 @@ if __name__ == "__main__":
       "Fail if the rapid-update fixture final render value does not equal the last dispatched value.",
       "Fail if any render count in outputs/render_count_report.json exceeds the maximum in expected_render_counts.json.",
       "Fail if any prop type or ref interface in contracts/component_api.md changed.",
-      "Fail if outputs/fix.patch is missing or empty."
+      "Fail if outputs/fix.patch is missing or empty.",
+      "Fail if outputs/DataFetcher.fixed.tsx is missing or not valid TypeScript.",
+      "Fail if outputs/test_results.json is missing or schema-invalid.",
+      "Fail if outputs/run_manifest.json is missing or does not list all required metadata."
     ],
     expectedOutputs: [
       "Expected output paths:",
