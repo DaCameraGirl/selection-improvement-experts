@@ -357,7 +357,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-11 cross-field-fix";
+const APP_VERSION = "2026-05-11 final-polish";
 
 const state = {
   guides: [],
@@ -902,7 +902,7 @@ const DOMAIN_DRAFTS = {
     threshold: "Token-level F1 must match the gold reference within ±0.5 percentage points; label confusion counts must be exact integer matches on the test split; zero cross-split token boundary leaks permitted."
   },
   "typescript": {
-    brief: "Fix a TypeScript strict-mode conditional type bug where a union containing Promise<never> causes Awaited<T> to silently infer unknown instead of the correct resolved type",
+    brief: "Fix a TypeScript strict-mode conditional type bug where a union containing Promise<never> causes AwaitedLike<T> to silently infer unknown instead of the correct resolved type",
     domain: "TypeScript type system using conditional types, mapped types, distributive inference, and strict-mode diagnostics with tsc 5.x",
     artifact: "a patch file, a tsc diagnostic report JSON, a type-test results JSON, and a public API report JSON",
     method: "conditional type narrowing analysis, Awaited<T> distributivity inspection, discriminated union checks, and differential tsc --strict output comparison against a split positive/negative fixture suite",
@@ -4426,13 +4426,13 @@ if __name__ == "__main__":
       const openers = {
         "post-migration validation": "After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves. Repair the component so this never happens. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
         "regression triage": "A regression in DataFetcher allows a stale async result to overwrite the final rendered value under rapid prop changes or unmount-before-resolve conditions. The bug is reproducible with the provided Jest fixtures. Repair the component and produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "compliance audit": "A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing 'Can\\'t perform a React state update on an unmounted component' warnings and stale rendered values. Repair the component without changing its exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "compliance audit": "A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing \"Warning: Can't perform a React state update on an unmounted component\" warnings and stale rendered values. Repair the component without changing its exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
         "edge-case benchmark": "The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures. Repair the component so all five fixtures pass and no stale state updates occur. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json."
       };
       const opener = openers[scenario && scenario.name] || openers["regression triage"];
       return [
         opener,
-        "All 5 Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero 'Can\\'t perform a React state update on an unmounted component' warnings in Jest stderr. Render counts for each fixture must stay within the limits declared in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
+        "All 5 Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero \"Warning: Can't perform a React state update on an unmounted component\" warnings in Jest stderr. Render counts for each fixture must stay within the limits declared in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
         "The JSON reports must include per-test status, final rendered value, warning counts, render counts per fixture, package versions, input file checksums, and pass/fail reason codes. The verifier will grade only the submitted component, patch, and output reports, not the specific implementation method."
       ].join("\n\n");
     },
@@ -4441,7 +4441,7 @@ if __name__ == "__main__":
       "Real stale closure issues in React GitHub: https://github.com/facebook/react/issues?q=stale+closure"
     ],
     downloads: [
-      "No large downloads — the project is self-contained. Run: npm install inside the zip to restore node_modules.",
+      "No large downloads — the project is self-contained. Run npm ci once during setup to restore node_modules from package-lock.json; the benchmark run itself requires no network access.",
       "[React 18.2.0 on npm](https://www.npmjs.com/package/react/v/18.2.0) — pinned in package.json.",
       "[@testing-library/react@14.3.0](https://www.npmjs.com/package/@testing-library/react/v/14.3.0) — pinned in package.json."
     ],
@@ -4465,7 +4465,7 @@ if __name__ == "__main__":
     ],
     verifiers: [
       "Fail if any of the 5 jest tests fail.",
-      "Fail if 'Can\\'t perform a React state update on an unmounted component' appears in jest stderr.",
+      "Fail if \"Warning: Can't perform a React state update on an unmounted component\" appears in jest stderr.",
       "Fail if the rapid-update fixture final render value does not equal the last dispatched value.",
       "Fail if any render count in outputs/render_count_report.json exceeds the maximum in expected_render_counts.json.",
       "Fail if any prop type or ref interface in contracts/component_api.md changed.",
@@ -4510,7 +4510,7 @@ def run_jest(repo_dir, out_dir):
     return result.stdout, result.stderr, result.returncode, raw_path
 
 def count_unmount_warnings(stderr):
-    return len(re.findall(r"Can't perform a React state update on an unmounted component", stderr))
+    return len(re.findall(r"Warning: Can't perform a React state update on an unmounted component", stderr))
 
 def run(repo_dir, out_dir):
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
@@ -4560,7 +4560,7 @@ if __name__ == "__main__":
   "git-workflows": {
     domainLabel: "Git ref-recovery task — reconstruct lost commits after an accidental force-push",
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of Git's object model, ref mechanics, reflog parsing, reachability analysis, and commit graph topology validation. A weak solution can look plausible while still failing due to ${profile.failure}, or by cherry-picking changes into new commits instead of restoring original refs. The task is performed by a DevOps engineer or release manager specializing in Git object recovery, ref surgery, and repository forensics.`;
+      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of Git's object model, ref mechanics, reflog parsing, reachability analysis, and commit graph topology validation. A weak solution can look plausible while still failing due to ${profile.failure}. The task is performed by a DevOps engineer or release manager specializing in Git object recovery, ref surgery, and repository forensics.`;
     },
     verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
@@ -4578,7 +4578,7 @@ if __name__ == "__main__":
     standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before the migration could be validated. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
+        "post-migration validation": "An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before release validation completed. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
         "regression triage": "Exactly 3 commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable.",
         "compliance audit": "An incident review confirmed that 3 commits are no longer reachable on the release branch after an accidental force-push. Recovery must be machine-verifiable with full checksum and topology evidence. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so all 3 original commits are reachable with the exact topology specified.",
         "edge-case benchmark": "The provided Git repository contains a ref reconstruction challenge: exactly 3 commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs."
@@ -4597,7 +4597,7 @@ if __name__ == "__main__":
     ],
     downloads: [
       "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
-      "[Git 2.43.0 for Windows (if not installed)](https://github.com/git-for-windows/git/releases/tag/v2.43.0.windows.1) — verify with: git --version",
+      "Git 2.43.0 or compatible, recorded in environment/git_version.txt.",
       "reflog_export.txt — included in the zip; contains the 3 orphaned commit SHAs to recover."
     ],
     resources: [
@@ -4880,7 +4880,7 @@ const DOMAIN_CODE = {
       "Apply the patch: subprocess.run(['git', 'apply', 'outputs/fix.patch'], cwd=repo_dir, check=True)",
       "Run jest: result = subprocess.run(['npx', 'jest', '--json', '--outputFile=outputs/jest_raw.json'], capture_output=True, text=True, cwd=repo_dir)",
       "Parse outputs/jest_raw.json for testResults, numPassedTests, numFailedTests, and console warnings",
-      "Count 'Can\\'t perform a React state update on an unmounted component' occurrences in result.stderr",
+      "Count \"Warning: Can't perform a React state update on an unmounted component\" occurrences in result.stderr",
       "Export outputs/test_results.json (pass/fail per test), outputs/render_count_report.json, outputs/run_manifest.json"
     ]
   },
@@ -5658,13 +5658,13 @@ const TASK_RECIPES = {
       "contracts/component_api.md",
     ],
     title:   "Fix a React DataFetcher stale async-result race under rapid prop changes and unmount-before-resolve",
-    snippet: "Repair the DataFetcher component so stale async responses cannot overwrite the final rendered value after unmount-before-resolve or rapid prop changes. All 5 Jest fixtures must pass, 0 'Can\\'t perform a React state update on an unmounted component' warnings must appear in test stderr, and render counts must stay within declared limits.",
+    snippet: "Repair the DataFetcher component so stale async responses cannot overwrite the final rendered value after unmount-before-resolve or rapid prop changes. All 5 Jest fixtures must pass, 0 \"Warning: Can't perform a React state update on an unmounted component\" warnings must appear in test stderr, and render counts must stay within declared limits.",
     errorIfWrong: "verify.py exits with code 1 — any jest fixture fails, 'Warning: Can\\'t perform a React state update on an unmounted component' appears in test stderr, render count exceeds the declared limit, or any required output file is missing.",
     verifierChecks: [
       "outputs/DataFetcher.fixed.tsx exists and is non-empty",
       "outputs/fix.patch is non-empty",
       "outputs/test_results.json shows numPassedTests:5, numFailedTests:0",
-      "test stderr contains zero 'Can\\'t perform a React state update on an unmounted component' warnings",
+      "test stderr contains zero \"Warning: Can't perform a React state update on an unmounted component\" warnings",
       "outputs/render_count_report.json shows each fixture within its declared max from expected_render_counts.json",
       "exported prop types and refs match contracts/component_api.md",
     ],
