@@ -8242,10 +8242,8 @@ async function handleBuildTaskZip() {
    } finally {
      if (btn) btn.disabled = false;
    }
- }
 }
-
-// ── LOCAL RUNNER (Phase 2: upload + detection) ──────────────────────
+ // ── LOCAL RUNNER (Phase 2: upload + detection) ──────────────────────
 let runnerPackageInfo = null;
 
 async function uploadTaskPackage(file) {
@@ -8659,7 +8657,19 @@ els.importData.addEventListener("change", importData);
 els.clearData.addEventListener("click", clearData);
 els.sampleData.addEventListener("click", loadSampleData);
 
-const buildZipBtn = document.querySelector("#build-zip-package");
+  // Sync domain select when recipe is changed directly
+  const recipeSelectEl = document.querySelector("#task-recipe");
+  if (recipeSelectEl) {
+    recipeSelectEl.addEventListener("change", () => {
+      const recipeId = recipeSelectEl.value;
+      if (recipeId && typeof TASK_RECIPES !== "undefined" && TASK_RECIPES[recipeId]) {
+        const recipe = TASK_RECIPES[recipeId];
+        if (els.taskDomainSelect) els.taskDomainSelect.value = recipe.domain;
+      }
+    });
+  }
+
+  const buildZipBtn = document.querySelector("#build-zip-package");
 if (buildZipBtn) buildZipBtn.addEventListener("click", buildAndDownloadZip);
 
 const frontierSimBtn = document.querySelector("#run-frontier-sim");
