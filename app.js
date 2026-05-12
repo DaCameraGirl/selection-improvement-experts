@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-12 final-answer";
+const APP_VERSION = "2026-05-12 build-task-zip";
 
 const state = {
   guides: [],
@@ -7698,9 +7698,11 @@ function renderRunnerConnection() {
     ).join("") +
     '</div>';
 
-  // Enable upload button when connected
+  // Enable upload and build buttons when connected
   const uploadBtn = document.querySelector("#runner-upload-zip");
   if (uploadBtn) uploadBtn.disabled = false;
+  const buildBtn = document.querySelector("#runner-build-zip");
+  if (buildBtn) buildBtn.disabled = false;
 }
 
 function startRunnerPolling() {
@@ -7713,6 +7715,65 @@ function stopRunnerPolling() {
   if (runnerPollInterval) {
     clearInterval(runnerPollInterval);
     runnerPollInterval = null;
+  }
+}
+
+// ── TASK ZIP BUILDER ─────────────────────────────────────────────────
+let lastBuiltZipId = null;
+
+async function handleBuildTaskZip() {
+  const btn = document.querySelector("#runner-build-zip");
+  const statusEl = document.querySelector("#runner-builder-status");
+  const downloadLink = document.querySelector("#runner-download-zip");
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.innerHTML = "Building task package...";
+  if (downloadLink) downloadLink.classList.add("is-hidden");
+
+  try {
+    // Determine the task family from the prompt maker's domain
+    const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "typescript";
+    const family = domain === "react" ? "react"
+      : domain === "git-workflows" ? "git"
+      : "typescript";
+
+    const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ family })
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    lastBuiltZipId = data.task_id;
+
+    // Auto-download the zip and upload to runner
+    let uploaded = false;
+    try {
+      const dlResp = await fetch(`${RUNNER_API_BASE}/api/download/${data.task_id}`);
+      if (dlResp.ok) {
+        const blob = await dlResp.blob();
+        const file = new File([blob], `${data.family}-task-${data.task_id.slice(0, 8)}.zip`, { type: "application/zip" });
+        // Create a DataTransfer to set file on the hidden input
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        const input = document.querySelector("#runner-zip-input");
+        if (input) {
+          input.files = dt.files;
+          handleRunnerZipChange({ target: input });
+          uploaded = true;
+        }
+      }
+    } catch {}
+
+    if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Package built: <strong>${data.family}</strong> (${data.task_id})${uploaded ? " — auto-uploaded to Runner" : ""}`;
+    if (downloadLink) {
+      downloadLink.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
+      downloadLink.classList.remove("is-hidden");
+    }
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Build failed: ${escapeHtml(err.message)}`;
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -8112,6 +8173,10 @@ if (runnerLogsCloseBtn) runnerLogsCloseBtn.addEventListener("click", () => {
   const panel = document.querySelector("#runner-logs-panel");
   if (panel) panel.classList.add("is-hidden");
 });
+
+// Runner build task zip button
+const runnerBuildZipBtn = document.querySelector("#runner-build-zip");
+if (runnerBuildZipBtn) runnerBuildZipBtn.addEventListener("click", handleBuildTaskZip);
 
 // Runner upload buttons
 const runnerUploadBtn = document.querySelector("#runner-upload-zip");

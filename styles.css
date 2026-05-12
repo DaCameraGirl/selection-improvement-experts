@@ -1129,3 +1129,28 @@ legend {
   gap: 3px 12px;
   font-size: 0.82rem;
 }
+
+.runner-download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--green);
+  color: #fff;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.runner-download-link:hover {
+  opacity: 0.9;
+}
+.runner-download-link.is-hidden {
+  display: none;
+}
+
+.runner-builder-status {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  min-height: 1.2em;
+}
