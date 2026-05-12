@@ -413,6 +413,13 @@ function buildTaskPackage() {
     "── FIELD: Final answer / Expected solution outputs ──",
     packageText(buildExpectedFinalAnswer(packageDomainKey), "No expected outputs defined for this domain."),
     "",
+    ...(window.__taskExecution?.no_placeholders_in_final_answer ? [] : [
+      "── FINAL ANSWER READINESS (internal gate) ─────────────",
+      "STATUS: NOT READY — solve.py has not been executed against fixtures.",
+      "The content above is an expected-output schema, not a computed final answer.",
+      "Set window.__taskExecution to mark execution complete.",
+      ""
+    ]),
     "── FIELD: Verifier description ─────────────────────",
     packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
     "",
@@ -5844,15 +5851,18 @@ function buildExpectedFinalAnswer(domainKey) {
   const details = DOMAIN_DETAILS[domainKey];
   if (!details || !Array.isArray(details.expectedOutputs)) return "";
 
+  const isComputed = window.__taskExecution?.no_placeholders_in_final_answer;
+  const statusLine = isComputed
+    ? "FINAL ANSWER (computed from solver execution against real fixtures):"
+    : "Expected output schema only — not a computed final answer. Run solve.py and verify.py against real fixtures, then replace these examples with actual computed outputs below.";
+
   const lines = details.expectedOutputs;
   const outputPaths = lines.filter(l => l.startsWith("- outputs/"));
 
-  // Split into output paths header + example data sections
   const pathsSection = outputPaths.length
     ? ["Output files produced by a correct solution:", ...outputPaths]
     : [];
 
-  // Extract example content (everything after "Example <name>:" labels)
   const examples = [];
   let block = null;
   for (const line of lines) {
@@ -5863,7 +5873,6 @@ function buildExpectedFinalAnswer(domainKey) {
     } else if (block) {
       block.push(line);
     }
-    // reset on empty delim after a block
     if (line === "" && block && block.length > 1) {
       examples.push(block.join("\n"));
       block = null;
@@ -5871,11 +5880,13 @@ function buildExpectedFinalAnswer(domainKey) {
   }
   if (block && block.length > 1) examples.push(block.join("\n"));
 
-  const placeholderNote = domainKey === "git-workflows"
+  const placeholderNote = domainKey === "git-workflows" && !isComputed
     ? ["", "NOTE: SHAs, checksums, and refs shown below depend on fixture files. Replace placeholder values (abc1234...) with actual computed values after running solve.py.", ""]
     : [];
 
   return [
+    statusLine,
+    "",
     ...pathsSection,
     ...placeholderNote,
     ...(examples.length ? ["", "Expected content of each output file (what a correct solution writes):", ""] : []),
@@ -6922,12 +6933,21 @@ function renderRiskChecks() {
     errorIfWrong: fields.errorIfWrong
   };
 
+  // Also scan the generated Final Answer section (from the built package) for placeholders
+  let finalAnswerText = "";
+  const pkg = els.generatedTaskPackage ? els.generatedTaskPackage.value : "";
+  if (pkg) {
+    const faMatch = pkg.match(/── FIELD: Final answer \/ Expected solution outputs ──([\s\S]*?)(?=── FIELD: Verifier description|── FIELD: Time estimate)/);
+    if (faMatch) finalAnswerText = faMatch[1];
+  }
+  const sectionsWithFA = { ...sections, "final answer": finalAnswerText };
+
   const rep = repeatedPhraseRisk(sections);
   const bp = genericBoilerplateScore(allText);
   const xd = crossDomainResidue(domain, allText);
   let phBlock = false;
   const phSectionHits = {};
-  for (const [name, text] of Object.entries(sections)) {
+  for (const [name, text] of Object.entries(sectionsWithFA)) {
     const r = placeholderRisk(name, text);
     phSectionHits[name] = r;
     if (r.status === "DO NOT SUBMIT") phBlock = true;
