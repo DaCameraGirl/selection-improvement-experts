@@ -561,7 +561,7 @@ const DOMAIN_DRAFTS = {
     brief: "Fix a TypeScript strict-mode conditional type bug where a union containing Promise<never> causes AwaitedLike<T> to silently infer unknown instead of the correct resolved type",
     domain: "TypeScript type system using conditional types, mapped types, distributive inference, and strict-mode diagnostics with tsc 5.x",
     artifact: "a patch file, a tsc diagnostic report JSON, a type-test results JSON, and a public API report JSON",
-    method: "conditional type narrowing analysis, Awaited<T> distributivity inspection, discriminated union checks, and differential tsc --strict output comparison against a split positive/negative fixture suite",
+    method: "conditional type narrowing analysis, AwaitedLike<T> distributivity inspection, discriminated union checks, and differential tsc --strict output comparison against a split positive/negative fixture suite",
     data: "a pinned TypeScript project with a broken type utility, tsconfig.strict.json for positive fixtures, tsconfig.negative.json for the invalid fixture, five type-test fixture files that must produce specific compiler diagnostics, and a contracts file listing public type signatures that must not regress",
     failure: "using a type assertion to silence the error instead of fixing inference, narrowing only the happy-path union member while leaving the never branch unhandled, producing a patch that changes public-facing type signatures, and running both positive and negative fixtures under the same tsconfig instead of the split configs",
     sourceKit: "src/utils/awaited_util.ts (broken utility), tsconfig.strict.json (strict:true, noEmit:true), tsconfig.negative.json (strict:true, noEmit:true — used only for invalid_non_thenable.ts), type_tests/normal_union.ts, type_tests/nested_promise.ts, type_tests/never_branch.ts, type_tests/edge_deeply_nested.ts, type_tests/invalid_non_thenable.ts, contracts/public_types.md, verifier_inputs/expected_diagnostics.json, environment/package.json (typescript@5.4.5)",
@@ -3897,7 +3897,7 @@ if __name__ == "__main__":
     },
     sources: [
       "TypeScript compiler issues (conditional types, Awaited): https://github.com/microsoft/TypeScript/issues?q=label%3ABug+conditional+type",
-      "TypeScript 5.4 release notes (Awaited<T> fixes): https://devblogs.microsoft.com/typescript/announcing-typescript-5-4/"
+      "TypeScript 5.4 release notes (conditional type fixes): https://devblogs.microsoft.com/typescript/announcing-typescript-5-4/"
     ],
     downloads: [
       "No large downloads — the project is self-contained. Run npm ci once during setup to restore node_modules; the benchmark run itself requires no network access.",
@@ -3905,7 +3905,7 @@ if __name__ == "__main__":
       "[ts-morph for AST walking (optional)](https://www.npmjs.com/package/ts-morph) — listed in devDependencies in package.json; fetched by npm ci."
     ],
     resources: [
-      "src/utils/awaited_util.ts — the broken type utility containing the Awaited<T> conditional type definition.",
+      "src/utils/awaited_util.ts — the broken type utility containing the AwaitedLike<T> conditional type definition.",
       "tsconfig.json — strict:true, noEmit:true, target:ES2022, moduleResolution:bundler.",
       "tsconfig.strict.json — positive-fixture config (strict, noEmit).",
       "tsconfig.negative.json — isolated config for the invalid-fixture check.",
@@ -3920,7 +3920,7 @@ if __name__ == "__main__":
     ],
     solution: [
       "Run: python solve.py --repo . --fixtures type_tests --contracts contracts/public_types.md --out outputs",
-      "Inspect the Awaited<T> definition in src/utils/awaited_util.ts — locate the conditional branch that fails to distribute over union members containing never.",
+      "Inspect the AwaitedLike<T> definition in src/utils/awaited_util.ts — locate the conditional branch that fails to distribute over union members containing never.",
       "Fix the conditional type so that never members are preserved during distributive evaluation rather than collapsing to unknown.",
       "Verify positive fixtures: npx tsc --noEmit --project tsconfig.strict.json — normal_union.ts, nested_promise.ts, never_branch.ts, and edge_deeply_nested.ts must all produce zero diagnostics.",
       "Verify negative fixture separately: npx tsc --noEmit --project tsconfig.negative.json — invalid_non_thenable.ts must produce exactly one TS2345 diagnostic.",
@@ -5021,7 +5021,7 @@ const DOMAIN_VERIFIER_CHECKS = {
         m = json.loads(tr.read_text())
         nb = m.get("fixtures", {}).get("type_tests/never_branch.ts", {})
         has_2571 = "TS2571" in nb.get("codes", [])
-        results.append(ok("never_branch.ts: zero TS2571 (unknown) errors") if not has_2571 else fail("never_branch.ts: TS2571 errors present — Awaited<T> still inferring unknown"))
+        results.append(ok("never_branch.ts: zero TS2571 (unknown) errors") if not has_2571 else fail("never_branch.ts: TS2571 errors present — AwaitedLike<T> still inferring unknown"))
         results.append(ok("tsc exit 0") if m.get("tsc_exit_code", 1) == 0 else fail(f"tsc exited {m.get('tsc_exit_code')} — strict mode errors remain"))
 
     # 4. fix.patch must be non-empty
@@ -6253,6 +6253,11 @@ async function copyTaskPackage() {
       hardErrors.map(i => "• " + i.msg).join("\n") +
       "\n\nCopy anyway?";
     if (!confirm(msg)) return;
+  }
+  // Risk check gate — block copy if any check returns DO NOT SUBMIT
+  const riskEl = document.querySelector("#risk-checks");
+  if (riskEl && riskEl.textContent.includes("DO NOT SUBMIT")) {
+    if (!confirm("Risk checks show DO NOT SUBMIT — the package has unresolved issues (placeholders, unexecuted solver, stale build, etc.). Copy anyway?")) return;
   }
   try {
     await navigator.clipboard.writeText(els.generatedTaskPackage.value);
