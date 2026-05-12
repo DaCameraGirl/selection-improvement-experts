@@ -4216,7 +4216,7 @@ if __name__ == "__main__":
   "git-workflows": {
     domainLabel: "Git ref-recovery task — reconstruct lost commits after an accidental force-push",
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of Git's object model, ref mechanics, reflog parsing, reachability analysis, and commit graph topology validation. A weak solution can look plausible while still failing due to ${profile.failure}. The task is performed by a DevOps engineer or release manager specializing in Git object recovery, ref surgery, and repository forensics.`;
+      return `This is ${effectiveExpertiseLabel} difficulty because it requires Git reflog parsing, git fsck --connectivity-only checks, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. It also requires understanding Git's content-addressed object model: cherry-pick creates new SHAs, so the correct recovery path is fetching the original commit objects from repo_before_force.bundle and restoring refs with git update-ref.`;
     },
     verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
@@ -5239,7 +5239,7 @@ const TASK_RECIPES = {
       "expected_refs.json",
     ],
     title:   "Git force-push recovery: reconstruct three orphaned commits with exact topology",
-    snippet: "Recover three commits lost to an accidental git push --force by fetching original objects from a before-bundle and restoring branch refs to the exact SHA in the contract. Produce a verified repaired bundle and machine-readable audit reports.",
+    snippet: "Recover three commits lost to an accidental git push --force by fetching original objects from a before-bundle and restoring branch refs to the exact SHA in the contract. Produce a verified repaired bundle and machine-readable verification reports.",
     errorIfWrong: "verify.py exits with code 1 — repaired_repo.bundle is missing or invalid, git fsck --connectivity-only reports missing objects, recovered commit SHAs are not reachable from the required branch ref, or parent chain does not match commit_graph_spec.json.",
     verifierChecks: [
       "repaired_repo.bundle exists and is non-empty",
@@ -5252,7 +5252,7 @@ const TASK_RECIPES = {
       "repair_log.json and commit_graph_report.json are present and valid JSON with required fields",
     ],
     scenarioLabel: "force-push recovery",
-    difficultyCore: "requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
+    difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
   },
   "typescript-awaited-type": {
     id:       "typescript-awaited-type",
