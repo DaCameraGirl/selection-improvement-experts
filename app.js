@@ -7550,6 +7550,72 @@ async function buildAndDownloadZip() {
   }
 }
 
+// ── LOCAL RUNNER (Phase 1: health + connection) ──────────────────────
+const RUNNER_API_BASE = "http://127.0.0.1:8787";
+
+let runnerHealth = null;
+let runnerPollInterval = null;
+
+async function checkRunnerHealth() {
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/health`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    runnerHealth = await resp.json();
+    renderRunnerConnection();
+    return runnerHealth;
+  } catch {
+    runnerHealth = null;
+    renderRunnerConnection();
+    return null;
+  }
+}
+
+function renderRunnerConnection() {
+  const el = document.querySelector("#runner-connection");
+  const badge = document.querySelector("#runner-status-badge");
+  if (!el) return;
+
+  if (!runnerHealth) {
+    el.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Backend not reachable at <code>${RUNNER_API_BASE}</code>. Start the runner with <code>cd backend &amp;&amp; npm start</code>.</p>`;
+    if (badge) { badge.textContent = "Disconnected"; badge.className = "version-pill runner-disconnected"; }
+    return;
+  }
+
+  if (badge) { badge.textContent = "Connected — v" + runnerHealth.version; badge.className = "version-pill runner-connected"; }
+
+  const rows = [
+    { label: "Service:", value: runnerHealth.service },
+    { label: "Version:", value: runnerHealth.version },
+    { label: "Python:", value: runnerHealth.python },
+    { label: "Node:", value: runnerHealth.node },
+    { label: "Git:", value: runnerHealth.git },
+  ];
+
+  el.innerHTML =
+    '<div class="runner-version-row">' +
+    rows.map(r =>
+      `<div class="runner-version-item"><span class="runner-label">${escapeHtml(r.label)}</span> <span class="${r.value && !r.value.includes("not found") ? "runner-check" : "runner-cross"}">${escapeHtml(r.value || "not found")}</span></div>`
+    ).join("") +
+    '</div>';
+
+  // Enable upload button when connected
+  const uploadBtn = document.querySelector("#runner-upload-zip");
+  if (uploadBtn) uploadBtn.disabled = false;
+}
+
+function startRunnerPolling() {
+  if (runnerPollInterval) clearInterval(runnerPollInterval);
+  checkRunnerHealth();
+  runnerPollInterval = setInterval(checkRunnerHealth, 10000);
+}
+
+function stopRunnerPolling() {
+  if (runnerPollInterval) {
+    clearInterval(runnerPollInterval);
+    runnerPollInterval = null;
+  }
+}
+
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -7568,6 +7634,7 @@ function renderAll() {
 els.tabs.forEach((tab) => tab.addEventListener("click", () => {
   setView(tab.dataset.view);
   if (tab.dataset.view === "templates") renderCodeTemplates();
+  if (tab.dataset.view === "runner") checkRunnerHealth();
 }));
 const refreshTemplatesBtn = document.querySelector("#refresh-templates");
 if (refreshTemplatesBtn) refreshTemplatesBtn.addEventListener("click", renderCodeTemplates);
@@ -7602,6 +7669,19 @@ if (buildZipBtn) buildZipBtn.addEventListener("click", buildAndDownloadZip);
 
 const frontierSimBtn = document.querySelector("#run-frontier-sim");
 if (frontierSimBtn) frontierSimBtn.addEventListener("click", renderFrontierSimResults);
+
+// Runner refresh button
+const runnerRefreshBtn = document.querySelector("#runner-refresh");
+if (runnerRefreshBtn) runnerRefreshBtn.addEventListener("click", checkRunnerHealth);
+
+// Runner logs close button
+const runnerLogsCloseBtn = document.querySelector("#runner-logs-close");
+if (runnerLogsCloseBtn) runnerLogsCloseBtn.addEventListener("click", () => {
+  const panel = document.querySelector("#runner-logs-panel");
+  if (panel) panel.classList.add("is-hidden");
+});
+
+startRunnerPolling();
 
 load();
 renderAll();

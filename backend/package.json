@@ -1,0 +1,14 @@
+{
+  "name": "selection-improvement-runner",
+  "version": "2026-05-12-local-runner",
+  "private": true,
+  "description": "Local backend for executing Selection Improvement task packages",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "multer": "^1.4.5-lts.1",
+    "adm-zip": "^0.5.16"
+  }
+}

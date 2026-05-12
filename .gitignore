@@ -8,3 +8,7 @@ selection-improvement-experts-data.json
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Backend
+backend/node_modules/
+backend/workspaces/
