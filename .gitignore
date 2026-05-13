@@ -12,3 +12,4 @@ Thumbs.db
 # Backend
 backend/node_modules/
 backend/workspaces/
+backend/generated_packages/

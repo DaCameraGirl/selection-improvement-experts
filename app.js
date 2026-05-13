@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-12 build-task-zip";
+const APP_VERSION = "2026-05-13 enterprise-pipeline";
 
 const state = {
   guides: [],
@@ -7721,6 +7721,61 @@ function stopRunnerPolling() {
 // ── TASK ZIP BUILDER ─────────────────────────────────────────────────
 let lastBuiltZipId = null;
 
+function normalizeRunnerFamily(value) {
+  const key = String(value || "").trim().toLowerCase();
+  if (key === "react" || key === "frontend" || key === "react-and-frontend-testing") {
+    return "react";
+  }
+  if (key === "typescript" || key === "tsx") {
+    return "typescript";
+  }
+  if (key === "git" || key === "version-control" || key === "git-workflows") {
+    return "git";
+  }
+  return key;
+}
+
+function assertRunnerFamilySupported(taskFamily) {
+   const supported = new Set(["react", "typescript", "git"]);
+   if (!supported.has(taskFamily)) {
+     throw new Error(
+       `Runner package builder not implemented for ${taskFamily}. Current backend supports: react, typescript, git.`
+     );
+   }
+ }
+
+const ENTERPRISE_RECIPE_IDS = new Set([
+  "react-stale-closure",
+  "typescript-awaited-type",
+  "git-force-push-recovery",
+]);
+
+const FAMILY_BY_DOMAIN = {
+  react: "react",
+  typescript: "typescript",
+  "git-workflows": "git",
+};
+
+function resolveExecutionSpec() {
+  const recipeId = els.taskRecipe ? els.taskRecipe.value : "";
+  const recipe = recipeId && TASK_RECIPES[recipeId] ? TASK_RECIPES[recipeId] : null;
+
+  if (!recipe || !ENTERPRISE_RECIPE_IDS.has(recipeId)) {
+    throw new Error(
+      "Select one locked enterprise recipe: React, TypeScript, or Git."
+    );
+  }
+
+  const domain = recipe.domain;
+  const family = FAMILY_BY_DOMAIN[domain];
+
+  if (!family) {
+    throw new Error(`No runner family is mapped for domain "${domain}".`);
+  }
+
+  return { recipeId, recipe, domain, family };
+}
+
 async function handleBuildTaskZip() {
   const btn = document.querySelector("#runner-build-zip");
   const statusEl = document.querySelector("#runner-builder-status");
@@ -7729,18 +7784,28 @@ async function handleBuildTaskZip() {
   if (statusEl) statusEl.innerHTML = "Building task package...";
   if (downloadLink) downloadLink.classList.add("is-hidden");
 
-  try {
-    // Determine the task family from the prompt maker's domain
-    const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "typescript";
-    const family = domain === "react" ? "react"
-      : domain === "git-workflows" ? "git"
-      : "typescript";
+try {
+     const spec = resolveExecutionSpec();
+     const family = spec.family;
+     const recipeId = spec.recipeId;
 
-    const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ family })
-    });
+     const fields = getTaskFields();
+     // Extract first paragraph of verifiers as description for cache key
+     const verifierLines = (fields.verifiers || "").split("\n").filter(l => l.trim());
+     const verifierDescription = verifierLines.length ? verifierLines[0].trim().slice(0, 120) : "";
+
+     const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         family,
+         title: fields.title,
+         prompt: fields.prompt,
+         recipeId,
+         resources: fields.resources,
+         verifierDescription
+       })
+     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
@@ -8013,17 +8078,31 @@ async function handleImportComputedOutputs() {
   if (els.generatedTaskPackage) els.generatedTaskPackage.value = computedPkg;
   if (els.generatedTaskPreview) els.generatedTaskPreview.innerHTML = `<pre>${escapeHtml(computedPkg)}</pre>`;
 
-  updateRunnerStatusField("runner-copy-status", "UNLOCKED", "runner-check");
-
   try {
-    await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "COMPUTED_PASS" })
+    const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/finalize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
     });
-  } catch {}
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      updateRunnerStatusField("runner-status-value", err.status || "FINALIZE_FAILED", "runner-cross");
+      return;
+    }
+    const data = await resp.json();
+    if (data.status === "COMPUTED_PASS") {
+      updateRunnerStatusField("runner-copy-status", "UNLOCKED", "runner-check");
+      updateRunnerStatusField("runner-status-value", "COMPUTED_PASS", "runner-check");
+      window.__taskExecution = window.__taskExecution || {};
+      window.__taskExecution.solve_ran = true;
+      window.__taskExecution.verify_ran = true;
+      window.__taskExecution.verify_passed = true;
+      window.__taskExecution.outputs_exist = true;
+      window.__taskExecution.no_placeholders_in_final_answer = true;
+    }
+  } catch (err) {
+    updateRunnerStatusField("runner-status-value", "FINALIZE_ERROR", "runner-cross");
+  }
 
-  updateRunnerStatusField("runner-status-value", "COMPUTED_PASS", "runner-check");
   renderRiskChecks();
 }
 
@@ -8036,7 +8115,7 @@ async function startRun(runSetup, runSolve, runVerify) {
   if (!runnerPackageInfo || !runnerPackageInfo.package_id) return;
 
   const statusEl = document.querySelector("#runner-status");
-  if (statusEl) statusEl.innerHTML = '<p class="runner-muted">Starting run...</p>';
+  if (statusEl) statusEl.textContent = 'Starting run…';
 
   try {
     const resp = await fetch(`${RUNNER_API_BASE}/api/runs`, {
@@ -8079,7 +8158,7 @@ async function pollRunStatus() {
       const isCopyUnlocked = data.status === "COMPUTED_PASS";
       updateRunnerStatusField("runner-copy-status", isCopyUnlocked ? "UNLOCKED" : "LOCKED", isCopyUnlocked ? "runner-check" : "");
 
-      // Terminal states
+      // Terminal states — disable manual step buttons
       const terminalStates = ["OUTPUTS_COLLECTED", "OUTPUTS_MISSING", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];
       if (terminalStates.includes(data.status)) {
         if (runnerPollRunInterval) {
@@ -8103,6 +8182,117 @@ async function pollRunStatus() {
   await poll();
   if (!runnerPollRunInterval) {
     runnerPollRunInterval = setInterval(poll, 2000);
+  }
+}
+
+async function runEnterprisePipeline() {
+  const button = document.querySelector("#runner-run-pipeline");
+  const statusEl = document.querySelector("#runner-pipeline-status");
+  const origText = button ? button.textContent : "";
+
+  if (button) { button.disabled = true; button.textContent = "Running…"; }
+  if (statusEl) statusEl.textContent = "";
+
+  try {
+    const spec = resolveExecutionSpec();
+    const family = spec.family;
+    const recipeId = spec.recipeId;
+
+    // Sync domain/expertise if not already set
+    if (els.taskDomainSelect) els.taskDomainSelect.value = spec.recipe.domain;
+    if (els.taskExpertise) els.taskExpertise.value = spec.recipe.expertise;
+
+    // Ensure draft matches recipe
+    if (recipeId && TASK_RECIPES[recipeId]) {
+      buildFromRecipe(recipeId);
+      buildTaskPackage();
+    }
+
+    if (statusEl) statusEl.textContent = `Building ${family} package from ${recipeId}…`;
+
+    const health = await checkRunnerHealth();
+    if (!health) {
+      throw new Error("Runner backend is not reachable at http://127.0.0.1:8787.");
+    }
+
+    // Build package via backend
+    const fields = getTaskFields();
+    const verifierLines = (fields.verifiers || "").split("\n").filter(l => l.trim());
+    const verifierDescription = verifierLines.length ? verifierLines[0].trim().slice(0, 120) : "";
+
+    const buildResp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ family, recipeId, title: fields.title, prompt: fields.prompt, resources: fields.resources, verifierDescription })
+    });
+    if (!buildResp.ok) throw new Error(`Build failed (${buildResp.status})`);
+    const buildData = await buildResp.json();
+
+    if (statusEl) statusEl.textContent = `Package built, downloading and uploading…`;
+
+    // Auto-download and upload to runner
+    const dlResp = await fetch(`${RUNNER_API_BASE}/api/download/${buildData.task_id}`);
+    if (!dlResp.ok) throw new Error(`Download failed (${dlResp.status})`);
+    const blob = await dlResp.blob();
+    const file = new File([blob], `${family}-${buildData.task_id.slice(0, 8)}.zip`, { type: "application/zip" });
+
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const input = document.querySelector("#runner-zip-input");
+    if (input) { input.files = dt.files; handleRunnerZipChange({ target: input }); }
+
+    if (!runnerPackageInfo?.package_id) throw new Error("Package upload did not return a package_id");
+
+    if (statusEl) statusEl.textContent = "Package uploaded, running pipeline (setup → solve → verify)…";
+
+    // Run full pipeline
+    await startRun(true, true, true);
+
+    if (!runnerCurrentRunId) throw new Error("Run did not start");
+
+    // Poll until terminal
+    const pollUntilTerminal = () => new Promise((resolve, reject) => {
+      const interval = setInterval(async () => {
+        try {
+          const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}`);
+          if (!resp.ok) return;
+          const data = await resp.json();
+          const terminal = ["OUTPUTS_COLLECTED", "OUTPUTS_MISSING", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];
+          if (terminal.includes(data.status)) {
+            clearInterval(interval);
+            if (["SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "OUTPUTS_MISSING", "DO_NOT_SUBMIT"].includes(data.status)) {
+              reject(new Error(`Pipeline stopped in state ${data.status}. Check logs.`));
+            } else {
+              resolve(data);
+            }
+          }
+        } catch {}
+      }, 1500);
+    });
+
+    const result = await pollUntilTerminal();
+
+    if (statusEl) statusEl.textContent = "Finalizing run…";
+
+    // Finalize via backend
+    const finalizeResp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/finalize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    if (!finalizeResp.ok) {
+      const errBody = await finalizeResp.json().catch(() => ({}));
+      throw new Error(`Finalize rejected: ${errBody.placeholder_reason || errBody.error || `HTTP ${finalizeResp.status}`}`);
+    }
+
+    // Import computed outputs into the task package
+    await handleImportComputedOutputs();
+
+    if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Enterprise pipeline completed and final answer imported.`;
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> ${escapeHtml(err.message)}`;
+  } finally {
+    if (button) { button.disabled = false; button.textContent = origText || "Run Enterprise Pipeline"; }
   }
 }
 
@@ -8173,6 +8363,10 @@ if (runnerLogsCloseBtn) runnerLogsCloseBtn.addEventListener("click", () => {
   const panel = document.querySelector("#runner-logs-panel");
   if (panel) panel.classList.add("is-hidden");
 });
+
+// Runner enterprise pipeline button
+const runnerPipelineBtn = document.querySelector("#runner-run-pipeline");
+if (runnerPipelineBtn) runnerPipelineBtn.addEventListener("click", runEnterprisePipeline);
 
 // Runner build task zip button
 const runnerBuildZipBtn = document.querySelector("#runner-build-zip");
