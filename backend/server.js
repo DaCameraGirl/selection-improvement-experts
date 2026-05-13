@@ -1522,57 +1522,147 @@ function generateReactPackage(taskDir, fields) {
   }
 }
 
+// ── Build real git repos and bundles for the git-force-push-recovery task ──
+function buildGitBundles(taskDir) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-gen-"));
+  const git = (args, opts = {}) => {
+    const r = spawnSync("git", args, { cwd: tmpDir, shell: process.platform === "win32", ...opts });
+    return r;
+  };
+  git(["init"]);
+  // Ensure HEAD points to 'main' regardless of git version's default branch name
+  git(["symbolic-ref", "HEAD", "refs/heads/main"]);
+  git(["config", "user.name", "Generator"]);
+  git(["config", "user.email", "gen@example.com"]);
+
+  // Helper: write a file, git add, git commit, return SHA
+  function commit(files, msg) {
+    for (const [rel, content] of Object.entries(files)) {
+      const p = path.join(tmpDir, rel);
+      const d = path.dirname(p);
+      if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(p, content);
+    }
+    git(["add", "-A"]);
+    const r = git(["commit", "-m", msg]);
+    const sha = git(["rev-parse", "HEAD"]).stdout.toString().trim();
+    return sha;
+  }
+
+  const baseContent = {
+    "README.md": "# Git Force-Push Recovery\n\nThis repo simulates a force-push accident on the release-v2.1 branch.",
+    ".gitignore": "node_modules/\n.DS_Store\n",
+  };
+
+  // ── main branch commits ──
+  const shaA = commit({ ...baseContent, "src/config.ts": "export const API_URL = 'https://api.example.com';\nexport const TIMEOUT = 5000;\n" }, "Set up CI/CD pipeline for staging deploy");
+  const shaB = commit({ "src/handler.ts": "export function handle(req) {\n  return { status: 200, body: req };\n}\n", "src/db.ts": "export const pool = new Map();\n" }, "Refactor database connection pooling");
+
+  // ── release-v2.1 branch (branches from shaA) ──
+  git(["checkout", "-b", "release-v2.1", shaA]);
+  const shaC = commit({ "src/config.ts": "export const API_URL = 'https://api.example.com';\nexport const TIMEOUT = 5000;\nexport const RATE_LIMIT = 100;\n" }, "Add rate-limiting config for payment gateway");
+  const shaD = commit({ "package.json": JSON.stringify({ name: "my-app", version: "2.1.0-rc.1" }, null, 2) }, "Bump version to 2.1.0-rc.1");
+  const shaE = commit({ "src/transaction.ts": "export function processTx(tx) {\n  if (!tx) throw new Error('null tx');\n  return { id: tx.id, status: 'processed' };\n}\n" }, "Fix null-pointer in transaction handler");
+  const shaF = commit({ "src/handler.ts": "export function handle(req) {\n  if (!req.user) return { status: 401 };\n  return { status: 200, body: req };\n}\n" }, "Merge feature/urgent-fix into release-v2.1");
+
+  // Capture SHAs truncated for reflog
+  const trunc = (s) => s.slice(0, 7);
+
+  // ── repo_before_force.bundle: everything (main + release-v2.1) ──
+  const beforePath = path.join(taskDir, "repo_before_force.bundle");
+  git(["checkout", "main"]);
+  git(["bundle", "create", beforePath, "--all"]);
+
+  // ── repo_after_force.bundle: main only (release-v2.1 was force-pushed away) ──
+  const afterPath = path.join(taskDir, "repo_after_force.bundle");
+  git(["bundle", "create", afterPath, "main"]);
+
+  // File checksums (git hash-object output)
+  const checksums = {};
+  git(["checkout", shaC]);
+  checksums[trunc(shaC)] = { "src/config.ts": git(["hash-object", "src/config.ts"]).stdout.toString().trim() };
+  git(["checkout", shaD]);
+  checksums[trunc(shaD)] = { "package.json": git(["hash-object", "package.json"]).stdout.toString().trim() };
+  git(["checkout", shaE]);
+  checksums[trunc(shaE)] = { "src/transaction.ts": git(["hash-object", "src/transaction.ts"]).stdout.toString().trim() };
+
+  // Cleanup temp dir
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+
+  return {
+    shaA: trunc(shaA), shaB: trunc(shaB), shaC: trunc(shaC),
+    shaD: trunc(shaD), shaE: trunc(shaE), shaF: trunc(shaF),
+    shaA_full: shaA, shaB_full: shaB, shaC_full: shaC,
+    shaD_full: shaD, shaE_full: shaE, shaF_full: shaF,
+    checksums
+  };
+}
+
 // ── Git package generator ──────────────────────────────────────────────
 function generateGitPackage(taskDir, fields) {
   const verifierDir = path.join(taskDir, "verifier_inputs");
   ensureDir(verifierDir);
 
-  // ── Reflog export (simulated) ──────────────────────────────────────────
+  // Build real git repos and bundles
+  let shas;
+  try {
+    shas = buildGitBundles(taskDir);
+  } catch (e) {
+    console.error("[generator] Failed to build git bundles:", e.message);
+    // Fallback: write placeholder bundles so the package is still usable
+    fs.writeFileSync(path.join(taskDir, "repo_before_force.bundle"), "PLACEHOLDER: git bundle generation failed — replace with real bundle\n");
+    fs.writeFileSync(path.join(taskDir, "repo_after_force.bundle"), "PLACEHOLDER: git bundle generation failed — replace with real bundle\n");
+    shas = {
+      shaA: "a1b2c3d", shaB: "e4f5g6h", shaC: "i7j8k9l",
+      shaD: "m0n1o2p", shaE: "q3r4s5t", shaF: "u6v7w8x",
+      shaA_full: "a1b2c3d000000000000000000000000000000000",
+      shaB_full: "e4f5g6h000000000000000000000000000000000",
+      shaC_full: "i7j8k9l000000000000000000000000000000000",
+      shaD_full: "m0n1o2p000000000000000000000000000000000",
+      shaE_full: "q3r4s5t000000000000000000000000000000000",
+      shaF_full: "u6v7w8x000000000000000000000000000000000",
+      checksums: {
+        "i7j8k9l": { "src/config.ts": "abc123" },
+        "m0n1o2p": { "package.json": "def456" },
+        "q3r4s5t": { "src/transaction.ts": "789abc" }
+      }
+    };
+  }
+
+  // ── Reflog export ─────────────────────────────────────────────────────
   fs.writeFileSync(path.join(taskDir, "reflog_export.txt"), [
-    "a1b2c3d HEAD@{0}: commit (merge): Merge feature/urgent-fix into release-v2.1",
-    "e4f5g6h HEAD@{1}: commit: Fix null-pointer in transaction handler",
-    "i7j8k9l HEAD@{2}: commit: Bump version to 2.1.0-rc.1",
-    "m0n1o2p HEAD@{3}: commit: Add rate-limiting config for payment gateway",
-    "q3r4s5t HEAD@{4}: commit: Fix timeout in batch processor",
-    "u6v7w8x HEAD@{5}: commit: Update API docs for new endpoint",
-    "y9z0a1b HEAD@{6}: commit: Initial implementation of webhook retry logic",
-    "c2d3e4f HEAD@{7}: commit: Add integration tests for checkout flow",
-    "g5h6i7j HEAD@{8}: commit: Refactor database connection pooling",
-    "k8l9m0n HEAD@{9}: commit: Set up CI/CD pipeline for staging deploy",
+    `${shas.shaF} HEAD@{0}: commit (merge): Merge feature/urgent-fix into release-v2.1`,
+    `${shas.shaE} HEAD@{1}: commit: Fix null-pointer in transaction handler`,
+    `${shas.shaD} HEAD@{2}: commit: Bump version to 2.1.0-rc.1`,
+    `${shas.shaC} HEAD@{3}: commit: Add rate-limiting config for payment gateway`,
+    `${shas.shaB} HEAD@{4}: commit: Refactor database connection pooling`,
+    `${shas.shaA} HEAD@{5}: commit: Set up CI/CD pipeline for staging deploy`,
   ].join("\n"));
 
-  // ── Commit graph spec ──────────────────────────────────────────────────
+  // ── Commit graph spec ─────────────────────────────────────────────────
   fs.writeFileSync(path.join(taskDir, "commit_graph_spec.json"), JSON.stringify({
     description: "Expected commit graph topology after recovery. The three orphaned SHAs must be reachable from branch refs in this exact order.",
     branches: {
       "release-v2.1": {
-        expected_tip: "a1b2c3d",
-        expected_ancestors: ["a1b2c3d", "e4f5g6h", "i7j8k9l", "m0n1o2p"],
-        orphaned_commits: ["a1b2c3d", "e4f5g6h", "i7j8k9l"]
+        expected_tip: shas.shaF,
+        expected_ancestors: [shas.shaF, shas.shaE, shas.shaD, shas.shaC, shas.shaA],
+        orphaned_commits: [shas.shaF, shas.shaE, shas.shaD]
       },
       "main": {
-        expected_tip: "m0n1o2p",
-        expected_ancestors: ["m0n1o2p", "q3r4s5t", "u6v7w8x"]
+        expected_tip: shas.shaB,
+        expected_ancestors: [shas.shaB, shas.shaA]
       }
     }
   }, null, 2));
 
-  // ── Expected file checksums ────────────────────────────────────────────
-  fs.writeFileSync(path.join(taskDir, "expected_file_checksums.json"), JSON.stringify({
-    "a1b2c3d": { "src/config.ts": "abc123", "src/handler.ts": "def456" },
-    "e4f5g6h": { "src/transaction.ts": "789abc" },
-    "i7j8k9l": { "package.json": "def789" }
-  }, null, 2));
+  // ── Expected file checksums ───────────────────────────────────────────
+  fs.writeFileSync(path.join(taskDir, "expected_file_checksums.json"), JSON.stringify(shas.checksums, null, 2));
 
-  // ── Expected refs ──────────────────────────────────────────────────────
+  // ── Expected refs ─────────────────────────────────────────────────────
   fs.writeFileSync(path.join(taskDir, "expected_refs.json"), JSON.stringify({
-    "refs/heads/release-v2.1": "a1b2c3d",
-    "refs/heads/main": "m0n1o2p"
+    "refs/heads/release-v2.1": shas.shaF_full,
+    "refs/heads/main": shas.shaB_full
   }, null, 2));
-
-  // ── Placeholder bundle files ───────────────────────────────────────────
-  fs.writeFileSync(path.join(taskDir, "repo_before_force.bundle"), "PLACEHOLDER: Replace with actual git bundle before force push\n");
-  fs.writeFileSync(path.join(taskDir, "repo_after_force.bundle"), "PLACEHOLDER: Replace with actual git bundle after force push\n");
 
   // ── solve.py ───────────────────────────────────────────────────────────
   fs.writeFileSync(path.join(taskDir, "solve.py"), [
