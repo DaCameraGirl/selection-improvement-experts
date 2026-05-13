@@ -8220,9 +8220,29 @@ const FAMILY_BY_DOMAIN = {
   "git-workflows": "git",
 };
 
+const DOMAIN_TO_ENTERPRISE_RECIPE = {
+  react: "react-stale-closure",
+  typescript: "typescript-awaited-type",
+  "git-workflows": "git-force-push-recovery",
+};
+
 function resolveExecutionSpec() {
-  const recipeId = els.taskRecipe ? els.taskRecipe.value : "";
-  const recipe = recipeId && TASK_RECIPES[recipeId] ? TASK_RECIPES[recipeId] : null;
+  let recipeId = els.taskRecipe ? els.taskRecipe.value : "";
+  let recipe = recipeId && TASK_RECIPES[recipeId] ? TASK_RECIPES[recipeId] : null;
+
+  // Fallback: if no locked recipe selected, try to derive one from current domain
+  if (!recipe || !ENTERPRISE_RECIPE_IDS.has(recipeId)) {
+    const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+    const mappedId = DOMAIN_TO_ENTERPRISE_RECIPE[domain];
+    if (mappedId && TASK_RECIPES[mappedId]) {
+      recipeId = mappedId;
+      recipe = TASK_RECIPES[mappedId];
+      // Auto-select in the dropdown so it's visible to the user
+      if (els.taskRecipe && els.taskRecipe.value !== mappedId) {
+        els.taskRecipe.value = mappedId;
+      }
+    }
+  }
 
   if (!recipe || !ENTERPRISE_RECIPE_IDS.has(recipeId)) {
     throw new Error(
