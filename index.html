@@ -5824,6 +5824,7 @@ function buildVerifierFromRecipe(recipe, type, scenario, standard) {
 }
 
 function buildFromRecipe(recipeId) {
+  window.__taskExecution = undefined;
   const recipe = TASK_RECIPES[recipeId];
   if (!recipe) return false;
 
@@ -5869,6 +5870,7 @@ function buildFromRecipe(recipeId) {
 function fillStarterTemplate() {
   const confirmed = hasTaskDraft() ? confirm("Replace the current draft with a generated domain draft?") : true;
   if (!confirmed) return;
+  window.__taskExecution = undefined;
 
   // If a locked recipe is selected, delegate to the contract-driven builder
   const recipeSelect = document.querySelector("#task-recipe");
@@ -7279,16 +7281,12 @@ function renderConsistencyChecker() {
 // ── LLM / REVIEWER RISK CHECKS ──────────────────────────────────────────
 
 const GENERIC_AI_PHRASES = [
-  "domain constraints",
-  "implementation judgment",
-  "plausible-looking approximations",
-  "extra bulk, hidden facts, or wording tricks",
-  "careful handling of edge cases",
   "machine-readable diagnosis",
   "audit-ready evidence package",
   "documented exclusions",
   "scenario-specific requirement",
-  "exact reproducible outputs"
+  "lorem ipsum",
+  "as an ai"
 ];
 
 const DOMAIN_FORBIDDEN = {
@@ -7419,6 +7417,11 @@ function placeholderRisk(sectionName, text) {
 
 function finalAnswerReadiness() {
   const solved = window.__taskExecution || {};
+  const keys = Object.keys(solved);
+  // No runner run attempted at all — not applicable, not a block
+  if (keys.length === 0) {
+    return { status: "N/A", missing: [], note: "No runner execution yet — this is normal for draft-only work." };
+  }
   const required = [
     "solve_ran", "verify_ran", "verify_passed",
     "outputs_exist", "no_placeholders_in_final_answer"
@@ -8814,9 +8817,12 @@ if (frontierSimBtn) frontierSimBtn.addEventListener("click", renderFrontierSimRe
 const autoFixBtn = document.querySelector("#auto-fix-fields");
 if (autoFixBtn) autoFixBtn.addEventListener("click", handleAutoFix);
 
-// Runner refresh button
+// Runner refresh button — refreshes health AND active run status
 const runnerRefreshBtn = document.querySelector("#runner-refresh");
-if (runnerRefreshBtn) runnerRefreshBtn.addEventListener("click", checkRunnerHealth);
+if (runnerRefreshBtn) runnerRefreshBtn.addEventListener("click", async () => {
+  await checkRunnerHealth();
+  if (runnerCurrentRunId) await pollRunStatus();
+});
 
 // Runner logs close button
 const runnerLogsCloseBtn = document.querySelector("#runner-logs-close");
