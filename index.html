@@ -8411,9 +8411,9 @@ function handleRunnerUploadClick() {
   if (input) input.click();
 }
 
-function handleRunnerZipChange(event) {
+async function handleRunnerZipChange(event) {
   const file = event.target.files && event.target.files[0];
-  if (file) uploadTaskPackage(file);
+  if (file) await uploadTaskPackage(file);
 }
 
 // ── LOCAL RUNNER (Phase 3: execution) ────────────────────────────────
@@ -8723,7 +8723,7 @@ async function runEnterprisePipeline() {
     const dt = new DataTransfer();
     dt.items.add(file);
     const input = document.querySelector("#runner-zip-input");
-    if (input) { input.files = dt.files; handleRunnerZipChange({ target: input }); }
+    if (input) { input.files = dt.files; await handleRunnerZipChange({ target: input }); }
 
     if (!runnerPackageInfo?.package_id) throw new Error("Package upload did not return a package_id");
 
