@@ -3972,7 +3972,7 @@ NEGATIVE_FIXTURES = {"invalid_non_thenable.ts": {"expected_code": "TS2345", "exp
 
 def run_tsc(repo_dir, tsconfig):
     result = subprocess.run(["npx", "tsc", "--noEmit", "--project", tsconfig],
-                            capture_output=True, text=True, cwd=repo_dir)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
     return result.stdout + result.stderr, result.returncode
 
 def parse_tsc_output(raw):
@@ -4025,7 +4025,7 @@ def run(repo_dir, fixtures_dir, contracts_path, out_dir):
         subprocess.run(
             ["npx", "tsc", "--declaration", "--emitDeclarationOnly", "--noEmit", "false",
              "--outDir", str(decl_tmp), "--project", "tsconfig.strict.json"],
-            capture_output=True, text=True, cwd=repo_dir)
+            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
         decl_files = sorted(decl_tmp.glob("**/*.d.ts")) if decl_tmp.exists() else []
         if decl_files:
             generated = "\\n".join(f.read_text() for f in decl_files)
@@ -4165,7 +4165,7 @@ def run_jest(repo_dir, out_dir):
     raw_path = Path(out_dir) / "jest_raw.json"
     result = subprocess.run(
         ["npx", "jest", "--json", f"--outputFile={raw_path}", "--forceExit"],
-        capture_output=True, text=True, cwd=repo_dir)
+        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
     return result.stdout, result.stderr, result.returncode, raw_path
 
 def count_unmount_warnings(stderr):
@@ -4175,7 +4175,7 @@ def run(repo_dir, out_dir):
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
     stdout, stderr, exit_code, raw_path = run_jest(repo_dir, out_dir)
     unmount_warnings = count_unmount_warnings(stderr)
-    jest_data = json.loads(raw_path.read_text()) if raw_path.exists() else {}
+    jest_data = json.loads(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else {}
     tests = {}
     for suite in jest_data.get("testResults", []):
         for t in suite.get("testResults", []):
@@ -4278,14 +4278,13 @@ if __name__ == "__main__":
       "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json."
     ],
     verifiers: [
-      "Fail if outputs/repaired_repo.bundle is missing or cannot be cloned into a fresh directory.",
-      "Fail if git fsck --connectivity-only reports any missing or corrupt object.",
-      "Fail if any recovered commit SHA listed in commit_graph_spec.json is not reachable from the required branch ref (git rev-list).",
-      "Fail if the branch HEAD does not match the SHA declared in commit_graph_spec.json.",
-      "Fail if any recovered commit parent chain differs from commit_graph_spec.json.",
-      "Fail if any file checksum at a recovered commit does not match expected_file_checksums.json.",
-      "Fail if outputs/repair_log.json, outputs/commit_graph_report.json, or outputs/run_manifest.json is missing or has the wrong schema.",
-      "Fail if repeated verifier runs produce different reported refs, checksums, or pass/fail results."
+      "repaired_repo.bundle must be cloneable from a fresh directory and pass git fsck --connectivity-only with 0 missing or corrupt objects.",
+      "All 3 recovered commit SHAs must be reachable from the restored branch ref (git rev-list).",
+      "Branch HEAD must exactly match the SHA declared in commit_graph_spec.json — a cherry-picked SHA with the same diff will not pass.",
+      "Parent chain for each recovered commit must match commit_graph_spec.json.",
+      "File checksums at each recovered commit must match expected_file_checksums.json.",
+      "Fail if repair_log.json, commit_graph_report.json, or run_manifest.json is missing, empty, or not valid JSON.",
+      "Repeated runs must produce identical refs, checksums, and pass/fail results.",
     ],
     expectedOutputs: [
       "Expected output paths:",
@@ -4312,7 +4311,7 @@ import sys, json, subprocess, re, argparse, hashlib, shutil
 from pathlib import Path
 
 def git(args, cwd=None, check=True):
-    return subprocess.run(["git"] + args, capture_output=True, text=True, cwd=cwd, check=check)
+    return subprocess.run(["git"] + args, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd, check=check)
 
 def parse_reflog(reflog_path):
     shas = []
@@ -5576,34 +5575,11 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   const parts = [
     goldenIntro,
     "",
-    "Authoritative answer contract:",
-    `- Required final artifact(s): ${profile.artifact}.`,
-    "- Every required output path must be named before the workflow starts.",
-    details && details.solutionCode
-      ? (domainKey === "react"
-        ? "- Every test status, warning count, render-count result, API comparison, checksum, and pass/fail reason code used by the verifier must appear in a machine-readable output."
-        : domainKey === "git-workflows"
-          ? "- Every recovered commit SHA, branch ref, parent-chain comparison, checksum result, reachability result, and pass/fail reason code used by the verifier must appear in a machine-readable output."
-          : "- Every fixture result, diagnostic count, public API comparison, checksum, and pass/fail reason code used by the verifier must appear in a machine-readable output.")
-      : "- Every accepted row, rejected row, conflict decision, tolerance, checksum, and reason code used by the verifier must appear in a machine-readable output.",
-    details && details.solutionCode
-      ? (domainKey === "react"
-        ? "- Any unresolved test failure, warning mismatch, render-count violation, or API mismatch must be emitted separately in the JSON reports, not hidden in prose."
-        : domainKey === "git-workflows"
-          ? "- Any unresolved recovered commit, branch-ref mismatch, parent-chain mismatch, checksum mismatch, or reachability failure must be emitted separately in the JSON reports, not hidden in prose."
-          : "- Any unresolved fixture failure, unexpected diagnostic, or public API mismatch must be emitted separately in the JSON reports, not hidden in prose.")
-      : "- Any unresolved record must be emitted separately, not hidden in prose.",
-    "",
-    "A strong solution would be organized as a reproducible terminal workflow, not a prose-only answer.",
-    "",
     ...domainSteps.map((step, index) => `${index + 1}. ${step}`),
     `${domainSteps.length + 1}. Re-run from a clean checkout and confirm that output files, row ordering, checksums, and metrics are identical.`,
     details && details.solutionCode
       ? `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; confirm all pass/fail results are recorded in the JSON reports listed above.`
       : `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
-    "",
-    "Required evidence in the golden solution:",
-    ...goldenEvidenceFor(domainKey),
     "",
     `Important edge cases: ${profile.failure}.`
   ];
@@ -5750,18 +5726,18 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
     ...domainVerifierChecks.map((item) => `- ${item}`),
     ...typeAwareChecks,
     ...cleanCheckoutNote,
-    (domainKey === "react"
-      ? "- Assert exact output schema, required files, expected render counts, no unmounted state-update warnings, and reproducibility across repeated runs."
-      : domainKey === "typescript"
-        ? "- Assert exact output schema, required files, per-fixture pass/fail results, no public API signature drift, and reproducibility across repeated runs."
-        : domainKey === "git-workflows"
-          ? "- Assert exact output schema, required files, object connectivity, parent-chain integrity, checksum consistency, and reproducibility across repeated runs."
-          : "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs."),
-    details && details.solutionCode
-      ? (domainKey === "git-workflows"
-        ? "- Fail on missing files, unclonable repaired bundle, missing or corrupt Git objects, unreachable recovered commits, wrong branch HEAD SHA, parent-chain mismatch, checksum mismatch, invalid JSON schema, missing Git or Python version metadata, or non-deterministic reported refs or checksums."
-        : "- Fail on missing files, schema violations, missing version or checksum metadata, non-deterministic outputs, or omitted intermediate evidence.")
-      : "- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence.",
+    ...(domainKey === "git-workflows" ? [] : [
+      domainKey === "react"
+        ? "- Assert exact output schema, required files, expected render counts, no unmounted state-update warnings, and reproducibility across repeated runs."
+        : domainKey === "typescript"
+          ? "- Assert exact output schema, required files, per-fixture pass/fail results, no public API signature drift, and reproducibility across repeated runs."
+          : "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs."
+    ]),
+    ...(domainKey === "git-workflows" ? [] :
+      details && details.solutionCode
+        ? ["- Fail on missing files, schema violations, missing version or checksum metadata, non-deterministic outputs, or omitted intermediate evidence."]
+        : ["- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence."]
+    ),
     ...(details && details.solutionCode ? [] : [`- ${standard.verifier}`])
   ].join("\n");
 }
@@ -7656,6 +7632,20 @@ async function buildAndDownloadZip() {
 // ── LOCAL RUNNER (Phase 1: health + connection) ──────────────────────
 const RUNNER_API_BASE = "http://127.0.0.1:8787";
 
+// Chrome Private Network Access: mark all localhost fetches as intentional local requests.
+// https://developer.chrome.com/blog/private-network-access-preflight/
+{
+  const origFetch = window.fetch.bind(window);
+  window.fetch = function patchedFetch(input, init) {
+    init = init || {};
+    const url = typeof input === "string" ? input : input?.url || "";
+    if (url.startsWith(RUNNER_API_BASE) || url.includes("127.0.0.1") || url.includes("localhost")) {
+      init.targetAddressSpace = "local";
+    }
+    return origFetch(input, init);
+  };
+}
+
 let runnerHealth = null;
 let runnerPollInterval = null;
 
@@ -8180,6 +8170,11 @@ async function pollRunStatus() {
       // Dynamic copy gate — COMPUTED_PASS from backend unlocks it
       const isCopyUnlocked = data.status === "COMPUTED_PASS";
       updateRunnerStatusField("runner-copy-status", isCopyUnlocked ? "UNLOCKED" : "LOCKED", isCopyUnlocked ? "runner-check" : "");
+      // Clear transient start message once real status is received
+      const statusTransient = document.querySelector("#runner-status");
+      if (statusTransient && statusTransient.textContent === "Starting run…") {
+        statusTransient.textContent = "";
+      }
 
       // Terminal states — disable manual step buttons
       const terminalStates = ["OUTPUTS_COLLECTED", "OUTPUTS_MISSING", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];

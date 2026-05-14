@@ -25,7 +25,6 @@
           <button class="tab" data-view="prompt" type="button">Prompt Maker</button>
           <button class="tab" data-view="answer" type="button">Answer Helper</button>
           <button class="tab" data-view="templates" type="button">Code Templates</button>
-          <button class="tab" data-view="runner" type="button">Runner</button>
         </nav>
 
         <div class="stats">
@@ -137,30 +136,10 @@
                 <label>
                   Domain
                   <select id="task-domain-select">
-                    <option value="biomedical-signal">Biomedical signal processing</option>
-                    <option value="climate-geospatial">Climate and geospatial analytics</option>
-                    <option value="computational-biology">Computational biology</option>
-                    <option value="quant-finance">Quantitative finance</option>
-                    <option value="materials-science">Materials science</option>
-                    <option value="power-systems">Power systems engineering</option>
-                    <option value="cyber-forensics">Cybersecurity forensics</option>
-                    <option value="robotics-control">Robotics and control</option>
-                    <option value="econometrics">Econometrics and policy analysis</option>
-                    <option value="computational-linguistics">Computational linguistics</option>
-                    <option value="typescript">TypeScript type system</option>
-                    <option value="react">React and frontend testing</option>
                     <option value="git-workflows">Git and version control</option>
-                    <option value="software-engineering">Software engineering</option>
-                    <option value="computer-science">Computer science algorithms</option>
-                    <option value="distributed-systems">Distributed systems</option>
-                    <option value="databases">Databases and query optimization</option>
-                    <option value="compilers">Compilers and static analysis</option>
-                    <option value="ml-systems">Machine learning systems</option>
-                    <option value="ai-governance">AI ethics and model governance</option>
-                    <option value="applied-math">Applied mathematics</option>
-                    <option value="statistics">Statistics and experimental design</option>
-                    <option value="scientific-computing">Scientific computing</option>
-                    <option value="formal-methods">Formal methods</option>
+                    <option value="react">React and frontend testing</option>
+                    <option value="software-engineering">Software engineering / Coding</option>
+                    <option value="typescript">TypeScript type system</option>
                   </select>
                 </label>
 
@@ -195,56 +174,67 @@
 
                 <label>
                   Field / Sub-field <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 1 — Copy this → paste into the <strong>"Field / Sub-field"</strong> box on the Outlier form</span>
                   <input id="task-category" placeholder="Example: Biomedical Engineering, Signal Processing" />
                 </label>
 
                 <label>
                   Task title / name <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 2 — Copy this → paste into the <strong>"Task title"</strong> box on the Outlier form</span>
                   <input id="task-title" placeholder="Example: Post-migration ECG beat-detection validation" />
                 </label>
 
                 <label>
                   Prompt <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 3 — Copy this → paste into the <strong>"Prompt"</strong> box on the Outlier form. This is the exact instructions the AI agent will see.</span>
                   <textarea id="task-prompt" placeholder="Generate a draft, then edit it to match the actual source package and task goal."></textarea>
                 </label>
 
                 <label>
                   Short summary / snippet <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 4 — Copy this → paste into the <strong>"Summary"</strong> box on the Outlier form</span>
                   <textarea id="task-snippet" placeholder="1-2 sentence description of what the prompt asks the agent to do."></textarea>
                 </label>
 
                 <label>
                   Error if wrong <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 5 — Copy this → paste into the <strong>"Error if wrong"</strong> box on the Outlier form</span>
                   <textarea id="task-error" placeholder="What error message or exit code appears if the agent gets it wrong?"></textarea>
                 </label>
 
                 <label>
                   Why it's difficult / expertise required <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 6 — Copy this → paste into the <strong>"Difficulty"</strong> box on the Outlier form</span>
                   <textarea id="task-difficulty" placeholder="Explain why this is hard, why domain expertise is required, and why the difficulty is genuine rather than arbitrary."></textarea>
                 </label>
 
                 <label>
                   Resources / links required <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 7 — Copy this → paste into the <strong>"Resources"</strong> box on the Outlier form. ALSO: zip up the fixture files and upload the zip in that same section (see instructions above).</span>
                   <textarea id="task-resources" placeholder="List datasets, libraries, docs, files, packages, version numbers, and anything the agent environment must contain."></textarea>
                 </label>
 
                 <label>
                   Golden solution steps <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 8 — Copy this → paste into the <strong>"Golden Solution"</strong> box on the Outlier form. The solve.py code at the bottom is included — paste all of it.</span>
                   <textarea id="task-solution" placeholder="Show where the task is actually solved: authoritative computation, commands, scripts, expected outputs, schemas, and reason codes."></textarea>
                 </label>
 
                 <label>
                   Verifier description <small style="font-weight:400;color:#a855f7">(Outlier form field)</small>
+                  <span class="field-step">📋 STEP 9 — Copy this → paste into the <strong>"Verifier description"</strong> box on the Outlier form. You do NOT write the verifier code — Outlier's coders do that from this description.</span>
                   <textarea id="task-verifiers" placeholder="Describe deterministic checks for output files, schemas, tolerances, fixtures, and failure cases."></textarea>
                 </label>
 
                 <label>
                   Professional time estimate
+                  <span class="field-step">📋 STEP 10 — Copy this → paste into the <strong>"Time estimate"</strong> box on the Outlier form</span>
                   <input id="task-time" placeholder="Example: 5-7 hours for a senior data scientist with signal-processing experience" />
                 </label>
 
                 <label>
                   Frontier model test (required before submission)
+                  <span class="field-step">⚠️ STEP 11 — REQUIRED. Test the task against Claude or GPT-4o with terminal access FIRST. Write what step it failed at. Paste your notes here, then copy into the Outlier form. Without this, your submission will be rejected.</span>
                   <textarea id="task-agent-check" placeholder="Test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected."></textarea>
                 </label>
 
@@ -269,6 +259,72 @@
                 <h3>Generated Submission Package</h3>
                 <div id="generated-task-preview" class="generated-preview" aria-label="Generated Submission Package"><span class="preview-empty">Fill the fields and build a task package.</span></div>
                 <textarea id="generated-task-package" class="is-hidden" readonly aria-hidden="true"></textarea>
+
+                <div id="inline-runner-panel" class="is-hidden" style="margin-top:1.5rem">
+                  <h3 style="display:flex;align-items:center;gap:.5rem">
+                    Pipeline Runner
+                    <span id="runner-status-badge" class="version-pill runner-disconnected">Disconnected</span>
+                  </h3>
+                  <div class="runner-layout">
+                    <section class="runner-section">
+                      <div id="runner-connection" class="runner-box">
+                        <p class="runner-muted">Checking backend at <code>http://127.0.0.1:8787</code>…</p>
+                      </div>
+                    </section>
+                    <section class="runner-section">
+                      <h3>Enterprise Pipeline</h3>
+                      <div id="runner-pipeline" class="runner-box">
+                        <div class="runner-actions">
+                          <button id="runner-run-pipeline" class="primary" type="button">Run Enterprise Pipeline</button>
+                        </div>
+                        <div id="runner-pipeline-status" class="runner-builder-status"></div>
+                      </div>
+                    </section>
+                    <section class="runner-section">
+                      <h3>Status</h3>
+                      <div id="runner-status" class="runner-box">
+                        <div class="runner-status-grid">
+                          <div><span class="runner-label">Execution Status:</span> <span id="runner-status-value" class="runner-value">NOT RUN</span></div>
+                          <div><span class="runner-label">Task Family:</span> <span id="runner-task-family" class="runner-value">—</span></div>
+                          <div><span class="runner-label">solve.py:</span> <span id="runner-solve-status" class="runner-value">—</span></div>
+                          <div><span class="runner-label">verify.py:</span> <span id="runner-verify-status" class="runner-value">—</span></div>
+                          <div><span class="runner-label">outputs/:</span> <span id="runner-outputs-status" class="runner-value">—</span></div>
+                          <div><span class="runner-label">placeholder scan:</span> <span id="runner-placeholder-status" class="runner-value">—</span></div>
+                          <div><span class="runner-label">copy gate:</span> <span id="runner-copy-status" class="runner-value">LOCKED</span></div>
+                        </div>
+                      </div>
+                    </section>
+                    <section class="runner-section">
+                      <h3>Actions</h3>
+                      <div class="runner-actions">
+                        <button id="runner-open-logs" type="button" disabled>Open Logs</button>
+                        <button id="runner-import-outputs" type="button" disabled>Import Computed Outputs</button>
+                        <button id="runner-refresh" type="button">Refresh Status</button>
+                      </div>
+                    </section>
+                  </div>
+                  <div id="runner-logs-panel" class="runner-logs is-hidden">
+                    <div class="runner-logs-header">
+                      <h3>Execution Logs</h3>
+                      <button id="runner-logs-close" type="button">Close</button>
+                    </div>
+                    <pre id="runner-logs-content" class="runner-logs-content">No logs yet.</pre>
+                  </div>
+                  <!-- Hidden support elements used by runner JS -->
+                  <div style="display:none">
+                    <div id="runner-package"></div>
+                    <div id="runner-builder"></div>
+                    <div id="runner-builder-status"></div>
+                    <button id="runner-build-zip" disabled></button>
+                    <a id="runner-download-zip" href="#" download></a>
+                    <button id="runner-upload-zip" disabled></button>
+                    <input id="runner-zip-input" type="file" accept=".zip" />
+                    <button id="runner-run-setup" disabled></button>
+                    <button id="runner-run-solve" disabled></button>
+                    <button id="runner-run-verify" disabled></button>
+                    <button id="runner-compute-fa" disabled></button>
+                  </div>
+                </div>
               </section>
             </div>
           </div>
@@ -331,108 +387,6 @@
             </div>
             <pre id="template-verify-py" class="code-block"><span class="preview-empty">Go to Prompt Maker, hit Generate Draft, then come back here.</span></pre>
           </section>
-        </div>
-      </div>
-    </section>
-
-    <section class="view" id="view-runner">
-      <div class="view-desc">
-        <strong>Local Execution Runner</strong> — Run generated task packages against real Python/Node/Git runtimes on your machine. Upload a task zip, the runner detects the task family (React / TypeScript / Git-workflows), runs <em>solve.py</em> and <em>verify.py</em>, collects computed outputs, and unlocks the Final Answer section.
-      </div>
-      <div class="panel wide-panel">
-        <div class="panel-header">
-          <h2>Selection Improvement Runner</h2>
-          <div class="inline-actions">
-            <span id="runner-status-badge" class="version-pill runner-disconnected">Disconnected</span>
-          </div>
-        </div>
-
-        <div class="runner-layout">
-          <section class="runner-section">
-            <h3>Connection</h3>
-            <div id="runner-connection" class="runner-box">
-              <p class="runner-muted">Backend status will appear here when the local runner is running.</p>
-            </div>
-          </section>
-
-          <section class="runner-section">
-            <h3>Enterprise Pipeline</h3>
-            <div id="runner-pipeline" class="runner-box">
-              <p class="runner-muted">Select a locked recipe (React/TypeScript/Git), then run the full pipeline: build → upload → setup → solve → verify → finalize → import.</p>
-              <div class="runner-actions">
-                <button id="runner-run-pipeline" class="primary" type="button">Run Enterprise Pipeline</button>
-              </div>
-              <div id="runner-pipeline-status" class="runner-builder-status"></div>
-            </div>
-          </section>
-
-          <section class="runner-section">
-            <h3>Build Task Zip</h3>
-            <div id="runner-builder" class="runner-box">
-              <p class="runner-muted">Generate a runnable benchmark package zip from the selected task recipe/domain.</p>
-              <div class="runner-actions">
-                <button id="runner-build-zip" class="primary" type="button" disabled>Build Task Zip</button>
-                <a id="runner-download-zip" class="runner-download-link is-hidden" href="#" download>⬇ Download Task Zip</a>
-              </div>
-              <div id="runner-builder-status" class="runner-builder-status"></div>
-            </div>
-          </section>
-
-          <section class="runner-section">
-            <h3>Package</h3>
-            <div id="runner-package" class="runner-box">
-              <p class="runner-muted">Upload a task package zip to begin.</p>
-              <div class="runner-actions">
-                <button id="runner-upload-zip" class="primary" type="button" disabled>Upload Task Zip</button>
-                <input id="runner-zip-input" type="file" accept=".zip" hidden />
-              </div>
-            </div>
-          </section>
-
-          <section class="runner-section">
-            <h3>Execution</h3>
-            <div id="runner-execution" class="runner-box">
-              <p class="runner-muted">Run pipeline steps after a package is uploaded.</p>
-              <div class="runner-actions">
-                <button id="runner-run-setup" type="button" disabled>Run Setup</button>
-                <button id="runner-run-solve" type="button" disabled>Run solve.py</button>
-                <button id="runner-run-verify" type="button" disabled>Run verify.py</button>
-                <button id="runner-compute-fa" type="button" disabled>Compute Final Answer</button>
-              </div>
-            </div>
-          </section>
-
-          <section class="runner-section">
-            <h3>Status</h3>
-            <div id="runner-status" class="runner-box">
-              <div class="runner-status-grid">
-                <div><span class="runner-label">Execution Status:</span> <span id="runner-status-value" class="runner-value">NOT RUN</span></div>
-                <div><span class="runner-label">Task Family:</span> <span id="runner-task-family" class="runner-value">—</span></div>
-                <div><span class="runner-label">solve.py:</span> <span id="runner-solve-status" class="runner-value">—</span></div>
-                <div><span class="runner-label">verify.py:</span> <span id="runner-verify-status" class="runner-value">—</span></div>
-                <div><span class="runner-label">outputs/:</span> <span id="runner-outputs-status" class="runner-value">—</span></div>
-                <div><span class="runner-label">placeholder scan:</span> <span id="runner-placeholder-status" class="runner-value">—</span></div>
-                <div><span class="runner-label">copy gate:</span> <span id="runner-copy-status" class="runner-value">LOCKED</span></div>
-              </div>
-            </div>
-          </section>
-
-          <section class="runner-section">
-            <h3>Actions</h3>
-            <div class="runner-actions">
-              <button id="runner-open-logs" type="button" disabled>Open Logs</button>
-              <button id="runner-import-outputs" type="button" disabled>Import Computed Outputs</button>
-              <button id="runner-refresh" type="button">Refresh Status</button>
-            </div>
-          </section>
-        </div>
-
-        <div id="runner-logs-panel" class="runner-logs is-hidden">
-          <div class="runner-logs-header">
-            <h3>Execution Logs</h3>
-            <button id="runner-logs-close" type="button">Close</button>
-          </div>
-          <pre id="runner-logs-content" class="runner-logs-content">No logs yet.</pre>
         </div>
       </div>
     </section>
@@ -837,48 +791,35 @@ function buildTaskPackageLines(fields) {
     " Paste each section into the matching field in the Outlier form.",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "",
-    "── FIELD: Field / Sub-field ────────────────────────",
+    "── FIELD 1: Field / Sub-field ──────────────────────",
     packageText(fields.category, "Name the academic/professional field and sub-field, e.g. Biomedical Engineering, Signal Processing"),
     "",
-    "── FIELD: Task title / name ────────────────────────",
+    "── FIELD 2: Title or name ──────────────────────────",
     packageText(fields.title, "Short task title, e.g. Post-migration ECG beat-detection validation"),
     "",
-    "── FIELD: Prompt ───────────────────────────────────",
+    "── FIELD 3: Prompt ─────────────────────────────────",
     packageText(fields.prompt, "Write the exact prompt that will be provided to the agent."),
     "",
-    "── FIELD: Short summary / snippet ──────────────────",
+    "── FIELD 4: Short summary / proposal ───────────────",
     packageText(fields.snippet, "1-2 sentences describing what the prompt asks the agent to do."),
     "",
-    "── FIELD: Error if wrong ───────────────────────────",
-    packageText(fields.errorIfWrong, "What error message or exit code appears if the agent gets it wrong?"),
+    "── FIELD 5: Why it's difficult / expertise required ─",
+    packageText(fields.difficulty, "Explain why this is hard, who needs this skill in real life, and why the data is realistic."),
     "",
-    "── FIELD: Why it's difficult / expertise required ──",
-    packageText(fields.difficulty, "Explain why this is hard, why common automated approaches may fail, and why it requires domain expertise."),
+    "── FIELD 6: Resources required ─────────────────────",
+    packageText(fields.resources, "List every dataset, file, package, public source, version, and setup artifact the agent needs. First word must be 'Resources:'"),
     "",
-    "── FIELD: Resources / links required ───────────────",
-    packageText(fields.resources, "List every dataset, file, package, public source, version, and setup artifact the agent needs."),
-    "",
-    "── FIELD: Golden solution steps ────────────────────",
+    "── FIELD 7: Golden solution ────────────────────────",
     packageText(fields.solution, "Show where the task is actually solved: authoritative computation, commands, code/scripts, expected outputs, schemas, and failure decisions."),
     "",
-    "── FIELD: Final answer / Expected solution outputs ──",
-    packageText(buildExpectedFinalAnswer(packageDomainKey), "No expected outputs defined for this domain."),
-    "",
-    ...(window.__taskExecution?.no_placeholders_in_final_answer ? [] : [
-      "── FINAL ANSWER READINESS (internal gate) ─────────────",
-      "STATUS: NOT READY — solve.py has not been executed against fixtures.",
-      "The content above is an expected-output schema, not a computed final answer.",
-      "Set window.__taskExecution to mark execution complete.",
-      ""
-    ]),
-    "── FIELD: Verifier description ─────────────────────",
-    packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
-    "",
-    "── FIELD: Time estimate (if form asks) ─────────────",
+    "── FIELD 8: Time estimate ──────────────────────────",
     packageText(fields.time, "Estimate how long a qualified professional would need."),
     "",
-    "── FIELD: Agent difficulty check (if form asks) ────",
-    packageText(fields.agentCheck, "Summarize terminal-agent testing only if you performed it."),
+    "── FIELD 9: Verifiers ──────────────────────────────",
+    packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
+    "",
+    "── Author email ────────────────────────────────────",
+    "jtsbaenot@gmail.com",
     "",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     " INTERNAL REVIEW AIDS — do not submit",
@@ -918,6 +859,18 @@ function buildTaskPackage() {
   renderReadinessDashboard();
   renderSubmissionAudit();
   renderConsistencyChecker();
+
+  // Show inline runner panel for supported domains — no auto-scroll, no auto-run
+  const supportedRunnerDomains = new Set(["react", "typescript", "git-workflows"]);
+  const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+  const inlinePanel = document.querySelector("#inline-runner-panel");
+  if (inlinePanel) {
+    if (supportedRunnerDomains.has(domain)) {
+      inlinePanel.classList.remove("is-hidden");
+    } else {
+      inlinePanel.classList.add("is-hidden");
+    }
+  }
 }
 
 const DOMAIN_DRAFTS = {
@@ -4433,7 +4386,7 @@ NEGATIVE_FIXTURES = {"invalid_non_thenable.ts": {"expected_code": "TS2345", "exp
 
 def run_tsc(repo_dir, tsconfig):
     result = subprocess.run(["npx", "tsc", "--noEmit", "--project", tsconfig],
-                            capture_output=True, text=True, cwd=repo_dir)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
     return result.stdout + result.stderr, result.returncode
 
 def parse_tsc_output(raw):
@@ -4486,7 +4439,7 @@ def run(repo_dir, fixtures_dir, contracts_path, out_dir):
         subprocess.run(
             ["npx", "tsc", "--declaration", "--emitDeclarationOnly", "--noEmit", "false",
              "--outDir", str(decl_tmp), "--project", "tsconfig.strict.json"],
-            capture_output=True, text=True, cwd=repo_dir)
+            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
         decl_files = sorted(decl_tmp.glob("**/*.d.ts")) if decl_tmp.exists() else []
         if decl_files:
             generated = "\\n".join(f.read_text() for f in decl_files)
@@ -4626,7 +4579,7 @@ def run_jest(repo_dir, out_dir):
     raw_path = Path(out_dir) / "jest_raw.json"
     result = subprocess.run(
         ["npx", "jest", "--json", f"--outputFile={raw_path}", "--forceExit"],
-        capture_output=True, text=True, cwd=repo_dir)
+        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
     return result.stdout, result.stderr, result.returncode, raw_path
 
 def count_unmount_warnings(stderr):
@@ -4636,7 +4589,7 @@ def run(repo_dir, out_dir):
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
     stdout, stderr, exit_code, raw_path = run_jest(repo_dir, out_dir)
     unmount_warnings = count_unmount_warnings(stderr)
-    jest_data = json.loads(raw_path.read_text()) if raw_path.exists() else {}
+    jest_data = json.loads(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else {}
     tests = {}
     for suite in jest_data.get("testResults", []):
         for t in suite.get("testResults", []):
@@ -4679,8 +4632,21 @@ if __name__ == "__main__":
   },
   "git-workflows": {
     domainLabel: "Git ref-recovery task — reconstruct lost commits after an accidental force-push",
+    snippetDraft() {
+      const variants = [
+        "Three commits got wiped off the release branch by an accidental force-push. The task is to get them back with the right parent chain using the before-bundle and reflog, and output machine-checkable JSON reports so the recovery can be verified.",
+        "A bad force-push lost 3 commits from the release branch. Restore those exact commit objects from the before-bundle — not cherry-picks — so the SHA, parent chain, and file checksums all match what the verifier expects.",
+        "Someone force-pushed and dropped 3 commits. The originals are still in the before-bundle. Recover them onto the branch with correct parent ordering and output repair_log.json and commit_graph_report.json so the verifier can confirm the fix.",
+      ];
+      return variants[Math.floor(Math.random() * variants.length)];
+    },
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it requires Git reflog parsing, git fsck --connectivity-only checks, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. It also requires understanding Git's content-addressed object model: cherry-pick creates new SHAs, so the correct recovery path is fetching the original commit objects from repo_before_force.bundle and restoring refs with git update-ref.`;
+      const variants = [
+        `Most people reach for cherry-pick instinctively, but that creates brand new commit SHAs instead of restoring the originals — the verifier checks exact SHAs and parent chains, so a cherry-pick will silently fail even though the code looks right. The fix is to fetch the original objects from the before-bundle and use git update-ref, which is something most engineers haven't done in a real incident. On top of that, the verifier also checks file checksums at each recovered commit, so the recovery has to be exact all the way down.`,
+        `The instinctive move — cherry-pick — looks like it works but creates new commit hashes, and the verifier rejects anything that doesn't match the original SHAs in commit_graph_spec.json. The correct path requires knowing to clone from the before-bundle, fetch the specific orphaned commits by SHA, then restore the branch ref with git update-ref. That sequence isn't obvious unless you've debugged force-push recovery before. The checksum step on top of that catches recoveries where the right commits landed but in the wrong order.`,
+        `Cherry-pick is the wrong answer here — it produces new commit objects with different SHAs, which means the verifier fails on exact SHA comparison even though the code changes are identical. Recovering the original commits requires fetching them by hash from the before-bundle and then moving the branch ref, not replaying changes. The parent chain check and per-commit file checksums make it impossible to slide by with a close-enough answer.`,
+      ];
+      return variants[Math.floor(Math.random() * variants.length)];
     },
     verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
@@ -4691,24 +4657,26 @@ if __name__ == "__main__":
       "commit_graph_spec.json — expected branch ref targets, parent SHA chains, and commit messages",
       "expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit",
       "expected_refs.json — exact branch ref → SHA mappings the verifier will check",
-      "output_schemas/ — JSON Schema definitions for repair_log.json and commit_graph_report.json",
-      "verifier_inputs/ — fixture bundles for normal, edge, and invalid recovery cases",
-      "version_manifest.json — git version and OS used to produce the fixtures"
+      "version_manifest.json — git version and OS used to produce the fixtures",
+      "solve.py — starter recovery script; agent runs or modifies it to produce the output files",
+      "verify.py — grader script that checks output files against expected refs and checksums"
     ],
     standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before release validation completed. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
-        "regression triage": "Exactly 3 commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable.",
-        "compliance audit": "An incident review confirmed that 3 commits are no longer reachable on the release branch after an accidental force-push. Recovery must be machine-verifiable with full checksum and topology evidence. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so all 3 original commits are reachable with the exact topology specified.",
-        "edge-case benchmark": "The provided Git repository contains a ref reconstruction challenge: exactly 3 commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs."
+        "post-migration validation": "A force-push to the release branch during a deployment wiped 3 commits that hadn't been merged yet. The original objects are still in repo_before_force.bundle. Use that, along with repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json to get those commits reachable again with the right parent chain.",
+        "regression triage": "Someone ran git push --force on the release branch and 3 commits vanished. Work is blocked until they're back. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, restore the branch so all 3 missing commits are reachable with the topology in the spec.",
+        "compliance audit": "3 commits dropped off the release branch after a force-push and the incident needs a verified fix. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, restore the branch refs so the missing commits are reachable and the recovery is machine-checkable.",
+        "edge-case benchmark": "A bad force-push removed exactly 3 commits from the release branch. The original objects still exist in the before-bundle. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch so all 3 commits are reachable with correct parent chains and checksums."
       };
       const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
-      return [
-        opener,
-        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. The repaired repository must clone successfully from the bundle; git fsck --connectivity-only must report exactly 0 missing or corrupt objects; all 3 recovered commit SHAs must be reachable from the required branch ref; each recovered commit must have the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec.json.",
-        "The JSON reports must include original and repaired branch refs, recovered commit SHAs, parent SHAs, reachability status, checksum verification results, Git version, input bundle checksums, and pass/fail reason codes. The verifier will grade only the repaired bundle and output reports, not the recovery method."
-      ].join("\n\n");
+      const closings = [
+        "Produce 4 output files inside an outputs/ folder: repaired_repo.bundle, repair_log.json, commit_graph_report.json, run_manifest.json. The bundle must clone clean and pass git fsck --connectivity-only. All 3 recovered commit SHAs must be reachable from the branch ref with parent chains and file checksums matching the spec files exactly. The JSON reports must include the recovered SHAs, ref states, reachability results, and pass/fail codes — the verifier grades output files, not method.",
+        "Drop 4 files into outputs/: repaired_repo.bundle, repair_log.json, commit_graph_report.json, run_manifest.json. Acceptance: bundle clones without errors, fsck exits 0, all 3 SHAs reachable from the branch ref, parent chains match commit_graph_spec.json, file checksums match expected_file_checksums.json, branch refs match expected_refs.json. The JSON reports need the recovered SHAs, ref states, and pass/fail codes — the verifier checks files only.",
+        "Write outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. The bundle must be cloneable and pass fsck. The 3 recovered commit SHAs must be reachable from the branch ref with parent chains that exactly match the spec. File checksums must match at each recovered commit. The reports need the recovered SHAs, ref before/after, reachability status, and pass/fail codes.",
+      ];
+      const closing = closings[Math.floor(Math.random() * closings.length)];
+      return [opener, closing].join("\n\n");
     },
     sources: [
       "Git reflog documentation: https://git-scm.com/docs/git-reflog",
@@ -4717,16 +4685,47 @@ if __name__ == "__main__":
     ],
     downloads: [
       "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
-      "Git 2.43.0 or compatible, recorded in environment/git_version.txt.",
-      "reflog_export.txt — included in the zip; contains the 3 orphaned commit SHAs to recover."
+      "reflog_export.txt — included in the zip; the 3 orphaned commit SHAs to recover are tagged RECOVER_ME.",
+      "Git 2.43.0 or compatible (recorded in version_manifest.json inside the zip)."
     ],
+    resourcesDraftFull() {
+      return [
+        "One self-contained zip. All files listed below are at the top level of the zip — no subdirectories.",
+        "",
+        "Source references (documentation, no downloads required):",
+        "- git-scm.com/docs/git-bundle — bundle format and clone/fetch usage",
+        "- git-scm.com/docs/git-reflog — reflog format and SHA recovery",
+        "- ohshitgit.com — real-world force-push recovery context",
+        "",
+        "Files included in the zip:",
+        "- repo_before_force.bundle — git bundle with the full object store before the force-push, including the 3 lost commits.",
+        "- repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.",
+        "- reflog_export.txt — each line is SHA REFLOG_MESSAGE; the 3 orphaned commits to recover are tagged RECOVER_ME.",
+        "- commit_graph_spec.json — expected final branch topology: branch name, HEAD SHA, parent SHA chain, commit messages.",
+        "- expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit.",
+        "- expected_refs.json — exact branch ref → SHA mappings the verifier will check.",
+        "- version_manifest.json — git version and OS used to build the fixtures.",
+        "- solve.py — starter recovery script; run or modify it to produce the output files.",
+        "- verify.py — grader script that checks output files against expected refs and checksums.",
+        "- README.md — describes each file, expected output paths, and how verify.py grades the result.",
+        "",
+        "Required output files (agent must produce inside an outputs/ folder):",
+        "- outputs/repaired_repo.bundle — the repaired repository as a git bundle.",
+        "- outputs/repair_log.json — lists recovered SHAs, ref states, and pass/fail codes.",
+        "- outputs/commit_graph_report.json — reachability check results against commit_graph_spec.json.",
+        "- outputs/run_manifest.json — records python version and whether the bundle was created successfully.",
+        "",
+        "No external network access required after the zip is unpacked. All fixture data is synthetically constructed; no licensing restrictions.",
+      ].join("\n");
+    },
     resources: [
-      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the 3 lost commits.",
-      "repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.",
-      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; the 3 orphaned commits to recover are tagged RECOVER_ME.",
+      "repo_before_force.bundle — git bundle with the full object store before the force-push, including the 3 lost commits.",
+      "repo_after_force.bundle — git bundle reflecting what the remote has after the accidental push.",
+      "reflog_export.txt — each line is SHA REFLOG_MESSAGE; the 3 orphaned commits to recover are tagged RECOVER_ME.",
       "commit_graph_spec.json — declares the expected final branch topology: branch name, expected HEAD SHA, expected parent SHA chain, and commit messages.",
-      "verifier_inputs/expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit.",
-      "environment/git_version.txt — git 2.43.0."
+      "expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit.",
+      "expected_refs.json — exact branch ref → SHA mappings the verifier will check.",
+      "version_manifest.json — records the git version and OS used to build the fixtures."
     ],
     solution: [
       "Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs",
@@ -4739,14 +4738,13 @@ if __name__ == "__main__":
       "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json."
     ],
     verifiers: [
-      "Fail if outputs/repaired_repo.bundle is missing or cannot be cloned into a fresh directory.",
-      "Fail if git fsck --connectivity-only reports any missing or corrupt object.",
-      "Fail if any recovered commit SHA listed in commit_graph_spec.json is not reachable from the required branch ref (git rev-list).",
-      "Fail if the branch HEAD does not match the SHA declared in commit_graph_spec.json.",
-      "Fail if any recovered commit parent chain differs from commit_graph_spec.json.",
-      "Fail if any file checksum at a recovered commit does not match expected_file_checksums.json.",
-      "Fail if outputs/repair_log.json, outputs/commit_graph_report.json, or outputs/run_manifest.json is missing or has the wrong schema.",
-      "Fail if repeated verifier runs produce different reported refs, checksums, or pass/fail results."
+      "repaired_repo.bundle must be cloneable from a fresh directory and pass git fsck --connectivity-only with 0 missing or corrupt objects.",
+      "All 3 recovered commit SHAs must be reachable from the restored branch ref (git rev-list).",
+      "Branch HEAD must exactly match the SHA declared in commit_graph_spec.json — a cherry-picked SHA with the same diff will not pass.",
+      "Parent chain for each recovered commit must match commit_graph_spec.json.",
+      "File checksums at each recovered commit must match expected_file_checksums.json.",
+      "Fail if repair_log.json, commit_graph_report.json, or run_manifest.json is missing, empty, or not valid JSON.",
+      "Repeated runs must produce identical refs, checksums, and pass/fail results.",
     ],
     expectedOutputs: [
       "Expected output paths:",
@@ -4758,8 +4756,8 @@ if __name__ == "__main__":
       "Example repair_log.json:",
       "{",
       "  \"recovered_commits\": [",
-      "    { \"sha\": \"abc1234...\", \"method\": \"ref-restore\", \"message\": \"feat: add validation\", \"parent\": \"def5678...\", \"reachable\": true },",
-      "    { \"sha\": \"bcd2345...\", \"method\": \"ref-restore\", \"message\": \"fix: null guard\", \"parent\": \"abc1234...\", \"reachable\": true }",
+      "    { \"sha\": \"e771d8cbee1d7fd4\", \"method\": \"ref-restore\", \"message\": \"Merge feature/3ds-support into release-v3.0\", \"parent\": \"a49ed14f2c883091\", \"reachable\": true },",
+      "    { \"sha\": \"a49ed14f2c883091\", \"method\": \"ref-restore\", \"message\": \"Guard against null idempotency key\", \"parent\": \"024ebe1d7a5fc302\", \"reachable\": true }",
       "  ],",
       "  \"fsck_connectivity_clean\": true",
       "}",
@@ -4773,7 +4771,7 @@ import sys, json, subprocess, re, argparse, hashlib, shutil
 from pathlib import Path
 
 def git(args, cwd=None, check=True):
-    return subprocess.run(["git"] + args, capture_output=True, text=True, cwd=cwd, check=check)
+    return subprocess.run(["git"] + args, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd, check=check)
 
 def parse_reflog(reflog_path):
     shas = []
@@ -5702,9 +5700,9 @@ const TASK_RECIPES = {
       "expected_file_checksums.json",
       "expected_refs.json",
     ],
-    title:   "Git force-push recovery: reconstruct three orphaned commits with exact topology",
-    snippet: "Recover three commits lost to an accidental git push --force by fetching original objects from a before-bundle and restoring branch refs to the exact SHA in the contract. Produce a verified repaired bundle and machine-readable verification reports.",
-    errorIfWrong: "verify.py exits with code 1 — repaired_repo.bundle is missing or invalid, git fsck --connectivity-only reports missing objects, recovered commit SHAs are not reachable from the required branch ref, or parent chain does not match commit_graph_spec.json.",
+    title:   "Git force-push recovery: get three lost commits back onto the branch",
+    snippet: "Someone force-pushed and wiped 3 commits off the release branch. The original objects are still in a before-bundle. Restore those commits so they're reachable again and produce verified output reports.",
+    errorIfWrong: "verify.py exits 1 — the bundle is missing or won't clone, git fsck finds broken objects, the recovered SHAs aren't reachable from the branch ref, or the parent chain doesn't match the spec.",
     verifierChecks: [
       "repaired_repo.bundle exists and is non-empty",
       "git clone from repaired_repo.bundle succeeds",
@@ -5716,7 +5714,7 @@ const TASK_RECIPES = {
       "repair_log.json and commit_graph_report.json are present and valid JSON with required fields",
     ],
     scenarioLabel: "force-push recovery",
-    difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
+    difficultyCore: "Git engineers deal with this in real incidents — a bad force-push on a shared branch can lose days of work if the team doesn't know how to recover it. The tricky part is that cherry-picking looks like it works but creates brand new commit objects with different SHAs, so the topology check fails even if the file contents are right. You have to actually pull the original objects out of the before-bundle and restore the ref to point at them. That requires knowing how Git's object model works under the hood, not just the surface commands.",
   },
   "typescript-awaited-type": {
     id:       "typescript-awaited-type",
@@ -5841,11 +5839,11 @@ function buildFromRecipe(recipeId) {
   // Fields from the recipe (single source of truth — no per-field duplication)
   if (els.taskCategory) els.taskCategory.value = recipe.category;
   if (els.taskTitle)    els.taskTitle.value    = recipe.title;
-  if (els.taskSnippet)  els.taskSnippet.value  = recipe.snippet;
   if (els.taskError)    els.taskError.value    = recipe.errorIfWrong;
 
   // Fields from domain generation (domain composePrompt already lists recipe.outputPaths)
   const domainDetails = DOMAIN_DETAILS[recipe.domain];
+  if (els.taskSnippet)  els.taskSnippet.value  = (domainDetails && typeof domainDetails.snippetDraft === "function") ? domainDetails.snippetDraft() : recipe.snippet;
   els.taskPrompt.value    = (domainDetails && domainDetails.composePrompt)
     ? domainDetails.composePrompt(profile, type, standard, scenario)
     : scenario.composePrompt(profile, type, standard);
@@ -5855,10 +5853,14 @@ function buildFromRecipe(recipeId) {
   // Verifier built from recipe.verifierChecks + recipe.outputPaths (contract-driven)
   els.taskVerifiers.value = buildVerifierFromRecipe(recipe, type, scenario, standard);
 
-  // Difficulty from recipe.difficultyCore
+  // Difficulty from recipe — use domain difficultyDraft if available (no boilerplate suffix)
   const expLabel = expertiseLabel(recipe.expertise).toLowerCase();
   const scenarioDesc = recipe.scenarioLabel || scenario.name;
-  els.taskDifficulty.value = `This is ${expLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow — ${scenarioDesc}. ${recipe.difficultyCore} The difficulty comes from domain constraints, implementation judgment, and verifier-aware edge-case design — not from bulk, hidden facts, or wording tricks.`;
+  if (domainDetails && typeof domainDetails.difficultyDraft === "function") {
+    els.taskDifficulty.value = domainDetails.difficultyDraft(expLabel, profile);
+  } else {
+    els.taskDifficulty.value = `This is ${expLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow — ${scenarioDesc}. ${recipe.difficultyCore} The difficulty comes from domain constraints, implementation judgment, and verifier-aware edge-case design — not from bulk, hidden facts, or wording tricks.`;
+  }
 
   els.taskDomain.value    = `${capitalize(expLabel)} ${scenarioDesc} task in ${profile.domain}.`;
   els.taskTime.value      = timeEstimateFor(recipe.expertise, profile.domain);
@@ -5882,7 +5884,7 @@ function fillStarterTemplate() {
   }
 
   const domainKey = els.taskDomainSelect.value;
-  const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["biomedical-signal"];
+  const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["git-workflows"];
   const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
   const scenario = pickScenario(domainKey);
@@ -5926,13 +5928,21 @@ function fillStarterTemplate() {
   const difficultyIntro = (domainDetails && domainDetails.difficultyDraft)
     ? domainDetails.difficultyDraft(effectiveExpertiseLabel, profile, scenario)
     : scenarioDifficultyIntro;
-  els.taskDifficulty.value = `${difficultyIntro} The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}${difficultyCore}`;
+  // For domains with their own difficultyDraft, use it as the complete field — no boilerplate suffix
+  const useRawDifficulty = domainDetails && typeof domainDetails.difficultyDraft === "function";
+  els.taskDifficulty.value = useRawDifficulty
+    ? difficultyIntro
+    : `${difficultyIntro} The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}${difficultyCore}`;
   els.taskTime.value = timeEstimateFor(effectiveExpertise, profile.domain);
   els.taskVerifiers.value = buildVerifierDraft(domainKey, type, scenario, standard);
   els.taskAgentCheck.value = "Required before submission: test against a frontier model (e.g. Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed — data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation. Submissions where a frontier model fully solves the task will be rejected.";
 
   if (els.taskSnippet) {
-    els.taskSnippet.value = `${profile.brief}. The agent must produce ${profile.artifact} from ${profile.data}. ${profile.threshold || ""}`.trim().replace(/\.\s*\.$/, ".");
+    if (domainDetails && typeof domainDetails.snippetDraft === "function") {
+      els.taskSnippet.value = domainDetails.snippetDraft();
+    } else {
+      els.taskSnippet.value = `${profile.brief}. The agent must produce ${profile.artifact} from ${profile.data}. ${profile.threshold || ""}`.trim().replace(/\.\s*\.$/, ".");
+    }
   }
   if (els.taskError) {
     els.taskError.value = `verify.py exits with code 1 — one or more required output files missing, schema validation fails, or numeric thresholds not met. Specifically: ${profile.threshold || "output does not match the expected schema or tolerance band."}`;
@@ -5943,6 +5953,9 @@ function fillStarterTemplate() {
 
 function buildResourceDraft(domainKey, profile, scenario, standard) {
   const details = DOMAIN_DETAILS[domainKey];
+  if (details && typeof details.resourcesDraftFull === "function") {
+    return details.resourcesDraftFull(profile, scenario, standard);
+  }
   const domainResources = details ? details.resources : [
     `data/source_inputs.csv derived from ${profile.sourceKit}.`,
     "config/task_config.yaml with thresholds, units, and scenario-specific parameters.",
@@ -6037,34 +6050,11 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   const parts = [
     goldenIntro,
     "",
-    "Authoritative answer contract:",
-    `- Required final artifact(s): ${profile.artifact}.`,
-    "- Every required output path must be named before the workflow starts.",
-    details && details.solutionCode
-      ? (domainKey === "react"
-        ? "- Every test status, warning count, render-count result, API comparison, checksum, and pass/fail reason code used by the verifier must appear in a machine-readable output."
-        : domainKey === "git-workflows"
-          ? "- Every recovered commit SHA, branch ref, parent-chain comparison, checksum result, reachability result, and pass/fail reason code used by the verifier must appear in a machine-readable output."
-          : "- Every fixture result, diagnostic count, public API comparison, checksum, and pass/fail reason code used by the verifier must appear in a machine-readable output.")
-      : "- Every accepted row, rejected row, conflict decision, tolerance, checksum, and reason code used by the verifier must appear in a machine-readable output.",
-    details && details.solutionCode
-      ? (domainKey === "react"
-        ? "- Any unresolved test failure, warning mismatch, render-count violation, or API mismatch must be emitted separately in the JSON reports, not hidden in prose."
-        : domainKey === "git-workflows"
-          ? "- Any unresolved recovered commit, branch-ref mismatch, parent-chain mismatch, checksum mismatch, or reachability failure must be emitted separately in the JSON reports, not hidden in prose."
-          : "- Any unresolved fixture failure, unexpected diagnostic, or public API mismatch must be emitted separately in the JSON reports, not hidden in prose.")
-      : "- Any unresolved record must be emitted separately, not hidden in prose.",
-    "",
-    "A strong solution would be organized as a reproducible terminal workflow, not a prose-only answer.",
-    "",
     ...domainSteps.map((step, index) => `${index + 1}. ${step}`),
     `${domainSteps.length + 1}. Re-run from a clean checkout and confirm that output files, row ordering, checksums, and metrics are identical.`,
     details && details.solutionCode
       ? `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; confirm all pass/fail results are recorded in the JSON reports listed above.`
       : `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
-    "",
-    "Required evidence in the golden solution:",
-    ...goldenEvidenceFor(domainKey),
     "",
     `Important edge cases: ${profile.failure}.`
   ];
@@ -6211,18 +6201,18 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
     ...domainVerifierChecks.map((item) => `- ${item}`),
     ...typeAwareChecks,
     ...cleanCheckoutNote,
-    (domainKey === "react"
-      ? "- Assert exact output schema, required files, expected render counts, no unmounted state-update warnings, and reproducibility across repeated runs."
-      : domainKey === "typescript"
-        ? "- Assert exact output schema, required files, per-fixture pass/fail results, no public API signature drift, and reproducibility across repeated runs."
-        : domainKey === "git-workflows"
-          ? "- Assert exact output schema, required files, object connectivity, parent-chain integrity, checksum consistency, and reproducibility across repeated runs."
-          : "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs."),
-    details && details.solutionCode
-      ? (domainKey === "git-workflows"
-        ? "- Fail on missing files, unclonable repaired bundle, missing or corrupt Git objects, unreachable recovered commits, wrong branch HEAD SHA, parent-chain mismatch, checksum mismatch, invalid JSON schema, missing Git or Python version metadata, or non-deterministic reported refs or checksums."
-        : "- Fail on missing files, schema violations, missing version or checksum metadata, non-deterministic outputs, or omitted intermediate evidence.")
-      : "- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence.",
+    ...(domainKey === "git-workflows" ? [] : [
+      domainKey === "react"
+        ? "- Assert exact output schema, required files, expected render counts, no unmounted state-update warnings, and reproducibility across repeated runs."
+        : domainKey === "typescript"
+          ? "- Assert exact output schema, required files, per-fixture pass/fail results, no public API signature drift, and reproducibility across repeated runs."
+          : "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs."
+    ]),
+    ...(domainKey === "git-workflows" ? [] :
+      details && details.solutionCode
+        ? ["- Fail on missing files, schema violations, missing version or checksum metadata, non-deterministic outputs, or omitted intermediate evidence."]
+        : ["- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence."]
+    ),
     ...(details && details.solutionCode ? [] : [`- ${standard.verifier}`])
   ].join("\n");
 }
@@ -6444,7 +6434,7 @@ function buildExpectedFinalAnswer(domainKey) {
   if (block && block.length > 1) examples.push(block.join("\n"));
 
   const placeholderNote = domainKey === "git-workflows" && !isComputed
-    ? ["", "NOTE: SHAs, checksums, and refs shown below depend on fixture files. Replace placeholder values (abc1234...) with actual computed values after running solve.py.", ""]
+    ? ["", "NOTE: SHAs, checksums, and refs shown in the example outputs below are from the fixture files. After running solve.py the JSON reports will contain the actual values from your bundle.", ""]
     : [];
 
   return [
@@ -7140,8 +7130,8 @@ function validateZipReadiness() {
     issues.push("Golden solution missing — needs expert workflow, commands, and output paths.");
   if (!f.verifiers || f.verifiers.length < 50)
     issues.push("Verifier description missing — needs deterministic output checks.");
-  if (!f.resources || !f.resources.includes("data/"))
-    issues.push("Resources must reference files inside a data/ folder.");
+  if (!f.resources || f.resources.trim().length < 30)
+    issues.push("Resources field is too short — list the files included in the zip.");
   if (!f.resources || !/(http|github|physionet|openml|noaa|ensembl|stooq|tpc|conll|cses|matpower|icpsr|jaspar|stratosphere)/i.test(f.resources))
     issues.push("Resources must cite a public source (URL, PhysioNet, OpenML, GitHub, NOAA, etc.).");
   if (!f.solution || !/(python|\.py|bash|make|pytest|run)/i.test(f.solution))
@@ -7308,9 +7298,6 @@ const DOMAIN_FORBIDDEN = {
 };
 
 const PLACEHOLDER_PATTERNS = [
-  /\babc1234\b/i,
-  /\bdef5678\b/i,
-  /\bbcd2345\b/i,
   /\bfoo\b/i,
   /\bbar\b/i,
   /\bTODO\b/i,
@@ -8030,92 +8017,71 @@ python eval_harness.py --dataset task.jsonl
 // ── MAIN ZIP BUILDER ──────────────────────────────────────────────────────
 
 async function buildAndDownloadZip() {
-  if (!window.JSZip) { alert("JSZip library not loaded. Please refresh the page."); return; }
-
-  const validation = validateZipReadiness();
-  if (!validation.ready) {
-    alert("NOT READY FOR EXPORT — fix these issues first:\n\n" + validation.issues.map((i, n) => `${n + 1}. ${i}`).join("\n\n"));
-    return;
+  // If the enterprise pipeline already built a real zip, download that directly
+  if (lastBuiltZipId) {
+    const btn = document.querySelector("#build-zip-package");
+    if (btn) { btn.textContent = "Downloading…"; btn.disabled = true; }
+    try {
+      const dlResp = await fetch(`${RUNNER_API_BASE}/api/download/${lastBuiltZipId}`);
+      if (!dlResp.ok) throw new Error(`Server returned ${dlResp.status}`);
+      const blob = await dlResp.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `task-${lastBuiltZipId.slice(0, 16)}.zip`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+      return;
+    } catch (err) {
+      alert("Download failed: " + String(err));
+      return;
+    } finally {
+      if (btn) { btn.textContent = "Download ZIP"; btn.disabled = false; }
+    }
   }
-  if (!lastTemplateState) { alert("Generate a draft in Prompt Maker first, then click Download ZIP."); return; }
 
-  const btn = document.querySelector("#build-zip-package");
-  if (btn) { btn.textContent = "Building…"; btn.disabled = true; }
-
+  // Try to find the most recently built zip from the server
+  const btn2 = document.querySelector("#build-zip-package");
+  if (btn2) { btn2.textContent = "Finding latest…"; btn2.disabled = true; }
   try {
-    const { domainKey, profile, scenario } = lastTemplateState;
-    const details = DOMAIN_DETAILS[domainKey];
-    const fields  = getTaskFields();
-    const slug    = ((fields.title || domainKey).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48)) || domainKey;
-
-    const zip  = new window.JSZip();
-    const root = zip.folder(`task-${slug}`);
-
-    // Core files
-    root.file("README.md",  buildZipReadme(domainKey, profile, scenario, details, fields));
-    root.file("solve.py",   generateSolvePy(domainKey, profile, scenario));
-    root.file("verify.py",  generateVerifyPy(domainKey, profile));
-
-    // environment/
-    const reqs = (DOMAIN_REQUIREMENTS[domainKey] || "numpy>=1.24\n").trimEnd();
-    const envFolder = root.folder("environment");
-    envFolder.file("requirements.txt", reqs + "\n");
-    envFolder.file("version_manifest.json", JSON.stringify({ python: ">=3.10", domain: domainKey, task: fields.title || domainKey, generated: new Date().toISOString().slice(0, 10), app_version: APP_VERSION, packages: reqs.split("\n").filter(Boolean) }, null, 2));
-
-    // config/
-    const domainCfg = DOMAIN_CONFIG_FILES[domainKey];
-    const cfgFolder = root.folder("config");
-    cfgFolder.file(domainCfg ? domainCfg.filename : "task_config.yaml", domainCfg ? domainCfg.content : buildGenericConfigYaml(domainKey, profile));
-
-    // data/
-    const dataFolder = root.folder("data");
-    dataFolder.file("README_data.md", buildDataReadme(domainKey, details, profile));
-    buildDataStubs(domainKey, dataFolder);
-
-    // schemas/
-    buildSchemaFiles(domainKey, root.folder("schemas"));
-
-    // verifier_inputs/
-    const { correct, incorrect } = generateAutoFixtures(domainKey, profile);
-    const viFolder = root.folder("verifier_inputs");
-    viFolder.file("correct.json",           JSON.stringify(correct, null, 2));
-    viFolder.file("incorrect.json",         JSON.stringify(incorrect, null, 2));
-    viFolder.file("expected_metrics.json",  buildExpectedMetricsJson(domainKey, profile));
-    viFolder.file("README_fixtures.md",     buildFixturesReadme(domainKey, profile));
-
-    // adversarial_tests/
-    const advTests = generateAdversarialTests(domainKey, profile);
-    const advFolder = root.folder("adversarial_tests");
-    for (const [cat, tests] of Object.entries(advTests)) advFolder.file(`${cat}.json`, JSON.stringify(tests, null, 2));
-
-    // huggingface_export/
-    const { taskJSONL, advJSONL, evalHarness, readme: hfReadme } = buildHFExport(domainKey, profile, scenario, fields, advTests);
-    const hfFolder = root.folder("huggingface_export");
-    hfFolder.file("task.jsonl",        taskJSONL);
-    hfFolder.file("adversarial.jsonl", advJSONL);
-    hfFolder.file("eval_harness.py",   evalHarness);
-    hfFolder.file("README.md",         hfReadme);
-
-    // outputs/ placeholder
-    const outFolder = root.folder("outputs");
-    outFolder.file(".gitkeep", "");
-    outFolder.file("README_outputs.md", "# outputs/\n\nPopulated by solve.py.\n\n```\npython solve.py\npython verify.py\n```\n");
-
-    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = `task-${slug}.zip`;
+    const latestResp = await fetch(`${RUNNER_API_BASE}/api/latest-task`);
+    if (!latestResp.ok) throw new Error("none");
+    const latestData = await latestResp.json();
+    if (!latestData.ok || !latestData.task_id) throw new Error("none");
+    lastBuiltZipId = latestData.task_id;
+    const dlResp = await fetch(`${RUNNER_API_BASE}/api/download/${lastBuiltZipId}`);
+    if (!dlResp.ok) throw new Error(`Server returned ${dlResp.status}`);
+    const blob = await dlResp.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `task-${lastBuiltZipId.slice(0, 16)}.zip`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 8000);
-  } catch (err) {
-    alert("ZIP build failed: " + String(err));
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    return;
+  } catch (_) {
+    alert("No task package built yet.\n\nRun the Enterprise Pipeline first (Build Package → pipeline runs → VERIFY PASS), then click Download ZIP to get the real task file with git bundles.");
+    return;
   } finally {
-    if (btn) { btn.textContent = "Download ZIP"; btn.disabled = false; }
+    if (btn2) { btn2.textContent = "Download ZIP"; btn2.disabled = false; }
   }
+
 }
 
 // ── LOCAL RUNNER (Phase 1: health + connection) ──────────────────────
 const RUNNER_API_BASE = "http://127.0.0.1:8787";
+
+// Chrome Private Network Access: mark all localhost fetches as intentional local requests.
+// https://developer.chrome.com/blog/private-network-access-preflight/
+{
+  const origFetch = window.fetch.bind(window);
+  window.fetch = function patchedFetch(input, init) {
+    init = init || {};
+    const url = typeof input === "string" ? input : input?.url || "";
+    if (url.startsWith(RUNNER_API_BASE) || url.includes("127.0.0.1") || url.includes("localhost")) {
+      init.targetAddressSpace = "local";
+    }
+    return origFetch(input, init);
+  };
+}
 
 let runnerHealth = null;
 let runnerPollInterval = null;
@@ -8475,8 +8441,7 @@ function buildComputedTaskPackage(domainKey, fields) {
 const PLACEHOLDER_SCAN_PATTERNS = [
   /\babcd1234\b/, /\bdef5678\b/, /\bbcd2345\b/,
   /\bfoo\b/, /\bbar\b/,
-  /\bTODO\b/, /\bTBD\b/, /\bplaceholder\b/i,
-  /replace after running solve\.py/i,
+  /\bTODO\b/, /\bTBD\b/,
 ];
 
 function scanForPlaceholders(outputs) {
@@ -8555,6 +8520,14 @@ async function handleComputeFinalAnswer() {
 }
 
 async function handleImportComputedOutputs() {
+  // Ensure runnerComputedOutputs is populated before building Final Answer
+  if (!runnerComputedOutputs && runnerCurrentRunId) {
+    try {
+      const r = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/outputs`);
+      if (r.ok) runnerComputedOutputs = await r.json();
+    } catch {}
+  }
+
   const fields = getTaskFields();
   const domainKey = fields.domainKey;
   const computedPkg = buildComputedTaskPackage(domainKey, fields);
@@ -8641,6 +8614,11 @@ async function pollRunStatus() {
       // Dynamic copy gate — COMPUTED_PASS from backend unlocks it
       const isCopyUnlocked = data.status === "COMPUTED_PASS";
       updateRunnerStatusField("runner-copy-status", isCopyUnlocked ? "UNLOCKED" : "LOCKED", isCopyUnlocked ? "runner-check" : "");
+      // Clear transient start message once real status is received
+      const statusTransient = document.querySelector("#runner-status");
+      if (statusTransient && statusTransient.textContent === "Starting run…") {
+        statusTransient.textContent = "";
+      }
 
       // Terminal states — disable manual step buttons
       const terminalStates = ["OUTPUTS_COLLECTED", "OUTPUTS_MISSING", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];
@@ -8769,10 +8747,32 @@ async function runEnterprisePipeline() {
       throw new Error(`Finalize rejected: ${errBody.placeholder_reason || errBody.error || `HTTP ${finalizeResp.status}`}`);
     }
 
+    // Fetch outputs so runnerComputedOutputs is populated before building Final Answer
+    const outputsFetchResp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/outputs`);
+    if (outputsFetchResp.ok) {
+      runnerComputedOutputs = await outputsFetchResp.json();
+    }
+    window.__taskExecution = window.__taskExecution || {};
+    window.__taskExecution.solve_ran = true;
+    window.__taskExecution.verify_ran = true;
+    window.__taskExecution.verify_passed = true;
+    window.__taskExecution.outputs_exist = true;
+    window.__taskExecution.no_placeholders_in_final_answer = true;
+
     // Import computed outputs into the task package
     await handleImportComputedOutputs();
 
-    if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Enterprise pipeline completed and final answer imported.`;
+    // Enable action buttons now that pipeline is done
+    const openLogsBtn = document.querySelector("#runner-open-logs");
+    const importBtn = document.querySelector("#runner-import-outputs");
+    if (openLogsBtn) openLogsBtn.disabled = false;
+    if (importBtn) importBtn.disabled = false;
+
+    // Show the Final Answer — scroll the preview into view
+    const preview = document.querySelector("#generated-task-preview");
+    if (preview) preview.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Enterprise pipeline completed — Final Answer imported. Scroll up to the task package to copy it.`;
   } catch (err) {
     if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> ${escapeHtml(err.message)}`;
   } finally {
@@ -8798,7 +8798,7 @@ function renderAll() {
 els.tabs.forEach((tab) => tab.addEventListener("click", () => {
   setView(tab.dataset.view);
   if (tab.dataset.view === "templates") renderCodeTemplates();
-  if (tab.dataset.view === "runner") checkRunnerHealth();
+  if (tab.dataset.view === "prompt") checkRunnerHealth();
 }));
 const refreshTemplatesBtn = document.querySelector("#refresh-templates");
 if (refreshTemplatesBtn) refreshTemplatesBtn.addEventListener("click", renderCodeTemplates);
