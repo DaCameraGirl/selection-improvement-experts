@@ -581,7 +581,7 @@ const DOMAIN_DRAFTS = {
     threshold: "All 5 jest test cases must pass; final rendered value in the rapid-update fixture must equal the last dispatched value (not a stale earlier one); render count must not exceed the declared maximum in expected_render_counts.json; zero 'Warning: Can't perform a React state update on an unmounted component' in jest stderr."
   },
   "git-workflows": {
-    brief: "Recover 3 commits lost after an accidental git push --force, reconstruct the correct branch topology using the reflog, and validate the repaired history against a commit graph specification",
+    brief: "Git force-push recovery: get three lost commits back onto the branch",
     domain: "Git internals using the object model, reflog, bundle files, ref restoration, reachability analysis, and deterministic commit graph validation",
     artifact: "a repaired git bundle, a repair log JSON, and a commit graph verification report JSON",
     method: "git reflog parsing, git fsck --connectivity-only object integrity checks, ref restoration to make original commit objects reachable, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
@@ -4275,7 +4275,7 @@ if __name__ == "__main__":
       "Reconstruct refs per commit_graph_spec.json: use git update-ref to point the required branch ref at the specified HEAD SHA so the original commits become reachable. Do not cherry-pick — cherry-pick creates new commit objects with different SHAs.",
       "Run git fsck --connectivity-only and confirm 0 missing or corrupt objects. Run git rev-list <branch> and verify all recovered commit SHAs are reachable. Run git log --format='%H %P %s' and compare parent chains to commit_graph_spec.json.",
       "Verify file checksums at each recovered commit: git show <sha>:<file> | sha256sum, compare to expected_file_checksums.json.",
-      "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json."
+      "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json — each JSON must include the required fields and pass/fail reason codes."
     ],
     verifiers: [
       "repaired_repo.bundle must be cloneable from a fresh directory and pass git fsck --connectivity-only with 0 missing or corrupt objects.",
