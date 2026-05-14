@@ -571,7 +571,7 @@ const DOMAIN_DRAFTS = {
     threshold: "The four positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) must compile with zero diagnostics under tsconfig.strict.json; invalid_non_thenable.ts must produce exactly one TS2345 diagnostic under tsconfig.negative.json; zero exported type signatures in contracts/public_types.md may change."
   },
   "react": {
-    brief: "Validate that a React 18 data-fetching component produces correct final render values across mount, unmount, remount, and rapid-update scenarios",
+    brief: "React 18 stale-closure fix: repair async cleanup so the component never commits state after unmount",
     domain: "React 18 hooks, stale closures, concurrent rendering, cleanup functions, and deterministic component testing with @testing-library/react",
     artifact: "a patched component file, a jest test-results JSON, and a render-count report JSON",
     method: "stale closure analysis, useEffect dependency array audit, AbortController cleanup wiring, act() boundary verification, and render-count instrumentation via jest.fn() spy",
@@ -4120,18 +4120,17 @@ if __name__ == "__main__":
       "Audit the dependency array — ensure every value read inside the effect is listed.",
       "Run: npx jest --json --outputFile=outputs/jest_raw.json and verify all 5 tests pass.",
       "Confirm zero 'Warning: Can't perform a React state update on an unmounted component' in stderr.",
-      "Write outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, outputs/run_manifest.json."
+      "Write outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, outputs/run_manifest.json — each JSON must include package versions, input checksums, and pass/fail reason codes."
     ],
     verifiers: [
-      "Fail if any of the 5 jest tests fail.",
-      "Fail if \"Warning: Can't perform a React state update on an unmounted component\" appears in jest stderr.",
-      "Fail if the rapid-update fixture final render value does not equal the last dispatched value.",
-      "Fail if any render count in outputs/render_count_report.json exceeds the maximum in expected_render_counts.json.",
-      "Fail if any prop type or ref interface in contracts/component_api.md changed.",
+      "All 5 Jest fixtures must pass under the pinned package versions.",
+      "Zero 'Warning: Can't perform a React state update on an unmounted component' messages may appear in Jest stderr.",
+      "The rapid-update fixture final rendered value must equal the last dispatched request value — not a stale earlier response.",
+      "Render counts for each fixture must stay within the limits declared in expected_render_counts.json.",
+      "Exported prop types and ref interfaces in contracts/component_api.md must not change.",
       "Fail if outputs/fix.patch is missing or empty.",
-      "Fail if outputs/DataFetcher.fixed.tsx is missing or not valid TypeScript.",
-      "Fail if outputs/test_results.json is missing or schema-invalid.",
-      "Fail if outputs/run_manifest.json is missing or does not list all required metadata."
+      "outputs/DataFetcher.fixed.tsx must be present and contain valid TypeScript.",
+      "outputs/test_results.json and outputs/run_manifest.json must exist and match their declared output schemas.",
     ],
     expectedOutputs: [
       "Expected output paths:",
@@ -5726,14 +5725,12 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
     ...domainVerifierChecks.map((item) => `- ${item}`),
     ...typeAwareChecks,
     ...cleanCheckoutNote,
-    ...(domainKey === "git-workflows" ? [] : [
-      domainKey === "react"
-        ? "- Assert exact output schema, required files, expected render counts, no unmounted state-update warnings, and reproducibility across repeated runs."
-        : domainKey === "typescript"
+    ...((domainKey === "git-workflows" || domainKey === "react") ? [] : [
+      domainKey === "typescript"
           ? "- Assert exact output schema, required files, per-fixture pass/fail results, no public API signature drift, and reproducibility across repeated runs."
           : "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs."
     ]),
-    ...(domainKey === "git-workflows" ? [] :
+    ...((domainKey === "git-workflows" || domainKey === "react") ? [] :
       details && details.solutionCode
         ? ["- Fail on missing files, schema violations, missing version or checksum metadata, non-deterministic outputs, or omitted intermediate evidence."]
         : ["- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence."]
@@ -6793,6 +6790,48 @@ function renderConsistencyChecker() {
     (warns.length  ? `<ul class="consistency-warns">${warns .map(i => `<li class="c-warn"><strong>WARN</strong> — ${escapeHtmlInline(i.msg)}</li>`).join("")}</ul>` : "");
 }
 
+// ── AI PATTERN PRE-CHECKER ───────────────────────────────────────────────
+function checkAIPatterns(fields) {
+  const flags = [];
+  const { verifiers = "", snippet = "", prompt = "", title = "" } = fields;
+
+  // 1. More than 2 consecutive "Fail if..." bullets in verifier
+  const verifierBullets = verifiers.split("\n").filter(l => /^\s*-\s*\w/.test(l));
+  let streak = 0, maxStreak = 0;
+  for (const line of verifierBullets) {
+    if (/^\s*-\s*Fail if\b/i.test(line)) { streak++; maxStreak = Math.max(maxStreak, streak); }
+    else streak = 0;
+  }
+  if (maxStreak > 2) flags.push(`${maxStreak} consecutive "Fail if..." verifier bullets — sounds auto-generated`);
+
+  // 2. All verifier bullets start with "Fail if" (uniform robotic rhythm)
+  if (verifierBullets.length > 3 && verifierBullets.every(l => /^\s*-\s*Fail if\b/i.test(l)))
+    flags.push(`All ${verifierBullets.length} verifier bullets start with "Fail if" — uniform rhythm flags AI generation`);
+
+  // 3. Snippet too long
+  const snippetWords = snippet.trim().split(/\s+/).filter(Boolean).length;
+  if (snippetWords > 55) flags.push(`Field 4 snippet is ${snippetWords} words (aim for ≤55 — longer reads as AI-generated)`);
+
+  // 4. Title too long
+  const titleWords = title.trim().split(/\s+/).filter(Boolean).length;
+  if (titleWords > 14) flags.push(`Field 2 title is ${titleWords} words (aim for ≤14 — long titles look generated)`);
+
+  // 5. Known AI telltale phrases in public fields
+  const publicText = [snippet, prompt, title].join("\n").toLowerCase();
+  const aiTellTales = [
+    "authoritative answer contract",
+    "required evidence in the golden solution",
+    "assert exact output schema",
+    "fail on missing files, schema violations",
+    "machine-readable evidence package",
+  ];
+  for (const phrase of aiTellTales) {
+    if (publicText.includes(phrase)) flags.push(`AI-telltale phrase: "${phrase}"`);
+  }
+
+  return flags;
+}
+
 // ── LLM / REVIEWER RISK CHECKS ──────────────────────────────────────────
 
 const GENERIC_AI_PHRASES = [
@@ -7095,6 +7134,12 @@ function renderRiskChecks() {
   addRow("duplicate", "9. Duplicate Variant",
     dup.length ? "NEEDS WORK" : "PASS",
     dup.length ? dup.map(d => `${d.a} ~ ${d.b} (${d.score}%): ${d.message}`).join("; ") : "No duplicate variants detected"
+  );
+
+  const aiPat = checkAIPatterns(fields);
+  addRow("ai-pattern", "10. AI Pattern Risk",
+    aiPat.length ? "NEEDS WORK" : "PASS",
+    aiPat.length ? aiPat.join("; ") : "No AI-pattern flags — output reads as human-written"
   );
 
   const statuses = rows.filter(r => r.status !== "PASS").map(r => r.status);
