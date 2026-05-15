@@ -4886,8 +4886,8 @@ if __name__ == "__main__":
       const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
       return [
         opener,
-        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
-        "The verifier checks clean fsck, exact refs from expected_refs.json, reachable reflog SHAs, matching parent chains, and matching file checksums. Cherry-picked replacement commits must fail."
+        "Write the repaired bundle to outputs/repaired_repo.bundle and include outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
+        "The repaired repo must pass git fsck --connectivity-only, restore the refs in expected_refs.json, make the reflog SHAs reachable, and match the parent chains and file checksums. Do not cherry-pick replacement commits."
       ].join("\n\n");
     },
     sources: [
