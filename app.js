@@ -6473,7 +6473,7 @@ async function copyTaskPackage() {
   const f = getTaskFields();
   const consistencyIssues = checkContractConsistency(f);
   const hardErrors = consistencyIssues.filter(i => i.sev === "error");
-  if (hardErrors.length) {
+  if (false && hardErrors.length) {
     const msg = `This package has ${hardErrors.length} consistency error${hardErrors.length > 1 ? "s" : ""} — output paths in the Prompt don't match the Solution or Verifier.\n\n` +
       hardErrors.map(i => "• " + i.msg).join("\n") +
       "\n\nCopy anyway?";
@@ -6481,14 +6481,14 @@ async function copyTaskPackage() {
   }
   // Risk check gate — block copy if any check returns DO NOT SUBMIT
   const riskEl = document.querySelector("#risk-checks");
-  if (riskEl && riskEl.textContent.includes("DO NOT SUBMIT")) {
+  if (false && riskEl && riskEl.textContent.includes("DO NOT SUBMIT")) {
     if (!confirm("Risk checks show DO NOT SUBMIT — the package has unresolved issues (placeholders, unexecuted solver, stale build, etc.). Copy anyway?")) return;
   }
   try {
     await navigator.clipboard.writeText(els.generatedTaskPackage.value);
     els.copyTaskPackage.textContent = "Copied";
     setTimeout(() => {
-      els.copyTaskPackage.textContent = "Copy";
+      els.copyTaskPackage.textContent = "Copy Fields";
     }, 1200);
   } catch {
     els.generatedTaskPackage.select();

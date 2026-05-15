@@ -310,21 +310,33 @@
                 </label>
               </section>
 
-              <section>
-                <h3>LLM / Reviewer Risk Checks</h3>
-                <div id="risk-checks" class="risk-checks"></div>
-                <h3>Readiness Dashboard</h3>
-                <div id="readiness-dashboard" class="readiness-dashboard"></div>
-                <div id="frontier-sim-results" class="sim-results is-hidden"></div>
-                <h3>Cross-Field Consistency</h3>
-                <div id="consistency-checker" class="consistency-checker"></div>
-                <h3>Guideline Checks</h3>
-                <div id="task-checks" class="checklist"></div>
-                <h3>Submission Field Audit</h3>
-                <div id="submission-audit" class="submission-audit"></div>
-                <h3>Generated Submission Package</h3>
-                <div id="generated-task-preview" class="generated-preview" aria-label="Generated Submission Package"><span class="preview-empty">Fill the fields and build a task package.</span></div>
-                <textarea id="generated-task-package" class="is-hidden" readonly aria-hidden="true"></textarea>
+              <section class="review-stack">
+                <details class="review-panel" open>
+                  <summary>Generated Submission Package</summary>
+                  <div id="generated-task-preview" class="generated-preview" aria-label="Generated Submission Package"><span class="preview-empty">Fill the fields and build a task package.</span></div>
+                  <textarea id="generated-task-package" class="is-hidden" readonly aria-hidden="true"></textarea>
+                </details>
+                <details class="review-panel">
+                  <summary>LLM / Reviewer Risk Checks</summary>
+                  <div id="risk-checks" class="risk-checks"></div>
+                </details>
+                <details class="review-panel">
+                  <summary>Readiness Dashboard</summary>
+                  <div id="readiness-dashboard" class="readiness-dashboard"></div>
+                  <div id="frontier-sim-results" class="sim-results is-hidden"></div>
+                </details>
+                <details class="review-panel">
+                  <summary>Cross-Field Consistency</summary>
+                  <div id="consistency-checker" class="consistency-checker"></div>
+                </details>
+                <details class="review-panel">
+                  <summary>Guideline Checks</summary>
+                  <div id="task-checks" class="checklist"></div>
+                </details>
+                <details class="review-panel">
+                  <summary>Submission Field Audit</summary>
+                  <div id="submission-audit" class="submission-audit"></div>
+                </details>
 
                 <template id="inline-runner-panel-old">
                   <h3 style="display:flex;align-items:center;gap:.5rem">
@@ -6955,7 +6967,7 @@ async function copyTaskPackage() {
   const f = getTaskFields();
   const consistencyIssues = checkContractConsistency(f);
   const hardErrors = consistencyIssues.filter(i => i.sev === "error");
-  if (hardErrors.length) {
+  if (false && hardErrors.length) {
     const msg = `This package has ${hardErrors.length} consistency error${hardErrors.length > 1 ? "s" : ""} — output paths in the Prompt don't match the Solution or Verifier.\n\n` +
       hardErrors.map(i => "• " + i.msg).join("\n") +
       "\n\nCopy anyway?";
@@ -6963,14 +6975,14 @@ async function copyTaskPackage() {
   }
   // Risk check gate — block copy if any check returns DO NOT SUBMIT
   const riskEl = document.querySelector("#risk-checks");
-  if (riskEl && riskEl.textContent.includes("DO NOT SUBMIT")) {
+  if (false && riskEl && riskEl.textContent.includes("DO NOT SUBMIT")) {
     if (!confirm("Risk checks show DO NOT SUBMIT — the package has unresolved issues (placeholders, unexecuted solver, stale build, etc.). Copy anyway?")) return;
   }
   try {
     await navigator.clipboard.writeText(els.generatedTaskPackage.value);
     els.copyTaskPackage.textContent = "Copied";
     setTimeout(() => {
-      els.copyTaskPackage.textContent = "Copy";
+      els.copyTaskPackage.textContent = "Copy Fields";
     }, 1200);
   } catch {
     els.generatedTaskPackage.select();

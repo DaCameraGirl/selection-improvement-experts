@@ -478,6 +478,49 @@ summary {
   min-height: 44px;
 }
 
+.review-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.review-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.review-panel summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  background: #1e1b2e;
+  color: #f5f3ff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.review-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.review-panel summary::before {
+  content: "+";
+  display: inline-flex;
+  width: 1.25rem;
+  color: #c084fc;
+  font-weight: 900;
+}
+
+.review-panel[open] summary::before {
+  content: "-";
+}
+
+.review-panel > :not(summary) {
+  margin: 12px;
+}
+
 fieldset {
   border: 1px solid var(--line);
   border-radius: 8px;
