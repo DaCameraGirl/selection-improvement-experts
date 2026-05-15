@@ -1159,10 +1159,10 @@ function generateReactPackage(taskDir, fields) {
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 
-  const compName  = pick(['DataFetcher','AsyncLoader','RemoteContent','ApiWidget','LiveData','ResourceFetcher','DataPoller']);
-  const urlProp   = pick(['url','endpoint','apiUrl','src','resource']);
-  const cbProp    = pick(['onResult','onData','onLoad','onFetch','onSuccess']);
-  const stateVar  = pick(['data','content','result','payload','response']);
+  const compName  = "DataFetcher";
+  const urlProp   = "url";
+  const cbProp    = "onData";
+  const stateVar  = "data";
   const iface     = `${compName}Props`;
   const fileName  = `${compName}.tsx`;
   const capState  = stateVar.charAt(0).toUpperCase() + stateVar.slice(1);

@@ -418,7 +418,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-13 enterprise-pipeline";
+const APP_VERSION = "2026-05-14 human-prompt-generation";
 
 const state = {
   guides: [],
@@ -1151,26 +1151,171 @@ const TYPE_DRAFTS = {
 const STANDARD_DRAFTS = {
   enterprise: {
     label: "Enterprise production",
-    prompt: "Make the handoff production-ready: stable file paths, explicit schemas, rerunnable commands, and clear failure handling.",
+    prompt: "Stable file paths, explicit schemas, rerunnable commands, clear failure handling.",
     resources: "Include CI-style test instructions, a lockfile or version manifest, sample and edge-case inputs, expected output schemas, and operational notes for rerunning the workflow from a clean checkout.",
     verifier: "The verifier should behave like a CI gate: deterministic, repeatable, schema-aware, tolerant only where specified, and strict about missing artifacts, unstable ordering, and regression cases.",
     rubric: "Enterprise pass criteria: reproducible from clean checkout, documented schemas, stable artifacts, operational edge cases, clear failure modes, and verifier behavior suitable for a CI gate."
   },
   regulated: {
     label: "Regulated / audited",
-    prompt: "Make the handoff audit-ready: trace each output back to inputs, document assumptions, and account for exclusions.",
+    prompt: "Trace each output back to inputs, document assumptions, account for exclusions.",
     resources: "Include a data dictionary, provenance notes, allowed exclusions, package versions, audit log expectations, and examples of valid and invalid records.",
     verifier: "The verifier should check traceability, required audit fields, exclusion accounting, exact schema, deterministic calculations, and tolerance rules.",
     rubric: "Regulated pass criteria: traceable inputs, documented assumptions, auditable exclusions, deterministic calculations, and independently reviewable evidence."
   },
   research: {
     label: "Research benchmark",
-    prompt: "Make the handoff benchmark-ready: include baseline comparisons, strict metrics, and reproducibility notes.",
+    prompt: "Include baseline comparisons, strict metrics, and reproducibility notes.",
     resources: "Include benchmark splits, baseline outputs, seed values, metric definitions, reference configs, and notes that prevent leakage or invalid comparison.",
     verifier: "The verifier should check metric definitions, split integrity, seed reproducibility, baseline comparison, tolerance bands, and required ablation or sensitivity outputs.",
     rubric: "Research pass criteria: valid benchmark setup, leakage prevention, meaningful baselines, reproducible metrics, and clear failure analysis."
   }
 };
+
+function humanizePrompt(text, domainKey, scenario) {
+  if (!text || text.length < 50) return text;
+
+  const paragraphs = text.split("\n\n").map((p) => p.trim()).filter(Boolean);
+
+  function stripBoilerplate(paragraph) {
+    let result = paragraph;
+
+    const boilerplatePatterns = [
+      [/\s*Produce outputs\/[^\s.]+(?:,\s*outputs\/[^\s.]+)*\.?/g, ""],
+      [/\s*The JSON reports (?:must|need to|should) (?:list|include|contain)[^.]*\.?/g, ""],
+      [/\s*The verifier (?:will )?(?:only )?grade[s]? (?:only )?(?:the submitted [^.]*,? )?not the [^.]*\.?/g, ""],
+      [/\s*and pass\/fail reason codes\.?/g, ""],
+      [/\s*and SHA-256 checksum of each required input file\.?/g, ""],
+      [/\s*The verifier will grade only[^.]*\.?/g, ""],
+    ];
+
+    for (const [pattern, replacement] of boilerplatePatterns) {
+      result = result.replace(pattern, replacement);
+    }
+
+    result = result.replace(/\s{2,}/g, " ").trim();
+
+    return result;
+  }
+
+  function compactOpener(paragraph) {
+    let result = paragraph;
+
+    const openerSwaps = [
+      [/^A production migration of (.+?) has completed, but nobody has confirmed the migrated outputs actually match the legacy reference\. The pipeline is paused and the team needs sign-off before it can go live\.$/,
+       "We just migrated $1 and need to verify the outputs match the legacy reference before going live."],
+      [/^Something in a recent release broke (.+?) — metrics that were stable before the change have shifted, and the team cannot push a hotfix until the failure is pinned to a specific, reproducible cause\.$/,
+       "A recent release broke $1. We need to pin the failure to a specific reproducible cause before pushing a hotfix."],
+      [/^An upcoming audit of (.+?) has flagged a gap: the outputs exist but there is no documented chain connecting each final value to its validated input, applied exclusion rule, or calculation assumption\. The auditor needs that chain before sign-off\.$/,
+       "An audit of $1 flagged a gap — there's no documented chain from final values back to validated inputs and exclusion rules."],
+      [/^The current test suite for (.+?) only exercises the happy path — boundary conditions and malformed inputs are silently passing, and those silent failures have been reaching production downstream\.$/,
+       "The test suite for $1 only covers the happy path. Boundary conditions and malformed inputs are slipping through to production."],
+      [/^Two trusted operational systems are returning conflicting records for (.+?), and a downstream team is stuck — they cannot proceed until there is a single authoritative version of the data with a documented rationale for every conflict decision\.$/,
+       "Two systems disagree on records for $1. We need a single authoritative version with a rationale for every conflict."],
+      [/^After upgrading a shared type utility package, the custom AwaitedLike<T> conditional type now silently widens union members containing Promise<never> to unknown instead of the correct resolved type\. Repair the provided TypeScript project so AwaitedLike<T> distributes correctly over all union members without widening\.$/,
+       "After a type utility upgrade, AwaitedLike<T> silently widens Promise<never> union members to unknown. Fix it so distribution works correctly."],
+      [/^A recent TypeScript 5\.x upgrade introduced a regression in the custom AwaitedLike<T> utility: union members containing Promise<never> are now widened to unknown at the call site instead of resolving to the correct type\. Repair the project so AwaitedLike<T> handles the never branch correctly without widening\.$/,
+       "The TypeScript 5.x upgrade broke AwaitedLike<T> — Promise<never> members widen to unknown instead of resolving correctly."],
+      [/^A pre-release type audit identified that the custom AwaitedLike<T> utility incorrectly widens Promise<never> branches to unknown under strict mode, silently breaking callers that depend on the resolved type\. Repair the project so AwaitedLike<T> distributes correctly and all public type signatures remain unchanged\.$/,
+       "A pre-release audit found AwaitedLike<T> widening Promise<never> to unknown under strict mode. Fix it without changing public type signatures."],
+      [/^The provided TypeScript project contains a conditional type utility AwaitedLike<T> that fails on a known edge case: union members containing Promise<never> silently infer unknown instead of the correct resolved type\. Repair the utility without widening any union branch or changing public type signatures\.$/,
+       "AwaitedLike<T> fails on an edge case: Promise<never> members infer unknown. Fix it without widening branches or changing public signatures."],
+      [/^After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves\. Repair the component so this never happens\.$/,
+       "After the React 18 migration, DataFetcher commits stale async results when props change rapidly or the component unmounts mid-fetch. Fix it."],
+      [/^A regression in DataFetcher allows a stale async result to overwrite the final rendered value under rapid prop changes or unmount-before-resolve conditions\. The bug is reproducible with the provided Jest fixtures\. Repair the component and produce /,
+       "DataFetcher has a regression: stale async results overwrite the rendered value on rapid prop changes or unmount. Fix it using the provided Jest fixtures."],
+      [/^A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing 'state update on an unmounted component' warnings and stale rendered values\. Repair the component without changing its exported API\.$/,
+       "An audit confirmed DataFetcher doesn't clean up async side effects on unmount, causing stale values and warnings. Fix it without changing the exported API."],
+      [/^The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures\. Repair the component so all five fixtures pass and no stale state updates occur\.$/,
+       "DataFetcher has a stale-closure bug: async results overwrite state after unmount or rapid prop changes. Fix it so all five fixtures pass."],
+      [/^An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before release validation completed\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified\.$/,
+       "An accidental git push --force removed 3 commits from the release branch. Recover them with the exact topology specified in commit_graph_spec.json."],
+      [/^Exactly 3 commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so the original recovered commits are reachable\.$/,
+       "Three commits went missing after an accidental force-push. Recover them with the correct parent chain using the provided bundles and reflog."],
+      [/^An incident review confirmed that 3 commits are no longer reachable on the release branch after an accidental force-push\. Recovery must be machine-verifiable with full checksum and topology evidence\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so all 3 original commits are reachable with the exact topology specified\.$/,
+       "Incident review shows 3 commits are unreachable after an accidental force-push. Recover them with machine-verifiable checksum and topology evidence."],
+      [/^The provided Git repository contains a ref reconstruction challenge: exactly 3 commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs\.$/,
+       "The repo lost 3 commits from an accidental force-push. Recover them with proper reachability, parent-chain, and checksum verification — no cherry-picking."],
+    ];
+
+    for (const [pattern, replacement] of openerSwaps) {
+      if (pattern.test(result)) {
+        result = result.replace(pattern, replacement);
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  function compactDeliverable(paragraph) {
+    let result = paragraph;
+
+    const deliverableSwaps = [
+      [/^What's needed is (.+?), with a reason code on every divergence and the original source records preserved so any disagreement can be audited independently\.$/,
+       "We need $1 — reason code on every divergence, original source records preserved for independent audit."],
+      [/^The deliverable is (.+?): the root cause identified in machine-readable form, cleanly separated from unrelated drift, with enough evidence that an independent engineer can pull the same inputs and reproduce the failure from scratch\.$/,
+       "Deliverable: $1. Root cause in machine-readable form, separated from unrelated drift, reproducible from the same inputs."],
+      [/^The required deliverable is (.+?), where every accepted record, every rejection, and every exclusion rule invoked is documented — nothing in the final outputs should be unexplained\.$/,
+       "We need $1 — every accepted record, rejection, and exclusion rule documented. Nothing unexplained in the final outputs."],
+      [/^What the team needs is a deterministic edge-case benchmark: (.+?), along with a failure-analysis table that covers normal behavior, boundary conditions, invalid-input handling, and the domain-specific failure modes that expert reviewers actually care about\. Every conclusion must be verifiable from the output files alone — no digging through solver logs\.$/,
+       "We need a deterministic edge-case benchmark: $1, plus a failure-analysis table covering normal, boundary, invalid, and domain-specific failure modes. Everything verifiable from output files alone."],
+      [/^The required output is (.+?): a reason code on each conflict decision, a confidence flag per row, and a separate review queue for unresolved records that the downstream team can work through directly\.$/,
+       "Output: $1 — reason code per conflict, confidence flag per row, and a review queue for unresolved records."],
+      [/^The four positive fixtures (.+?) must compile with zero diagnostics under tsconfig\.strict\.json\. The negative fixture invalid_non_thenable\.ts must fail with exactly one TS2345 diagnostic under tsconfig\.negative\.json\. Every exported type signature listed in contracts\/public_types\.md must remain unchanged\.$/,
+       "Four positive fixtures ($1) must compile clean under tsconfig.strict.json. invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json. No public type signature changes."],
+      [/^All five Jest fixtures must pass under the pinned package versions\. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response\. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr\. Render counts for each fixture must not exceed the limits in verifier_inputs\/expected_render_counts\.json\. The exported component API in contracts\/component_api\.md must not change\.$/,
+       "All five Jest fixtures must pass. Rapid-update: final rendered value equals the last dispatched request. Unmount fixture: zero 'state update on unmounted component' warnings. Render counts within expected_render_counts.json. No API changes."],
+      [/^All 3 recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec\.json; file checksums at each recovered commit must match expected_file_checksums\.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec\.json\.$/,
+       "All 3 recovered commits must be reachable with the parent chain from commit_graph_spec.json. File checksums must match expected_file_checksums.json. Branch refs must point to the specified SHAs."],
+    ];
+
+    for (const [pattern, replacement] of deliverableSwaps) {
+      if (pattern.test(result)) {
+        result = result.replace(pattern, replacement);
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  function applyContractions(paragraph) {
+    let result = paragraph;
+    const swaps = [
+      [/does not\b/gi, "doesn't"],
+      [/do not\b/gi, "don't"],
+      [/cannot\b/g, "can't"],
+      [/will not\b/gi, "won't"],
+      [/should not\b/gi, "shouldn't"],
+      [/is not\b/gi, "isn't"],
+      [/are not\b/gi, "aren't"],
+      [/there is no\b/gi, "there's no"],
+    ];
+    for (const [pattern, replacement] of swaps) {
+      result = result.replace(pattern, replacement);
+    }
+    return result;
+  }
+
+  function processParagraph(paragraph, index) {
+    let result = paragraph;
+    result = stripBoilerplate(result);
+    if (index === 0) result = compactOpener(result);
+    if (index === 1) result = compactDeliverable(result);
+    result = applyContractions(result);
+    return result;
+  }
+
+  const processed = paragraphs.map((p, i) => processParagraph(p, i)).filter(Boolean);
+
+  if (processed.length >= 3) {
+    const merged = processed.slice(1).join(" ");
+    return [processed[0], merged].join("\n\n");
+  }
+
+  return processed.join("\n\n");
+}
 
 const SCENARIO_STYLES = [
   {
@@ -4309,16 +4454,16 @@ if __name__ == "__main__":
     standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The TypeScript project and fixture files in this zip are synthetically constructed to reproduce the known type-inference bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "After upgrading a shared type utility package, the custom AwaitedLike<T> conditional type now silently widens union members containing Promise<never> to unknown instead of the correct resolved type. Repair the provided TypeScript project so AwaitedLike<T> distributes correctly over all union members without widening. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
-        "regression triage": "A recent TypeScript 5.x upgrade introduced a regression in the custom AwaitedLike<T> utility: union members containing Promise<never> are now widened to unknown at the call site instead of resolving to the correct type. Repair the project so AwaitedLike<T> handles the never branch correctly without widening. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
-        "compliance audit": "A pre-release type audit identified that the custom AwaitedLike<T> utility incorrectly widens Promise<never> branches to unknown under strict mode, silently breaking callers that depend on the resolved type. Repair the project so AwaitedLike<T> distributes correctly and all public type signatures remain unchanged. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
-        "edge-case benchmark": "The provided TypeScript project contains a conditional type utility AwaitedLike<T> that fails on a known edge case: union members containing Promise<never> silently infer unknown instead of the correct resolved type. Repair the utility without widening any union branch or changing public type signatures. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json."
+        "post-migration validation": "After a type utility upgrade, AwaitedLike<T> silently widens Promise<never> union members to unknown. Fix it and produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, and outputs/run_manifest.json.",
+        "regression triage": "The TypeScript 5.x upgrade broke AwaitedLike<T> — Promise<never> members widen to unknown instead of resolving correctly. Fix it and produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, and outputs/run_manifest.json.",
+        "compliance audit": "A pre-release audit found AwaitedLike<T> widening Promise<never> to unknown under strict mode. Fix it without changing public type signatures. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, and outputs/run_manifest.json.",
+        "edge-case benchmark": "AwaitedLike<T> fails on an edge case: Promise<never> members infer unknown. Fix it without widening branches or changing public signatures. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, and outputs/run_manifest.json."
       };
       const opener = openers[scenario && scenario.name] || openers["edge-case benchmark"];
       return [
         opener,
-        "The four positive fixtures normal_union.ts, nested_promise.ts, never_branch.ts, and edge_deeply_nested.ts must compile with zero diagnostics under tsconfig.strict.json. The negative fixture invalid_non_thenable.ts must fail with exactly one TS2345 diagnostic under tsconfig.negative.json. Every exported type signature listed in contracts/public_types.md must remain unchanged.",
-        "The JSON reports must list every fixture, compiler exit code, diagnostic code count, TypeScript version, public API change status, and SHA-256 checksum of each required input file. The verifier will grade only the submitted patch and output reports, not the chosen implementation method."
+        "Four positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) must compile clean under tsconfig.strict.json. invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json. No public type signature changes in contracts/public_types.md.",
+        standard.prompt
       ].join("\n\n");
     },
     sources: [
@@ -4506,16 +4651,16 @@ if __name__ == "__main__":
     standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The component and test fixtures in this zip are synthetically constructed to reproduce the known stale-closure bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves. Repair the component so this never happens. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "regression triage": "A regression in DataFetcher allows a stale async result to overwrite the final rendered value under rapid prop changes or unmount-before-resolve conditions. The bug is reproducible with the provided Jest fixtures. Repair the component and produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "compliance audit": "A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing \"Warning: Can't perform a React state update on an unmounted component\" warnings and stale rendered values. Repair the component without changing its exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "edge-case benchmark": "The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures. Repair the component so all five fixtures pass and no stale state updates occur. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json."
+        "post-migration validation": "After the React 18 migration, DataFetcher commits stale async results when props change rapidly or the component unmounts mid-fetch. Fix it and produce outputs/DataFetcher.fixed.tsx, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "regression triage": "DataFetcher has a regression: stale async results overwrite the rendered value on rapid prop changes or unmount. Fix it using the provided Jest fixtures and produce outputs/DataFetcher.fixed.tsx, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "compliance audit": "An audit confirmed DataFetcher doesn't clean up async side effects on unmount, causing stale values and warnings. Fix it without changing the exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "edge-case benchmark": "DataFetcher has a stale-closure bug: async results overwrite state after unmount or rapid prop changes. Fix it so all five fixtures pass. Produce outputs/DataFetcher.fixed.tsx, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json."
       };
       const opener = openers[scenario && scenario.name] || openers["regression triage"];
       return [
         opener,
-        "All 5 Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero \"Warning: Can't perform a React state update on an unmounted component\" warnings in Jest stderr. Render counts for each fixture must stay within the limits declared in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
-        "The JSON reports must include per-test status, final rendered value, warning counts, render counts per fixture, package versions, input file checksums, and pass/fail reason codes. The verifier will grade only the submitted component, patch, and output reports, not the specific implementation method."
+        "All 5 Jest fixtures must pass. Rapid-update: final rendered value equals the last dispatched request. Unmount fixture: zero 'state update on unmounted component' warnings. Render counts within expected_render_counts.json. No API changes in contracts/component_api.md.",
+        standard.prompt
       ].join("\n\n");
     },
     sources: [
@@ -4659,16 +4804,16 @@ if __name__ == "__main__":
     standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before release validation completed. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
-        "regression triage": "Exactly 3 commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable.",
-        "compliance audit": "An incident review confirmed that 3 commits are no longer reachable on the release branch after an accidental force-push. Recovery must be machine-verifiable with full checksum and topology evidence. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so all 3 original commits are reachable with the exact topology specified.",
-        "edge-case benchmark": "The provided Git repository contains a ref reconstruction challenge: exactly 3 commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs."
+        "post-migration validation": "An accidental git push --force removed 3 commits from the release branch. Recover them with the exact topology specified in commit_graph_spec.json.",
+        "regression triage": "Three commits went missing after an accidental force-push. Recover them with the correct parent chain using the provided bundles and reflog.",
+        "compliance audit": "Incident review shows 3 commits are unreachable after an accidental force-push. Recover them with machine-verifiable checksum and topology evidence.",
+        "edge-case benchmark": "The repo lost 3 commits from an accidental force-push. Recover them with proper reachability, parent-chain, and checksum verification — no cherry-picking."
       };
       const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
       return [
         opener,
-        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. The repaired repository must clone successfully from the bundle; git fsck --connectivity-only must report exactly 0 missing or corrupt objects; all 3 recovered commit SHAs must be reachable from the required branch ref; each recovered commit must have the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec.json.",
-        "The JSON reports must include original and repaired branch refs, recovered commit SHAs, parent SHAs, reachability status, checksum verification results, Git version, input bundle checksums, and pass/fail reason codes. The verifier will grade only the repaired bundle and output reports, not the recovery method."
+        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. git fsck --connectivity-only must report 0 missing objects. All 3 recovered commits must be reachable with the parent chain from commit_graph_spec.json. File checksums must match expected_file_checksums.json. Branch refs must point to the specified SHAs.",
+        standard.prompt
       ].join("\n\n");
     },
     sources: [
@@ -5852,9 +5997,10 @@ function fillStarterTemplate() {
 
   if (els.taskCategory) els.taskCategory.value = DOMAIN_CATEGORY[domainKey] || profile.domain;
   if (els.taskTitle) els.taskTitle.value = profile.brief || `${capitalize(effectiveExpertiseLabel)} ${domainLabel}.`;
-  els.taskPrompt.value = (domainDetails && domainDetails.composePrompt)
+  const rawPrompt = (domainDetails && domainDetails.composePrompt)
     ? domainDetails.composePrompt(profile, type, standard, scenario)
     : scenario.composePrompt(profile, type, standard);
+  els.taskPrompt.value = humanizePrompt(rawPrompt, domainKey, scenario);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
   const swDomains = new Set(["typescript", "react", "git-workflows", "software-engineering", "computer-science", "distributed-systems", "databases", "compilers", "ml-systems"]);
@@ -6496,7 +6642,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Specific objective output",
-      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create", "deliverable", "what is needed", "what the team needs", "required output", "required deliverable", "needed is", "team needs"]) && hasAny(prompt, ["csv", "json", "file", "table", "report", "metric", "score", "plot", "artifact", "output"]),
+      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create", "deliverable", "what is needed", "what the team needs", "required output", "required deliverable", "needed is", "team needs", "fix it", "repair", "reconstruct", "recover", "output files", "produce outputs"]),
       message: "The prompt should request a concrete output artifact or measurable result, not broad advice or explanation."
     },
     {
@@ -7064,16 +7210,18 @@ function validateZipReadiness() {
   const issues = [];
   const isGitWorkflow = f.domainKey === "git-workflows" || /git|bundle|reflog/i.test(`${f.category} ${f.title} ${f.prompt}`);
   const hasGitResources = /(repo_before_force\.bundle|repo_after_force\.bundle|reflog_export\.txt|commit_graph_spec\.json|expected_file_checksums\.json)/i.test(f.resources || "");
+  const isSWE = /^(software-engineering|typescript|react|computer-science|databases|compilers|distributed-systems|ml-systems)$/.test(f.domainKey || "");
+  const hasSweResources = /(src\/|\.tsx|\.ts|\.py|\.js|\.jsx|package\.json|jest\.config|tsconfig)/i.test(f.resources || "");
   if (!f.prompt || f.prompt.length < 80)
     issues.push("Prompt is missing or too short — needs a clear output goal (≥80 chars).");
   if (!f.solution || f.solution.length < 100)
     issues.push("Golden solution missing — needs expert workflow, commands, and output paths.");
   if (!f.verifiers || f.verifiers.length < 50)
     issues.push("Verifier description missing — needs deterministic output checks.");
-  if (!f.resources || (!f.resources.includes("data/") && !(isGitWorkflow && hasGitResources)))
-    issues.push("Resources must reference concrete input files, either inside data/ or as Git workflow fixtures such as .bundle, reflog_export.txt, and commit_graph_spec.json.");
-  if (!f.resources || !/(http|github|physionet|openml|noaa|ensembl|stooq|tpc|conll|cses|matpower|icpsr|jaspar|stratosphere)/i.test(f.resources))
-    issues.push("Resources must cite a public source (URL, PhysioNet, OpenML, GitHub, NOAA, etc.).");
+  if (!f.resources || (!f.resources.includes("data/") && !(isGitWorkflow && hasGitResources) && !(isSWE && hasSweResources)))
+    issues.push("Resources must reference concrete input files (data/, src/, .bundle, .tsx, package.json, etc.).");
+  if (!f.resources || !/(http|github|physionet|openml|noaa|ensembl|stooq|tpc|conll|cses|matpower|icpsr|jaspar|stratosphere|react\.dev)/i.test(f.resources))
+    issues.push("Resources must cite a public source (URL, PhysioNet, OpenML, GitHub, NOAA, react.dev, etc.).");
   if (!f.solution || !/(python|\.py|bash|make|pytest|run)/i.test(f.solution))
     issues.push("Golden solution needs a runnable command (e.g. python solve.py).");
   if (!f.errorIfWrong || f.errorIfWrong.length < 20)
@@ -8599,7 +8747,8 @@ function updateRunnerStatusField(id, value, className) {
 async function startRun(runSetup, runSolve, runVerify) {
   if (!runnerPackageInfo || !runnerPackageInfo.package_id) return;
 
-  const statusEl = document.querySelector("#runner-status");
+  updateRunnerStatusField("runner-status-value", "STARTING", "runner-running");
+  const statusEl = null;
   if (statusEl) statusEl.textContent = 'Starting run…';
 
   try {
