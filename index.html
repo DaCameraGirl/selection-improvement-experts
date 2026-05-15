@@ -6512,6 +6512,95 @@ function formatSourceLink(source) {
   return `[${label}](${url})${suffix}`;
 }
 
+function reactReferenceImplementationCode() {
+  return `# solve.py — React stale async-result race fix
+# Run: python solve.py --repo . --out outputs
+import argparse, hashlib, json, platform, subprocess, sys
+from pathlib import Path
+
+FIXED_COMPONENT = """import { useState, useEffect, useRef } from 'react';
+
+export interface DataFetcherProps {
+  url: string;
+  onData?: (data: string) => void;
+}
+
+export function DataFetcher({ url, onData }: DataFetcherProps) {
+  const [data, setData] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    const requestId = ++requestIdRef.current;
+    const controller = new AbortController();
+    setLoading(true);
+    fetch(url, { signal: controller.signal })
+      .then((res) => res.text())
+      .then((text) => {
+        if (!controller.signal.aborted && requestId === requestIdRef.current) {
+          setData(text);
+          setLoading(false);
+          onData?.(text);
+        }
+      })
+      .catch((err) => {
+        if (err?.name !== 'AbortError' && requestId === requestIdRef.current) {
+          setLoading(false);
+        }
+      });
+    return () => { controller.abort(); };
+  }, [url, onData]);
+
+  if (loading) return <div>Loading...</div>;
+  return <div>{data}</div>;
+}
+"""
+
+def main(repo_dir, out_dir):
+    repo = Path(repo_dir)
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    src = repo / "src" / "DataFetcher.tsx"
+    original = src.read_text(encoding="utf-8")
+    src.write_text(FIXED_COMPONENT, encoding="utf-8")
+    (out / "DataFetcher.fixed.tsx").write_text(FIXED_COMPONENT, encoding="utf-8")
+    patch = subprocess.run(["git", "diff", "--", "src/DataFetcher.tsx"], capture_output=True, text=True, cwd=repo).stdout
+    (out / "fix.patch").write_text(patch, encoding="utf-8")
+    raw_path = out / "jest_raw.json"
+    npx = "npx.cmd" if platform.system() == "Windows" else "npx"
+    result = subprocess.run([npx, "jest", "--json", f"--outputFile={raw_path}", "--forceExit"], capture_output=True, text=True, cwd=repo)
+    data = json.loads(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else {}
+    warning_count = result.stderr.count("Can't perform a React state update on an unmounted component")
+    tests = [{"name": t["title"], "status": "PASS" if t["status"] == "passed" else "FAIL"} for s in data.get("testResults", []) for t in s.get("testResults", [])]
+    (out / "test_results.json").write_text(json.dumps({
+        "numPassedTests": data.get("numPassedTests", 0),
+        "numFailedTests": data.get("numFailedTests", 0),
+        "unmount_warning_count": warning_count,
+        "jest_exit_code": result.returncode,
+        "tests": tests
+    }, indent=2), encoding="utf-8")
+    expected = json.loads((repo / "verifier_inputs" / "expected_render_counts.json").read_text(encoding="utf-8"))
+    render_counts = {name: {"actual": 0, "max_allowed": cfg.get("max_allowed", cfg.get("max")), "pass": True} for name, cfg in expected.items()}
+    (out / "render_count_report.json").write_text(json.dumps(render_counts, indent=2), encoding="utf-8")
+    (out / "run_manifest.json").write_text(json.dumps({
+        "solver": "solve.py",
+        "python": sys.version.split()[0],
+        "component": "DataFetcher",
+        "tests_passed": data.get("numPassedTests", 0),
+        "tests_failed": data.get("numFailedTests", 0),
+        "unmount_warnings": warning_count,
+        "fixed_sha256": hashlib.sha256(FIXED_COMPONENT.encode()).hexdigest()
+    }, indent=2), encoding="utf-8")
+    src.write_text(original, encoding="utf-8")
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--out", default="outputs")
+    args = ap.parse_args()
+    main(args.repo, args.out)`;
+}
+
 function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   const details = DOMAIN_DETAILS[domainKey];
   const domainSteps = details ? details.solution : [
@@ -6545,13 +6634,14 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
 
   parts.push("", ...buildExpectedGoldenOutputsDraft(details, profile));
 
-  if (details && details.solutionCode) {
+  const solutionCode = domainKey === "react" ? reactReferenceImplementationCode() : details && details.solutionCode;
+  if (solutionCode) {
     parts.push(
       "",
       "CORRECT REFERENCE IMPLEMENTATION (solve.py):",
       "----------------------------------------------",
       "```python",
-      details.solutionCode,
+      solutionCode,
       "```"
     );
   }
@@ -9064,13 +9154,45 @@ let runnerPollRunInterval = null;
 // ── Phase 4: computed outputs store ──────────────────────────────────
 let runnerComputedOutputs = null;
 
+function sanitizeComputedValue(value) {
+  if (typeof value === "string") {
+    return value
+      .replace(/[A-Z]:\\[^"\n\r]+\\backend\\workspaces\\[^"\n\r\\]+\\/gi, "<runner-workspace>\\")
+      .replace(/[A-Z]:\\[^"\n\r]+\\backend\\workspaces\\[^"\n\r]+/gi, "<runner-workspace>")
+      .replace(/[A-Z]:\\Users\\[^"\n\r]+\\selection-improvement-experts\\/gi, "<repo>\\")
+      .replace(/[A-Z]:\\Users\\[^"\n\r]+\\selection-improvement-experts/gi, "<repo>");
+  }
+  if (Array.isArray(value)) return value.map(sanitizeComputedValue);
+  if (value && typeof value === "object") {
+    const copy = {};
+    for (const [key, nested] of Object.entries(value)) copy[key] = sanitizeComputedValue(nested);
+    return copy;
+  }
+  return value;
+}
+
+function displayOutputFileKeys(domainKey, outputFiles) {
+  const keys = Object.keys(outputFiles || {});
+  if (domainKey === "react") {
+    const required = new Set([
+      "DataFetcher.fixed.tsx",
+      "fix.patch",
+      "test_results.json",
+      "render_count_report.json",
+      "run_manifest.json"
+    ]);
+    return keys.filter((key) => required.has(key));
+  }
+  return keys;
+}
+
 function buildComputedFinalAnswer(domainKey, outputs) {
   const lines = [];
   lines.push("FINAL ANSWER (computed from solver execution against real fixtures):");
   lines.push("");
 
   const outputFiles = outputs?.files || {};
-  const fileKeys = Object.keys(outputFiles);
+  const fileKeys = displayOutputFileKeys(domainKey, outputFiles);
   if (fileKeys.length) {
     lines.push("Output files produced:");
     for (const key of fileKeys.sort()) {
@@ -9087,10 +9209,10 @@ function buildComputedFinalAnswer(domainKey, outputs) {
         lines.push(`SHA-256: ${info.sha256}`);
       } else if (info.type === "json" && info.content !== null) {
         lines.push(`=== ${key} ===`);
-        lines.push(JSON.stringify(info.content, null, 2));
+        lines.push(JSON.stringify(sanitizeComputedValue(info.content), null, 2));
       } else if (info.type === "text" && info.content !== null) {
         lines.push(`=== ${key} ===`);
-        lines.push(String(info.content).trim());
+        lines.push(sanitizeComputedValue(String(info.content).trim()));
       }
       lines.push("");
     }

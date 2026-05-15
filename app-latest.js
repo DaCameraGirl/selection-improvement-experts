@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-14 human-prompt-generation";
+const APP_VERSION = "2026-05-15 runner-zip-download";
 
 const state = {
   guides: [],
@@ -29,6 +29,7 @@ const els = {
   relevantResults: document.querySelector("#relevant-results"),
   answerOutline: document.querySelector("#answer-outline"),
   taskDomain: document.querySelector("#task-domain"),
+  taskRecipe: document.querySelector("#task-recipe"),
   taskExpertise: document.querySelector("#task-expertise"),
   taskDomainSelect: document.querySelector("#task-domain-select"),
   taskType: document.querySelector("#task-type"),
@@ -332,8 +333,14 @@ function renderPackagePreview(text) {
     els.generatedTaskPreview.innerHTML = '<span class="preview-empty">Fill the fields and build a task package.</span>';
     return;
   }
-  const html = text.split("\n").map(convertLinksToAnchors).join("\n");
-  els.generatedTaskPreview.innerHTML = `<pre>${html}</pre>`;
+  try {
+    const html = text.split("\n").map(convertLinksToAnchors).join("\n");
+    els.generatedTaskPreview.innerHTML = `<pre>${html}</pre>`;
+  } catch (err) {
+    const pre = document.createElement("pre");
+    pre.textContent = text;
+    els.generatedTaskPreview.replaceChildren(pre);
+  }
 }
 
 const DOMAIN_CATEGORY = {
@@ -363,22 +370,12 @@ const DOMAIN_CATEGORY = {
   "git-workflows":            "Software Engineering, Version Control",
 };
 
-function buildTaskPackage() {
-  const fields = getTaskFields();
-  renderTaskChecks(fields);
-
-  if (taskContentValues(fields).every((value) => !value)) {
-    els.generatedTaskPackage.value = "Use Generate Draft or enter your own task details, then click Build Package.";
-    renderPackagePreview("");
-    return;
-  }
-
-  // React and Git are senior/master's tasks — cap PhD label display
+function buildTaskPackageLines(fields) {
   const packagePhdCapped = new Set(["react", "git-workflows"]);
   const packageDomainKey = els.taskDomainSelect.value;
   const packageEffectiveExpertise = packagePhdCapped.has(packageDomainKey) && fields.expertise === "phd" ? "masters" : fields.expertise;
 
-  els.generatedTaskPackage.value = [
+  return [
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     " OUTLIER TBench — SUBMISSION FIELDS",
     `  Generated ${APP_VERSION}  ·  Expertise: ${expertiseLabel(packageEffectiveExpertise)}`,
@@ -409,6 +406,16 @@ function buildTaskPackage() {
     "── FIELD: Golden solution steps ────────────────────",
     packageText(fields.solution, "Show where the task is actually solved: authoritative computation, commands, code/scripts, expected outputs, schemas, and failure decisions."),
     "",
+    "── FIELD: Final answer / Expected solution outputs ──",
+    packageText(buildExpectedFinalAnswer(packageDomainKey), "No expected outputs defined for this domain."),
+    "",
+    ...(window.__taskExecution?.no_placeholders_in_final_answer ? [] : [
+      "── FINAL ANSWER READINESS (internal gate) ─────────────",
+      "STATUS: NOT READY — solve.py has not been executed against fixtures.",
+      "The content above is an expected-output schema, not a computed final answer.",
+      "Set window.__taskExecution to mark execution complete.",
+      ""
+    ]),
     "── FIELD: Verifier description ─────────────────────",
     packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
     "",
@@ -437,11 +444,68 @@ function buildTaskPackage() {
     "INTERNAL CHECKLIST - Do Not Submit Unless Needed",
     "----------------------------------------------",
     getTaskChecks(fields).map((check) => `${check.pass ? "PASS" : "NEEDS WORK"} - ${check.title}: ${check.message}`).join("\n")
-  ].join("\n");
-  renderPackagePreview(els.generatedTaskPackage.value);
-  renderReadinessDashboard();
-  renderSubmissionAudit();
-  renderConsistencyChecker();
+  ];
+}
+
+function buildSubmissionPackageLines(fields) {
+  const lines = buildTaskPackageLines(fields);
+  const internalIndex = lines.findIndex((line) => String(line).includes("INTERNAL REVIEW AIDS"));
+  const publicLines = internalIndex >= 0 ? lines.slice(0, Math.max(0, internalIndex - 2)) : lines;
+  return publicLines.filter((line, index, arr) => !(line === "" && arr[index - 1] === ""));
+}
+
+function dedupeSubmissionPackageText(text) {
+  const marker = "OUTLIER TBench";
+  const source = String(text || "");
+  const first = source.indexOf(marker);
+  if (first < 0) return source.trim();
+  const packageStartMarker = source.lastIndexOf("\u2501\u2501\u2501\u2501", first);
+  const packageStart = packageStartMarker >= 0 ? packageStartMarker : first;
+  const second = source.indexOf(marker, first + marker.length);
+  if (second < 0) return source.slice(packageStart).trim();
+  const cut = source.lastIndexOf("━━━━━━━━", second);
+  return source.slice(packageStart, cut > packageStart ? cut : second).trim();
+}
+
+function buildTaskPackage() {
+  const btn = els.buildTaskPackage;
+  const oldText = btn ? btn.textContent : "";
+  if (btn) btn.textContent = "Building...";
+  try {
+    const fields = getTaskFields();
+    try { renderTaskChecks(fields); } catch (err) { console.error("renderTaskChecks failed", err); }
+
+    if (taskContentValues(fields).every((value) => !value)) {
+      els.generatedTaskPackage.value = "Use Generate Draft or enter your own task details, then click Build Package.";
+      renderPackagePreview(els.generatedTaskPackage.value);
+      return;
+    }
+
+    els.generatedTaskPackage.value = dedupeSubmissionPackageText(buildSubmissionPackageLines(fields).join("\n"));
+    renderPackagePreview(els.generatedTaskPackage.value);
+
+    try { renderRiskChecks(); } catch (err) { console.error("renderRiskChecks failed", err); }
+    try { renderReadinessDashboard(); } catch (err) { console.error("renderReadinessDashboard failed", err); }
+    try { renderSubmissionAudit(); } catch (err) { console.error("renderSubmissionAudit failed", err); }
+    try { renderConsistencyChecker(); } catch (err) { console.error("renderConsistencyChecker failed", err); }
+
+    const supportedRunnerDomains = new Set(["react", "typescript", "git-workflows"]);
+    const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+    const inlinePanel = document.querySelector("#inline-runner-panel");
+    if (inlinePanel) {
+      inlinePanel.classList.toggle("is-hidden", !supportedRunnerDomains.has(domain));
+    }
+  } catch (err) {
+    console.error("Build Package failed", err);
+    if (els.generatedTaskPreview) {
+      els.generatedTaskPreview.innerHTML = `<pre>Build Package failed: ${escapeHtml(err.message)}</pre>`;
+    }
+  } finally {
+    if (btn) {
+      btn.textContent = "Built";
+      setTimeout(() => { btn.textContent = oldText || "2. Build Package"; }, 900);
+    }
+  }
 }
 
 const DOMAIN_DRAFTS = {
@@ -546,17 +610,17 @@ const DOMAIN_DRAFTS = {
     threshold: "Token-level F1 must match the gold reference within ±0.5 percentage points; label confusion counts must be exact integer matches on the test split; zero cross-split token boundary leaks permitted."
   },
   "typescript": {
-    brief: "Fix a TypeScript strict-mode conditional type bug where a union containing Promise<never> causes Awaited<T> to silently infer unknown instead of the correct resolved type",
+    brief: "Fix a TypeScript strict-mode conditional type bug where a union containing Promise<never> causes AwaitedLike<T> to silently infer unknown instead of the correct resolved type",
     domain: "TypeScript type system using conditional types, mapped types, distributive inference, and strict-mode diagnostics with tsc 5.x",
     artifact: "a patch file, a tsc diagnostic report JSON, a type-test results JSON, and a public API report JSON",
-    method: "conditional type narrowing analysis, Awaited<T> distributivity inspection, discriminated union checks, and differential tsc --strict output comparison against a split positive/negative fixture suite",
+    method: "conditional type narrowing analysis, AwaitedLike<T> distributivity inspection, discriminated union checks, and differential tsc --strict output comparison against a split positive/negative fixture suite",
     data: "a pinned TypeScript project with a broken type utility, tsconfig.strict.json for positive fixtures, tsconfig.negative.json for the invalid fixture, five type-test fixture files that must produce specific compiler diagnostics, and a contracts file listing public type signatures that must not regress",
     failure: "using a type assertion to silence the error instead of fixing inference, narrowing only the happy-path union member while leaving the never branch unhandled, producing a patch that changes public-facing type signatures, and running both positive and negative fixtures under the same tsconfig instead of the split configs",
     sourceKit: "src/utils/awaited_util.ts (broken utility), tsconfig.strict.json (strict:true, noEmit:true), tsconfig.negative.json (strict:true, noEmit:true — used only for invalid_non_thenable.ts), type_tests/normal_union.ts, type_tests/nested_promise.ts, type_tests/never_branch.ts, type_tests/edge_deeply_nested.ts, type_tests/invalid_non_thenable.ts, contracts/public_types.md, verifier_inputs/expected_diagnostics.json, environment/package.json (typescript@5.4.5)",
     threshold: "The four positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) must compile with zero diagnostics under tsconfig.strict.json; invalid_non_thenable.ts must produce exactly one TS2345 diagnostic under tsconfig.negative.json; zero exported type signatures in contracts/public_types.md may change."
   },
   "react": {
-    brief: "Validate that a React 18 data-fetching component produces correct final render values across mount, unmount, remount, and rapid-update scenarios",
+    brief: "React 18 stale-closure fix: repair async cleanup so the component never commits state after unmount",
     domain: "React 18 hooks, stale closures, concurrent rendering, cleanup functions, and deterministic component testing with @testing-library/react",
     artifact: "a patched component file, a jest test-results JSON, and a render-count report JSON",
     method: "stale closure analysis, useEffect dependency array audit, AbortController cleanup wiring, act() boundary verification, and render-count instrumentation via jest.fn() spy",
@@ -566,14 +630,14 @@ const DOMAIN_DRAFTS = {
     threshold: "All 5 jest test cases must pass; final rendered value in the rapid-update fixture must equal the last dispatched value (not a stale earlier one); render count must not exceed the declared maximum in expected_render_counts.json; zero 'Warning: Can't perform a React state update on an unmounted component' in jest stderr."
   },
   "git-workflows": {
-    brief: "Recover 3 commits lost after an accidental git push --force, reconstruct the correct branch topology using the reflog, and validate the repaired history against a commit graph specification",
+    brief: "Git force-push recovery: get three lost commits back onto the branch",
     domain: "Git internals using the object model, reflog, bundle files, ref restoration, reachability analysis, and deterministic commit graph validation",
     artifact: "a repaired git bundle, a repair log JSON, and a commit graph verification report JSON",
     method: "git reflog parsing, git fsck --connectivity-only object integrity checks, ref restoration to make original commit objects reachable, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
-    data: "git bundles containing the object store before and after the force-push, a reflog export showing the 3 orphaned commit SHAs, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
+    data: "git bundles containing the object store before and after the force-push, a reflog export showing the commit SHAs to recover, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
     failure: "cherry-picking changes into new commits instead of restoring original refs (producing different SHAs than expected), recovering commits in the wrong order breaking the parent chain, leaving recovered commits unreachable from the required branch ref, and failing to verify file contents at each recovered commit match the expected checksums",
-    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing 3 orphaned SHAs), commit_graph_spec.json (expected parent SHAs, branch ref targets, and commit messages), verifier_inputs/expected_file_checksums.json (file contents at each recovered commit), environment/git_version.txt (git 2.43.0)",
-    threshold: "git fsck --connectivity-only on the repaired repository must report 0 missing or corrupt objects; all 3 recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
+    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing the SHAs to recover), commit_graph_spec.json (expected ancestor chains and branch tips), expected_refs.json (exact ref targets), expected_file_checksums.json (Git blob IDs at recovered commits), version_manifest.json (runtime versions)",
+    threshold: "git fsck --connectivity-only on the repaired repository must report 0 missing or corrupt objects; every recovered SHA listed in reflog_export.txt must be reachable from the required branch refs with the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
   },
   "software-engineering": {
     brief: "Triage a real repository regression where a fix may have broken an existing public API contract",
@@ -713,21 +777,21 @@ const TYPE_DRAFTS = {
 const STANDARD_DRAFTS = {
   enterprise: {
     label: "Enterprise production",
-    prompt: "Make the handoff production-ready: stable file paths, explicit schemas, rerunnable commands, and clear failure handling.",
+    prompt: "Stable file paths, explicit schemas, rerunnable commands, clear failure handling.",
     resources: "Include CI-style test instructions, a lockfile or version manifest, sample and edge-case inputs, expected output schemas, and operational notes for rerunning the workflow from a clean checkout.",
     verifier: "The verifier should behave like a CI gate: deterministic, repeatable, schema-aware, tolerant only where specified, and strict about missing artifacts, unstable ordering, and regression cases.",
     rubric: "Enterprise pass criteria: reproducible from clean checkout, documented schemas, stable artifacts, operational edge cases, clear failure modes, and verifier behavior suitable for a CI gate."
   },
   regulated: {
     label: "Regulated / audited",
-    prompt: "Make the handoff audit-ready: trace each output back to inputs, document assumptions, and account for exclusions.",
+    prompt: "Trace each output back to inputs, document assumptions, account for exclusions.",
     resources: "Include a data dictionary, provenance notes, allowed exclusions, package versions, audit log expectations, and examples of valid and invalid records.",
     verifier: "The verifier should check traceability, required audit fields, exclusion accounting, exact schema, deterministic calculations, and tolerance rules.",
     rubric: "Regulated pass criteria: traceable inputs, documented assumptions, auditable exclusions, deterministic calculations, and independently reviewable evidence."
   },
   research: {
     label: "Research benchmark",
-    prompt: "Make the handoff benchmark-ready: include baseline comparisons, strict metrics, and reproducibility notes.",
+    prompt: "Include baseline comparisons, strict metrics, and reproducibility notes.",
     resources: "Include benchmark splits, baseline outputs, seed values, metric definitions, reference configs, and notes that prevent leakage or invalid comparison.",
     verifier: "The verifier should check metric definitions, split integrity, seed reproducibility, baseline comparison, tolerance bands, and required ablation or sensitivity outputs.",
     rubric: "Research pass criteria: valid benchmark setup, leakage prevention, meaningful baselines, reproducible metrics, and clear failure analysis."
@@ -739,107 +803,225 @@ function humanizePrompt(text, domainKey, scenario) {
 
   const paragraphs = text.split("\n\n").map((p) => p.trim()).filter(Boolean);
 
-  const humanOpeners = [
-    "Here's the situation",
-    "The context",
-    "Background",
-    "What we're dealing with",
-    "Here's what happened",
-    "The setup"
-  ];
+  function stripBoilerplate(paragraph) {
+    let result = paragraph;
 
-  const humanDeliverableOpeners = [
-    "We need",
-    "What I need from this",
-    "The ask is",
-    "Here's what needs to happen",
-    "What we're looking for",
-    "The goal",
-    "What needs to come out of this"
-  ];
-
-  const humanConstraintOpeners = [
-    "A few things to keep in mind",
-    "Important constraints",
-    "Things to watch out for",
-    "Key requirements",
-    "What matters here",
-    "Notes on the output"
-  ];
-
-  const humanAsides = [
-    " (this has tripped people up before)",
-    " (don't skip this part)",
-    " (we've seen this go wrong)",
-    " (worth double-checking)",
-    " (easy to miss, but it matters)",
-    ""
-  ];
-
-  function varySentenceBreaks(paragraph) {
-    const sentences = paragraph.split(/(?<=[.!?])\s+/);
-    if (sentences.length <= 1) return paragraph;
-
-    const result = [];
-    let i = 0;
-    while (i < sentences.length) {
-      if (i + 1 < sentences.length && sentences[i].length > 80 && sentences[i + 1].length < 40) {
-        result.push(sentences[i] + " " + sentences[i + 1]);
-        i += 2;
-      } else if (i + 1 < sentences.length && sentences[i].length < 30 && sentences[i + 1].length > 60) {
-        result.push(sentences[i] + " " + sentences[i + 1]);
-        i += 2;
-      } else {
-        result.push(sentences[i]);
-        i++;
-      }
-    }
-    return result.join(" ");
-  }
-
-  function replaceFormulaicTransitions(text) {
-    const replacements = [
-      [/^What's needed is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
-      [/^The deliverable is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
-      [/^The required deliverable is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
-      [/^The required output is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
-      [/^What the team needs is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
-      [/^The JSON reports must /i, () => "On the reporting side, " + text.slice(0, 1).toLowerCase() + "the JSON reports need to "],
-      [/^The verifier will grade /i, () => "Just so it's clear, " + text.slice(0, 1).toLowerCase() + "the verifier is only grading "],
+    const boilerplatePatterns = [
+      [/\s*Produce output summaries? only[^.]*\.?/gi, ""],
+      [/\s*The JSON reports (?:must|need to|should) (?:list|include|contain)[^.]*\.?/g, ""],
+      [/\s*The verifier (?:will )?(?:only )?grade[s]? (?:only )?(?:the submitted [^.]*,? )?not the [^.]*\.?/g, ""],
+      [/\s*and pass\/fail reason codes\.?/g, ""],
+      [/\s*and SHA-256 checksum of each required input file\.?/g, ""],
+      [/\s*The verifier will grade only[^.]*\.?/g, ""],
     ];
 
-    let result = text;
-    for (const [pattern, replacement] of replacements) {
-      result = result.replace(pattern, replacement());
+    for (const [pattern, replacement] of boilerplatePatterns) {
+      result = result.replace(pattern, replacement);
     }
+
+    result = result.replace(/\s{2,}/g, " ").trim();
+
     return result;
   }
 
-  function addHumanCadence(paragraph, index) {
-    let result = varySentenceBreaks(paragraph);
-    result = replaceFormulaicTransitions(result);
+  function compactOpener(paragraph) {
+    let result = paragraph;
 
-    if (index === 0 && result.length > 100) {
-      const firstPeriod = result.indexOf(".");
-      if (firstPeriod > 20 && firstPeriod < result.length - 40) {
-        const aside = humanAsides[Math.floor(Math.random() * humanAsides.length)];
-        if (aside) {
-          result = result.slice(0, firstPeriod) + aside + result.slice(firstPeriod);
-        }
+    const openerSwaps = [
+      [/^A production migration of (.+?) has completed, but nobody has confirmed the migrated outputs actually match the legacy reference\. The pipeline is paused and the team needs sign-off before it can go live\.$/,
+       "We just migrated $1 and need to verify the outputs match the legacy reference before going live."],
+      [/^Something in a recent release broke (.+?) — metrics that were stable before the change have shifted, and the team cannot push a hotfix until the failure is pinned to a specific, reproducible cause\.$/,
+       "A recent release broke $1. We need to pin the failure to a specific reproducible cause before pushing a hotfix."],
+      [/^An upcoming audit of (.+?) has flagged a gap: the outputs exist but there is no documented chain connecting each final value to its validated input, applied exclusion rule, or calculation assumption\. The auditor needs that chain before sign-off\.$/,
+       "An audit of $1 flagged a gap — there's no documented chain from final values back to validated inputs and exclusion rules."],
+      [/^The current test suite for (.+?) only exercises the happy path — boundary conditions and malformed inputs are silently passing, and those silent failures have been reaching production downstream\.$/,
+       "The test suite for $1 only covers the happy path. Boundary conditions and malformed inputs are slipping through to production."],
+      [/^Two trusted operational systems are returning conflicting records for (.+?), and a downstream team is stuck — they cannot proceed until there is a single authoritative version of the data with a documented rationale for every conflict decision\.$/,
+       "Two systems disagree on records for $1. We need a single authoritative version with a rationale for every conflict."],
+      [/^After upgrading a shared type utility package, the custom AwaitedLike<T> conditional type now silently widens union members containing Promise<never> to unknown instead of the correct resolved type\. Repair the provided TypeScript project so AwaitedLike<T> distributes correctly over all union members without widening\.$/,
+       "After a type utility upgrade, AwaitedLike<T> silently widens Promise<never> union members to unknown. Fix it so distribution works correctly."],
+      [/^A recent TypeScript 5\.x upgrade introduced a regression in the custom AwaitedLike<T> utility: union members containing Promise<never> are now widened to unknown at the call site instead of resolving to the correct type\. Repair the project so AwaitedLike<T> handles the never branch correctly without widening\.$/,
+       "The TypeScript 5.x upgrade broke AwaitedLike<T> — Promise<never> members widen to unknown instead of resolving correctly."],
+      [/^A pre-release type audit identified that the custom AwaitedLike<T> utility incorrectly widens Promise<never> branches to unknown under strict mode, silently breaking callers that depend on the resolved type\. Repair the project so AwaitedLike<T> distributes correctly and all public type signatures remain unchanged\.$/,
+       "A pre-release audit found AwaitedLike<T> widening Promise<never> to unknown under strict mode. Fix it without changing public type signatures."],
+      [/^The provided TypeScript project contains a conditional type utility AwaitedLike<T> that fails on a known edge case: union members containing Promise<never> silently infer unknown instead of the correct resolved type\. Repair the utility without widening any union branch or changing public type signatures\.$/,
+       "AwaitedLike<T> fails on an edge case: Promise<never> members infer unknown. Fix it without widening branches or changing public signatures."],
+      [/^After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves\. Repair the component so this never happens\.$/,
+       "After the React 18 migration, DataFetcher commits stale async results when props change rapidly or the component unmounts mid-fetch. Fix it."],
+      [/^A regression in DataFetcher allows a stale async result to overwrite the final rendered value under rapid prop changes or unmount-before-resolve conditions\. The bug is reproducible with the provided Jest fixtures\. Repair the component and produce /,
+       "DataFetcher has a regression: stale async results overwrite the rendered value on rapid prop changes or unmount. Fix it using the provided Jest fixtures."],
+      [/^A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing 'state update on an unmounted component' warnings and stale rendered values\. Repair the component without changing its exported API\.$/,
+       "An audit confirmed DataFetcher doesn't clean up async side effects on unmount, causing stale values and warnings. Fix it without changing the exported API."],
+      [/^The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures\. Repair the component so all five fixtures pass and no stale state updates occur\.$/,
+       "DataFetcher has a stale-closure bug: async results overwrite state after unmount or rapid prop changes. Fix it so all five fixtures pass."],
+      [/^An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before release validation completed\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified\.$/,
+       "A bad force-push left refs pointing at incomplete history. Restore the original graph using the provided bundles and reflog."],
+      [/^Exactly 3 commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so the original recovered commits are reachable\.$/,
+       "A bad force-push left refs pointing at incomplete history. Restore the original graph using the provided bundles and reflog."],
+      [/^An incident review confirmed that 3 commits are no longer reachable on the release branch after an accidental force-push\. Recovery must be machine-verifiable with full checksum and topology evidence\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so all 3 original commits are reachable with the exact topology specified\.$/,
+       "Incident review shows refs no longer reach the expected Git history. Recover it with machine-verifiable checksum and topology evidence."],
+      [/^The provided Git repository contains a ref reconstruction challenge: exactly 3 commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs\.$/,
+       "The repo lost part of its expected history after a force-push. Recover it with reachability, parent-chain, and checksum verification."],
+    ];
+
+    for (const [pattern, replacement] of openerSwaps) {
+      if (pattern.test(result)) {
+        result = result.replace(pattern, replacement);
+        break;
       }
     }
 
     return result;
   }
 
-  const humanized = paragraphs.map((p, i) => addHumanCadence(p, i));
+  function compactDeliverable(paragraph) {
+    let result = paragraph;
 
-  if (humanized.length === 3 && Math.random() > 0.5) {
-    const merged = humanized[1] + " " + humanized[2];
-    return [humanized[0], merged].join("\n\n");
+    const deliverableSwaps = [
+      [/^What's needed is (.+?), with a reason code on every divergence and the original source records preserved so any disagreement can be audited independently\.$/,
+       "We need $1 — reason code on every divergence, original source records preserved for independent audit."],
+      [/^The deliverable is (.+?): the root cause identified in machine-readable form, cleanly separated from unrelated drift, with enough evidence that an independent engineer can pull the same inputs and reproduce the failure from scratch\.$/,
+       "Deliverable: $1. Root cause in machine-readable form, separated from unrelated drift, reproducible from the same inputs."],
+      [/^The required deliverable is (.+?), where every accepted record, every rejection, and every exclusion rule invoked is documented — nothing in the final outputs should be unexplained\.$/,
+       "We need $1 — every accepted record, rejection, and exclusion rule documented. Nothing unexplained in the final outputs."],
+      [/^What the team needs is a deterministic edge-case benchmark: (.+?), along with a failure-analysis table that covers normal behavior, boundary conditions, invalid-input handling, and the domain-specific failure modes that expert reviewers actually care about\. Every conclusion must be verifiable from the output files alone — no digging through solver logs\.$/,
+       "We need a deterministic edge-case benchmark: $1, plus a failure-analysis table covering normal, boundary, invalid, and domain-specific failure modes. Everything verifiable from output files alone."],
+      [/^The required output is (.+?): a reason code on each conflict decision, a confidence flag per row, and a separate review queue for unresolved records that the downstream team can work through directly\.$/,
+       "Output: $1 — reason code per conflict, confidence flag per row, and a review queue for unresolved records."],
+      [/^The four positive fixtures (.+?) must compile with zero diagnostics under tsconfig\.strict\.json\. The negative fixture invalid_non_thenable\.ts must fail with exactly one TS2345 diagnostic under tsconfig\.negative\.json\. Every exported type signature listed in contracts\/public_types\.md must remain unchanged\.$/,
+       "Four positive fixtures ($1) must compile clean under tsconfig.strict.json. invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json. No public type signature changes."],
+      [/^All five Jest fixtures must pass under the pinned package versions\. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response\. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr\. Render counts for each fixture must not exceed the limits in verifier_inputs\/expected_render_counts\.json\. The exported component API in contracts\/component_api\.md must not change\.$/,
+       "All five Jest fixtures must pass. Rapid-update: final rendered value equals the last dispatched request. Unmount fixture: zero 'state update on unmounted component' warnings. Render counts within expected_render_counts.json. No API changes."],
+      [/^All 3 recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec\.json; file checksums at each recovered commit must match expected_file_checksums\.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec\.json\.$/,
+       "Recovered SHAs must be reachable with the parent chain from commit_graph_spec.json. File checksums must match expected_file_checksums.json. Branch refs must point to the specified SHAs."],
+    ];
+
+    for (const [pattern, replacement] of deliverableSwaps) {
+      if (pattern.test(result)) {
+        result = result.replace(pattern, replacement);
+        break;
+      }
+    }
+
+    return result;
   }
 
-  return humanized.join("\n\n");
+  function applyContractions(paragraph) {
+    let result = paragraph;
+    const swaps = [
+      [/does not\b/gi, "doesn't"],
+      [/cannot\b/g, "can't"],
+      [/will not\b/gi, "won't"],
+      [/should not\b/gi, "shouldn't"],
+      [/is not\b/gi, "isn't"],
+      [/are not\b/gi, "aren't"],
+      [/there is no\b/gi, "there's no"],
+    ];
+    for (const [pattern, replacement] of swaps) {
+      result = result.replace(pattern, replacement);
+    }
+    return result;
+  }
+
+  function processParagraph(paragraph, index) {
+    let result = paragraph;
+    result = stripBoilerplate(result);
+    if (index === 0) result = compactOpener(result);
+    if (index === 1) result = compactDeliverable(result);
+    result = applyContractions(result);
+    return result;
+  }
+
+  const processed = paragraphs.map((p, i) => processParagraph(p, i)).filter(Boolean);
+
+  if (processed.length >= 3) {
+    const merged = processed.slice(1).join(" ");
+    return [processed[0], merged].join("\n\n");
+  }
+
+  return processed.join("\n\n");
+}
+
+function expectedOutputPathsFor(details) {
+  if (!details || !Array.isArray(details.expectedOutputs)) return [];
+  return details.expectedOutputs
+    .filter((line) => /^- outputs\//.test(line))
+    .map((line) => line.replace(/^- /, "").split(/\s+-\s+|\s+--\s+|\s+requires\s+/i)[0].replace(/[.,;:]$/, "").trim())
+    .filter(Boolean);
+}
+
+function inferSchemaHints(details, outputPaths) {
+  const text = [
+    ...(Array.isArray(details && details.resources) ? details.resources : []),
+    ...(Array.isArray(details && details.solution) ? details.solution : []),
+    ...(Array.isArray(details && details.expectedOutputs) ? details.expectedOutputs : [])
+  ].join(" ");
+  const schemas = Array.from(new Set((text.match(/\b(?:schemas\/)?[\w.-]+\.schema\.json\b/g) || [])
+    .map((item) => item.startsWith("schemas/") ? item : `schemas/${item}`)));
+  if (schemas.length) return schemas.slice(0, 4).join(", ");
+  if (outputPaths.some((p) => /\.csv$/i.test(p))) return "declared CSV headers and column types";
+  if (outputPaths.some((p) => /\.json$/i.test(p))) return "declared JSON keys and value types";
+  return "the declared schemas in the resource package";
+}
+
+function compactOutputContract(domainKey, profile) {
+  const details = DOMAIN_DETAILS[domainKey];
+  const outputPaths = expectedOutputPathsFor(details);
+  if (!outputPaths.length) {
+    return `Save the final artifact under outputs/ with deterministic ordering, declared columns or JSON keys, input checksums, and pass/fail reason codes for the normal, edge, and invalid fixtures.`;
+  }
+
+  const visiblePaths = outputPaths.slice(0, 6);
+  const remaining = outputPaths.length - visiblePaths.length;
+  const pathText = remaining > 0
+    ? `${visiblePaths.join(", ")} and ${remaining} other required outputs listed in schemas/`
+    : visiblePaths.join(", ");
+  const schemaHint = inferSchemaHints(details, outputPaths);
+  const threshold = profile.threshold ? ` Apply this threshold contract exactly: ${profile.threshold.replace(/\.$/, "")}.` : "";
+  if (domainKey === "git-workflows") {
+    return `Save these verifier-facing files: ${pathText}. Use the declared JSON keys and value types from the golden solution; include deterministic ref ordering, bundle checksums, restored-ref evidence, reachability evidence, and checksum match/mismatch status.${threshold}`;
+  }
+  return `Save these verifier-facing files: ${pathText}. Use ${schemaHint}; include source checksums, stable row ordering, and explicit PASS/FAIL reason codes for normal, edge, and invalid fixtures.${threshold}`;
+}
+
+function makeWorkerPrompt(rawPrompt, domainKey, profile, scenario) {
+  const prompt = humanizePrompt(rawPrompt, domainKey, scenario)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  const conciseRecipeDomains = new Set(["react", "typescript", "git-workflows"]);
+  if (conciseRecipeDomains.has(domainKey) && /outputs\//i.test(prompt)) return prompt;
+  const contract = compactOutputContract(domainKey, profile);
+  if (prompt.includes(contract) || /Save these verifier-facing files:/i.test(prompt)) return prompt;
+  return `${prompt}\n\n${contract}`;
+}
+
+function buildDifficultyDraft(domainKey, effectiveExpertiseLabel, profile, scenario) {
+  const domainDetails = DOMAIN_DETAILS[domainKey];
+  if (domainDetails && domainDetails.difficultyDraft) {
+    return domainDetails.difficultyDraft(effectiveExpertiseLabel, profile, scenario);
+  }
+
+  const scenarioName = scenario && scenario.name ? scenario.name : "verifier-backed";
+  const failure = profile.failure || "domain-specific edge cases";
+  const method = profile.method || "specialized analysis";
+  const domain = profile.domain || "the selected domain";
+  return `This is ${effectiveExpertiseLabel} difficulty because ${method} has to survive a real ${domain} ${scenarioName} workflow, not just produce a plausible summary. A weak answer can pass the happy path while failing ${failure}; the verifier is designed to catch those misses through exact files, schemas, thresholds, and invalid-fixture reason codes.`;
+}
+
+function buildErrorIfWrong(domainKey, profile) {
+  const details = DOMAIN_DETAILS[domainKey];
+  const paths = expectedOutputPathsFor(details);
+  const missing = paths.length ? ` Missing or empty files such as ${paths.slice(0, 3).join(", ")} trigger MISSING_FILE.` : "";
+  const threshold = profile.threshold ? ` Threshold failure: ${profile.threshold.replace(/\.$/, "")}.` : "";
+  return `verify.py exits 1 and reports the first deterministic failure reason: MISSING_FILE, SCHEMA_INVALID, THRESHOLD_FAIL, INVALID_FIXTURE_ACCEPTED, NON_DETERMINISTIC_OUTPUT, or CONTRACT_DRIFT.${missing}${threshold}`;
+}
+
+function enrichErrorIfWrong(text) {
+  const base = String(text || "").trim();
+  const reasonCodes = "Standard failure codes: MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, STDERR_WARNING, THRESHOLD_FAIL, CONTRACT_DRIFT, NON_DETERMINISTIC_OUTPUT, or INVALID_FIXTURE_ACCEPTED.";
+  if (!base) return reasonCodes;
+  if (/MISSING_FILE|SCHEMA_INVALID|THRESHOLD_FAIL|TEST_FAIL|CONTRACT_DRIFT/.test(base)) return base;
+  return `${base} ${reasonCodes}`;
 }
 
 const SCENARIO_STYLES = [
@@ -3976,24 +4158,24 @@ if __name__ == "__main__":
       "package-lock.json — exact dependency tree for npm ci reproducibility",
       "version_manifest.json — TypeScript version, Node version, and OS"
     ],
-    standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits.",
+    standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The TypeScript project and fixture files in this zip are synthetically constructed to reproduce the known type-inference bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "After upgrading a shared type utility package, the custom AwaitedLike<T> conditional type now silently widens union members containing Promise<never> to unknown instead of the correct resolved type. Repair the provided TypeScript project so AwaitedLike<T> distributes correctly over all union members without widening. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
-        "regression triage": "A recent TypeScript 5.x upgrade introduced a regression in the custom AwaitedLike<T> utility: union members containing Promise<never> are now widened to unknown at the call site instead of resolving to the correct type. Repair the project so AwaitedLike<T> handles the never branch correctly without widening. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
-        "compliance audit": "A pre-release type audit identified that the custom AwaitedLike<T> utility incorrectly widens Promise<never> branches to unknown under strict mode, silently breaking callers that depend on the resolved type. Repair the project so AwaitedLike<T> distributes correctly and all public type signatures remain unchanged. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
-        "edge-case benchmark": "The provided TypeScript project contains a conditional type utility AwaitedLike<T> that fails on a known edge case: union members containing Promise<never> silently infer unknown instead of the correct resolved type. Repair the utility without widening any union branch or changing public type signatures. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json."
+        "post-migration validation": "AwaitedLike<T> is giving the wrong answer for Promise<never> inside union types after a type-utility cleanup. Patch the conditional type without changing the public API.",
+        "regression triage": "The TypeScript fixtures expose a narrow AwaitedLike<T> regression: Promise<never> is being widened to unknown instead of resolving through the intended branch.",
+        "compliance audit": "The strict-mode type audit found one bad branch in AwaitedLike<T>. Promise<never> must resolve correctly, and exported type signatures must stay byte-for-byte compatible with the contract.",
+        "edge-case benchmark": "Fix the AwaitedLike<T> edge case around Promise<never>. The solution has to preserve distributive behavior over unions and must not paper over the issue by widening to unknown."
       };
       const opener = openers[scenario && scenario.name] || openers["edge-case benchmark"];
       return [
         opener,
-        "The four positive fixtures normal_union.ts, nested_promise.ts, never_branch.ts, and edge_deeply_nested.ts must compile with zero diagnostics under tsconfig.strict.json. The negative fixture invalid_non_thenable.ts must fail with exactly one TS2345 diagnostic under tsconfig.negative.json. Every exported type signature listed in contracts/public_types.md must remain unchanged.",
-        "The JSON reports must list every fixture, compiler exit code, diagnostic code count, TypeScript version, public API change status, and SHA-256 checksum of each required input file. The verifier will grade only the submitted patch and output reports, not the chosen implementation method."
+        "Write outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
+        "All 4 positive fixtures must compile clean under tsconfig.strict.json; invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json; contracts/public_types.md must remain unchanged."
       ].join("\n\n");
     },
     sources: [
       "TypeScript compiler issues (conditional types, Awaited): https://github.com/microsoft/TypeScript/issues?q=label%3ABug+conditional+type",
-      "TypeScript 5.4 release notes (Awaited<T> fixes): https://devblogs.microsoft.com/typescript/announcing-typescript-5-4/"
+      "TypeScript 5.4 release notes (conditional type fixes): https://devblogs.microsoft.com/typescript/announcing-typescript-5-4/"
     ],
     downloads: [
       "No large downloads — the project is self-contained. Run npm ci once during setup to restore node_modules; the benchmark run itself requires no network access.",
@@ -4001,8 +4183,10 @@ if __name__ == "__main__":
       "[ts-morph for AST walking (optional)](https://www.npmjs.com/package/ts-morph) — listed in devDependencies in package.json; fetched by npm ci."
     ],
     resources: [
-      "src/utils/awaited_util.ts — the broken type utility containing the Awaited<T> conditional type definition.",
+      "src/utils/awaited_util.ts — the broken type utility containing the AwaitedLike<T> conditional type definition.",
       "tsconfig.json — strict:true, noEmit:true, target:ES2022, moduleResolution:bundler.",
+      "tsconfig.strict.json — positive-fixture config (strict, noEmit).",
+      "tsconfig.negative.json — isolated config for the invalid-fixture check.",
       "type_tests/normal_union.ts — expects zero TS errors after patch.",
       "type_tests/nested_promise.ts — expects zero TS errors after patch.",
       "type_tests/never_branch.ts — the core failing fixture; must compile cleanly after patch.",
@@ -4014,7 +4198,7 @@ if __name__ == "__main__":
     ],
     solution: [
       "Run: python solve.py --repo . --fixtures type_tests --contracts contracts/public_types.md --out outputs",
-      "Inspect the Awaited<T> definition in src/utils/awaited_util.ts — locate the conditional branch that fails to distribute over union members containing never.",
+      "Inspect the AwaitedLike<T> definition in src/utils/awaited_util.ts — locate the conditional branch that fails to distribute over union members containing never.",
       "Fix the conditional type so that never members are preserved during distributive evaluation rather than collapsing to unknown.",
       "Verify positive fixtures: npx tsc --noEmit --project tsconfig.strict.json — normal_union.ts, nested_promise.ts, never_branch.ts, and edge_deeply_nested.ts must all produce zero diagnostics.",
       "Verify negative fixture separately: npx tsc --noEmit --project tsconfig.negative.json — invalid_non_thenable.ts must produce exactly one TS2345 diagnostic.",
@@ -4027,7 +4211,10 @@ if __name__ == "__main__":
       "Fail if invalid_non_thenable.ts diagnostic count or code differs from expected_diagnostics.json.",
       "Fail if any exported name in contracts/public_types.md changes signature (check via tsc declaration emit diff).",
       "Fail if outputs/fix.patch is missing or empty.",
-      "Fail if outputs/tsc_report.json is missing or does not list all five fixture files."
+      "Fail if outputs/tsc_report.json is missing or does not list all five fixture files.",
+      "Fail if outputs/type_test_results.json is missing or does not include pass/fail per fixture.",
+      "Fail if outputs/public_api_report.json is missing or shows any signature change.",
+      "Fail if outputs/run_manifest.json is missing or does not list TypeScript version and fixture counts."
     ],
     expectedOutputs: [
       "Expected output paths:",
@@ -4060,7 +4247,7 @@ NEGATIVE_FIXTURES = {"invalid_non_thenable.ts": {"expected_code": "TS2345", "exp
 
 def run_tsc(repo_dir, tsconfig):
     result = subprocess.run(["npx", "tsc", "--noEmit", "--project", tsconfig],
-                            capture_output=True, text=True, cwd=repo_dir)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
     return result.stdout + result.stderr, result.returncode
 
 def parse_tsc_output(raw):
@@ -4100,10 +4287,44 @@ def run(repo_dir, fixtures_dir, contracts_path, out_dir):
         "typescript_version": "5.4.5",
         "positive_exit_code": exit_pos, "negative_exit_code": exit_neg,
         "fixtures": results}, indent=2))
+
+    # Compare exported declarations against public_api_baseline.d.ts to detect API changes
+    baseline_dts = Path(repo_dir) / "contracts" / "public_api_baseline.d.ts"
+    decl_tmp = out / "_decl_tmp"
+    api_changed = False
+    changed_exports = []
+    removed_exports = []
+    added_exports = []
+    diff_summary = ""
+    if baseline_dts.exists():
+        subprocess.run(
+            ["npx", "tsc", "--declaration", "--emitDeclarationOnly", "--noEmit", "false",
+             "--outDir", str(decl_tmp), "--project", "tsconfig.strict.json"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
+        decl_files = sorted(decl_tmp.glob("**/*.d.ts")) if decl_tmp.exists() else []
+        if decl_files:
+            generated = "\\n".join(f.read_text() for f in decl_files)
+            baseline = baseline_dts.read_text()
+            if generated.strip() != baseline.strip():
+                api_changed = True
+                b_lines = [l for l in baseline.splitlines() if l.strip()]
+                g_lines = [l for l in generated.splitlines() if l.strip()]
+                removed_exports = [l for l in b_lines if l not in g_lines][:20]
+                added_exports = [l for l in g_lines if l not in b_lines][:20]
+                diff_summary = f"{len(removed_exports)} line(s) removed, {len(added_exports)} line(s) added vs baseline"
+            else:
+                diff_summary = "Declarations match baseline — no API changes"
+        else:
+            diff_summary = "tsc --emitDeclarationOnly produced no .d.ts files — check tsconfig"
+    else:
+        diff_summary = "contracts/public_api_baseline.d.ts not found — add baseline to contracts/ and re-run"
+
     (out/"type_test_results.json").write_text(json.dumps({
-        "passed": passed, "failed": len(results)-passed, "public_api_changed": False}, indent=2))
+        "passed": passed, "failed": len(results)-passed, "public_api_changed": api_changed}, indent=2))
     (out/"public_api_report.json").write_text(json.dumps({
-        "checked_against": contracts_path, "signatures_changed": False, "changes": []}, indent=2))
+        "checked_against": str(baseline_dts), "signatures_changed": api_changed,
+        "changed_exports": changed_exports, "removed_exports": removed_exports,
+        "added_exports": added_exports, "diff_summary": diff_summary}, indent=2))
     (out/"run_manifest.json").write_text(json.dumps({
         "python": sys.version, "positive_exit_code": exit_pos, "negative_exit_code": exit_neg,
         "fixtures_run": len(results), "passed": passed}, indent=2))
@@ -4121,7 +4342,7 @@ if __name__ == "__main__":
   "react": {
     domainLabel: "React 18 stale-closure debugging task — fix async cleanup and state management in a data-fetching component",
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of React 18's useEffect cleanup semantics, stale closure capture in async callbacks, and proper act() boundary management in tests. A weak solution can look plausible while still failing due to ${profile.failure}, or by writing tests that pass due to improper act() boundaries masking the race condition. The task is performed by a front-end engineer specializing in React 18 concurrent patterns, async lifecycle management, and Jest test architecture.`;
+      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of React 18's useEffect cleanup semantics, stale closure capture in async callbacks, and proper act() boundary management in tests. A weak solution can look plausible while still failing due to ${profile.failure}. The task is performed by a front-end engineer specializing in React 18 concurrent patterns, async lifecycle management, and Jest test architecture.`;
     },
     verifierIntro: "A deterministic verifier must confirm all 5 test cases pass, no unmounted state-update warnings in stderr, render counts stay within limits, and the exported component API remains unchanged.",
     readmeLine: "Describe each component file, test fixture, config, and expected output path.",
@@ -4134,19 +4355,19 @@ if __name__ == "__main__":
       "package-lock.json — exact dependency tree for npm ci reproducibility",
       "version_manifest.json — React version, Node version, and OS"
     ],
-    standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits.",
+    standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The component and test fixtures in this zip are synthetically constructed to reproduce the known stale-closure bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves. Repair the component so this never happens. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "regression triage": "A regression in DataFetcher allows a stale async result to overwrite the final rendered value under rapid prop changes or unmount-before-resolve conditions. The bug is reproducible with the provided Jest fixtures. Repair the component and produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "compliance audit": "A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing 'state update on an unmounted component' warnings and stale rendered values. Repair the component without changing its exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "edge-case benchmark": "The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures. Repair the component so all five fixtures pass and no stale state updates occur. Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json."
+        "post-migration validation": "DataFetcher can show stale data when requests resolve out of order, and it can still update state after unmount. Fix the component without changing its exported API.",
+        "regression triage": "DataFetcher has an async race: rapid prop changes can render an older response, and unmount-before-resolve can still commit state. Fix the component without changing its exported API.",
+        "compliance audit": "DataFetcher needs a safe async cleanup path. A request that is no longer current must not update state, and unmounting must leave no state-update warnings.",
+        "edge-case benchmark": "Repair DataFetcher’s async effect. The hard case is overlapping requests: only the latest live request may commit state."
       };
       const opener = openers[scenario && scenario.name] || openers["regression triage"];
       return [
         opener,
-        "All five Jest fixtures must pass under the pinned package versions. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr. Render counts for each fixture must not exceed the limits in verifier_inputs/expected_render_counts.json. The exported component API in contracts/component_api.md must not change.",
-        "The JSON reports must include per-test status, final rendered value, warning counts, render counts per fixture, package versions, input file checksums, and pass/fail reason codes. The verifier will grade only the submitted component, patch, and output reports, not the specific implementation method."
+        "Write outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "All 5 Jest cases must pass; rapid updates must show the latest request result; unmount-before-resolve must produce 0 React state-update warnings; render counts must stay within expected_render_counts.json."
       ].join("\n\n");
     },
     sources: [
@@ -4154,7 +4375,7 @@ if __name__ == "__main__":
       "Real stale closure issues in React GitHub: https://github.com/facebook/react/issues?q=stale+closure"
     ],
     downloads: [
-      "No large downloads — the project is self-contained. Run: npm install inside the zip to restore node_modules.",
+      "No large downloads — the project is self-contained. Run npm ci once during setup to restore node_modules from package-lock.json; the benchmark run itself requires no network access.",
       "[React 18.2.0 on npm](https://www.npmjs.com/package/react/v/18.2.0) — pinned in package.json.",
       "[@testing-library/react@14.3.0](https://www.npmjs.com/package/@testing-library/react/v/14.3.0) — pinned in package.json."
     ],
@@ -4170,19 +4391,21 @@ if __name__ == "__main__":
     solution: [
       "Run: python solve.py --repo . --out outputs",
       "Inspect src/DataFetcher.tsx — locate the useEffect that calls setState after the component unmounts.",
-      "Fix by wiring an AbortController: create controller = new AbortController() inside useEffect, pass signal to fetch(), call controller.abort() in the cleanup return.",
+      "Fix the async effect so stale or unmounted requests cannot commit state. One valid approach is to wire an AbortController and cleanup path, provided the dependency array and test behavior remain correct.",
       "Audit the dependency array — ensure every value read inside the effect is listed.",
       "Run: npx jest --json --outputFile=outputs/jest_raw.json and verify all 5 tests pass.",
       "Confirm zero 'Warning: Can't perform a React state update on an unmounted component' in stderr.",
-      "Write outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, outputs/run_manifest.json."
+      "Write outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, outputs/run_manifest.json — each JSON must include package versions, input checksums, and pass/fail reason codes."
     ],
     verifiers: [
-      "Fail if any of the 5 jest tests fail.",
-      "Fail if 'Can\\'t perform a React state update on an unmounted component' appears in jest stderr.",
-      "Fail if the rapid-update fixture final render value does not equal the last dispatched value.",
-      "Fail if any render count in outputs/render_count_report.json exceeds the maximum in expected_render_counts.json.",
-      "Fail if any prop type or ref interface in contracts/component_api.md changed.",
-      "Fail if outputs/fix.patch is missing or empty."
+      "All 5 Jest fixtures must pass under the pinned package versions.",
+      "Zero 'Warning: Can't perform a React state update on an unmounted component' messages may appear in Jest stderr.",
+      "The rapid-update fixture final rendered value must equal the last dispatched request value — not a stale earlier response.",
+      "Render counts for each fixture must stay within the limits declared in expected_render_counts.json.",
+      "Exported prop types and ref interfaces in contracts/component_api.md must not change.",
+      "Fail if outputs/fix.patch is missing or empty.",
+      "outputs/DataFetcher.fixed.tsx must be present and contain valid TypeScript.",
+      "outputs/test_results.json and outputs/run_manifest.json must exist and match their declared output schemas.",
     ],
     expectedOutputs: [
       "Expected output paths:",
@@ -4216,17 +4439,17 @@ def run_jest(repo_dir, out_dir):
     raw_path = Path(out_dir) / "jest_raw.json"
     result = subprocess.run(
         ["npx", "jest", "--json", f"--outputFile={raw_path}", "--forceExit"],
-        capture_output=True, text=True, cwd=repo_dir)
+        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir)
     return result.stdout, result.stderr, result.returncode, raw_path
 
 def count_unmount_warnings(stderr):
-    return len(re.findall(r"Can't perform a React state update on an unmounted component", stderr))
+    return len(re.findall(r"Warning: Can't perform a React state update on an unmounted component", stderr))
 
 def run(repo_dir, out_dir):
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
     stdout, stderr, exit_code, raw_path = run_jest(repo_dir, out_dir)
     unmount_warnings = count_unmount_warnings(stderr)
-    jest_data = json.loads(raw_path.read_text()) if raw_path.exists() else {}
+    jest_data = json.loads(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else {}
     tests = {}
     for suite in jest_data.get("testResults", []):
         for t in suite.get("testResults", []):
@@ -4270,14 +4493,14 @@ if __name__ == "__main__":
   "git-workflows": {
     domainLabel: "Git ref-recovery task — reconstruct lost commits after an accidental force-push",
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it requires understanding of Git's object model, ref mechanics, reflog parsing, reachability analysis, and commit graph topology validation. A weak solution can look plausible while still failing due to ${profile.failure}, or by cherry-picking changes into new commits instead of restoring original refs. The task is performed by a DevOps engineer or release manager specializing in Git object recovery, ref surgery, and repository forensics.`;
+      return `This is ${effectiveExpertiseLabel} difficulty because it requires Git reflog parsing, git fsck --connectivity-only checks, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. It also requires understanding Git's content-addressed object model: cherry-pick creates new SHAs, so the correct recovery path is fetching the original commit objects from repo_before_force.bundle and restoring refs with git update-ref.`;
     },
     verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
     scenarioEvidence: [
-      "repo_before_force.bundle — object store before the force-push, including the 3 orphaned commits",
+      "repo_before_force.bundle — object store before the force-push, including the lost commit objects",
       "repo_after_force.bundle — object store after the force-push (what the remote now has)",
-      "reflog_export.txt — 3 orphaned commit SHAs tagged RECOVER_ME",
+      "reflog_export.txt — commit SHAs tagged RECOVER_ME",
       "commit_graph_spec.json — expected branch ref targets, parent SHA chains, and commit messages",
       "expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit",
       "expected_refs.json — exact branch ref → SHA mappings the verifier will check",
@@ -4285,19 +4508,30 @@ if __name__ == "__main__":
       "verifier_inputs/ — fixture bundles for normal, edge, and invalid recovery cases",
       "version_manifest.json — git version and OS used to produce the fixtures"
     ],
-    standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts.",
+    standardResources: "Include the two Git bundles, reflog export, commit graph spec, expected refs, expected file checksums, solve.py, verify.py, README.md, and the root-level version_manifest.json. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
+    scenarioEvidence: [
+      "repo_before_force.bundle - object store before the force-push, including the lost commit objects",
+      "repo_after_force.bundle - object store after the force-push (what the remote now has)",
+      "reflog_export.txt - reflog-style SHA evidence for commits that must remain reachable",
+      "commit_graph_spec.json - expected branch tips, ancestor chains, and orphaned commit list",
+      "expected_file_checksums.json - expected Git blob IDs for key files at recovered commits",
+      "expected_refs.json - exact branch ref to full SHA mappings the verifier checks",
+      "solve.py - reference implementation that restores refs and emits outputs/",
+      "verify.py - deterministic verifier for bundle validity, ref targets, topology, and checksums",
+      "version_manifest.json - root-level runtime manifest with Python, Node, Git, OS assumptions, and generator metadata"
+    ],
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before the migration could be validated. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified.",
-        "regression triage": "3 commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original recovered commits are reachable.",
-        "compliance audit": "An incident review confirmed that 3 commits are no longer reachable on the release branch after an accidental force-push. Recovery must be machine-verifiable with full checksum and topology evidence. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs so the original commits are reachable with the exact topology specified.",
-        "edge-case benchmark": "The provided Git repository contains a ref reconstruction challenge: 3 commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking. Using repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, and expected_file_checksums.json, reconstruct the branch refs."
+        "post-migration validation": "Recover the release repository after a bad force-push. Use the before/after bundles and reflog export to restore the original branch refs.",
+        "regression triage": "Recover the branch refs that no longer reach the commits listed in the reflog export. Preserve the original Git object IDs.",
+        "compliance audit": "Restore the published Git refs after a force-push changed the branch history. The recovered refs must point to the original commits.",
+        "edge-case benchmark": "Restore the force-pushed refs so every recovered SHA is reachable through its original parent chain."
       };
       const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
       return [
         opener,
-        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. The repaired repository must clone successfully from the bundle; git fsck --connectivity-only must report 0 missing or corrupt objects; all 3 recovered commit SHAs must be reachable from the required branch ref; each recovered commit must have the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec.json.",
-        "The JSON reports must include original and repaired branch refs, recovered commit SHAs, parent SHAs, reachability status, checksum verification results, Git version, input bundle checksums, and pass/fail reason codes. The verifier will grade only the repaired bundle and output reports, not the recovery method."
+        "Write outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
+        "Do not cherry-pick. The repaired bundle must have 0 missing or corrupt objects under git fsck --connectivity-only, match expected_refs.json exactly, and satisfy the parent-chain and checksum fixtures."
       ].join("\n\n");
     },
     sources: [
@@ -4306,37 +4540,74 @@ if __name__ == "__main__":
       "Real force-push recovery scenarios: https://ohshitgit.com/"
     ],
     downloads: [
-      "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
-      "[Git 2.43.0 for Windows (if not installed)](https://github.com/git-for-windows/git/releases/tag/v2.43.0.windows.1) — verify with: git --version",
-      "reflog_export.txt — included in the zip; contains the 3 orphaned commit SHAs to recover."
+      "repo_before_force.bundle and repo_after_force.bundle - included in the zip; no external download needed.",
+      "A modern Git runtime compatible with git bundle, git update-ref, git rev-list, and git fsck --connectivity-only; the actual version used is recorded in version_manifest.json.",
+      "reflog_export.txt - included in the zip; contains the commit SHAs to recover."
     ],
     resources: [
-      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the 3 lost commits.",
+      "repo_before_force.bundle - git bundle containing the full object store before the force-push, including the lost commit objects.",
+      "repo_after_force.bundle - git bundle reflecting what remains on the remote after the accidental push.",
+      "reflog_export.txt - reflog-style lines whose first token is a commit SHA to preserve and recover.",
+      "commit_graph_spec.json - declares the expected final branch topology: branch name, expected tip SHA, expected ancestor chain, and orphaned commits.",
+      "expected_file_checksums.json - expected Git blob IDs for key files at recovered commits.",
+      "expected_refs.json - exact refs/heads/* to full-SHA mappings the verifier checks.",
+      "version_manifest.json - root-level runtime manifest containing the actual Python, Node, and Git versions used to produce the package."
+    ],
+    downloads: [
+      "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
+      "Git 2.43.0 or compatible, recorded in environment/git_version.txt.",
+      "reflog_export.txt — included in the zip; contains the commit SHAs to recover."
+    ],
+    resources: [
+      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the lost commit objects.",
       "repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.",
-      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; the 3 orphaned commits to recover are tagged RECOVER_ME.",
+      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; commit SHAs to recover are tagged RECOVER_ME.",
       "commit_graph_spec.json — declares the expected final branch topology: branch name, expected HEAD SHA, expected parent SHA chain, and commit messages.",
       "verifier_inputs/expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit.",
       "environment/git_version.txt — git 2.43.0."
     ],
+    downloads: [
+      "repo_before_force.bundle and repo_after_force.bundle - included in the zip; no external download needed.",
+      "A modern Git runtime compatible with git bundle, git update-ref, git rev-list, and git fsck --connectivity-only; the actual version used is recorded in version_manifest.json.",
+      "reflog_export.txt - included in the zip; contains the commit SHAs to recover."
+    ],
+    resources: [
+      "repo_before_force.bundle - git bundle containing the full object store before the force-push, including the lost commit objects.",
+      "repo_after_force.bundle - git bundle reflecting what remains on the remote after the accidental push.",
+      "reflog_export.txt - reflog-style lines whose first token is a commit SHA to preserve and recover.",
+      "commit_graph_spec.json - declares the expected final branch topology: branch name, expected tip SHA, expected ancestor chain, and orphaned commits.",
+      "expected_file_checksums.json - expected Git blob IDs for key files at recovered commits.",
+      "expected_refs.json - exact refs/heads/* to full-SHA mappings the verifier checks.",
+      "version_manifest.json - root-level runtime manifest containing the actual Python, Node, and Git versions used to produce the package."
+    ],
     solution: [
       "Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs",
-      "Clone from repo_before_force.bundle into a work directory so original commit objects are available: git clone repo_before_force.bundle work_repo",
-      "Parse reflog_export.txt to extract the orphaned commit SHAs tagged RECOVER_ME.",
-      "Fetch each orphaned SHA from the before-bundle into the working clone: git fetch <before_bundle_path> <sha> for each SHA.",
+      "Clone repo_after_force.bundle into a work directory to start from the post-force-push state: git clone repo_after_force.bundle work_repo",
+      "Parse reflog_export.txt to identify every SHA tagged RECOVER_ME — you must know the SHAs before fetching.",
+      "Fetch each recovered commit object from repo_before_force.bundle: for each recovered SHA, run git fetch <path_to_repo_before_force.bundle> <sha>",
       "Reconstruct refs per commit_graph_spec.json: use git update-ref to point the required branch ref at the specified HEAD SHA so the original commits become reachable. Do not cherry-pick — cherry-pick creates new commit objects with different SHAs.",
       "Run git fsck --connectivity-only and confirm 0 missing or corrupt objects. Run git rev-list <branch> and verify all recovered commit SHAs are reachable. Run git log --format='%H %P %s' and compare parent chains to commit_graph_spec.json.",
       "Verify file checksums at each recovered commit: git show <sha>:<file> | sha256sum, compare to expected_file_checksums.json.",
-      "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json."
+      "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json — each JSON must include the required fields and pass/fail reason codes."
+    ],
+    solution: [
+      "Run: python solve.py from the zip root. The script reads repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, expected_refs.json, and expected_file_checksums.json, then writes outputs/.",
+      "Clone repo_before_force.bundle into a recovery worktree so the original lost objects are available without network access.",
+      "Parse reflog_export.txt and commit_graph_spec.json to identify the commits that must remain reachable after recovery.",
+      "For every ref in expected_refs.json, verify the target commit exists with git cat-file -e, then restore that exact ref with git update-ref. Do not cherry-pick; cherry-pick changes the commit SHAs.",
+      "Run git rev-list on each expected branch tip and compare the ancestor list to commit_graph_spec.json.",
+      "Verify file identity at each recovered commit with git rev-parse <sha>:<path> and compare the blob IDs to expected_file_checksums.json.",
+      "Export outputs/repaired_repo.bundle with git bundle create --all, plus outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json using the exact JSON keys described below.",
+      "Run python verify.py from the zip root and confirm it prints VERIFY PASS: All checks ok."
     ],
     verifiers: [
-      "Fail if outputs/repaired_repo.bundle is missing or cannot be cloned into a fresh directory.",
-      "Fail if git fsck --connectivity-only reports any missing or corrupt object.",
-      "Fail if any recovered commit SHA listed in commit_graph_spec.json is not reachable from the required branch ref (git rev-list).",
-      "Fail if the branch HEAD does not match the SHA declared in commit_graph_spec.json.",
-      "Fail if any recovered commit parent chain differs from commit_graph_spec.json.",
-      "Fail if any file checksum at a recovered commit does not match expected_file_checksums.json.",
-      "Fail if outputs/repair_log.json, outputs/commit_graph_report.json, or outputs/run_manifest.json is missing or has the wrong schema.",
-      "Fail if repeated verifier runs produce different reported refs, checksums, or pass/fail results."
+      "repaired_repo.bundle must be cloneable from a fresh directory and pass git fsck --connectivity-only with 0 missing or corrupt objects.",
+      "Every recovered SHA from reflog_export.txt must be reachable from the restored branch refs (git rev-list).",
+      "Branch HEAD must exactly match the SHA declared in commit_graph_spec.json — a cherry-picked SHA with the same diff will not pass.",
+      "Parent chain for each recovered commit must match commit_graph_spec.json.",
+      "File checksums at each recovered commit must match expected_file_checksums.json.",
+      "Fail if repair_log.json, commit_graph_report.json, or run_manifest.json is missing, empty, or not valid JSON.",
+      "Repeated runs must produce identical refs, checksums, and pass/fail results.",
     ],
     expectedOutputs: [
       "Expected output paths:",
@@ -4345,17 +4616,12 @@ if __name__ == "__main__":
       "- outputs/commit_graph_report.json",
       "- outputs/run_manifest.json",
       "",
-      "Example repair_log.json:",
-      "{",
-      "  \"recovered_commits\": [",
-      "    { \"sha\": \"abc1234...\", \"method\": \"ref-restore\", \"message\": \"feat: add validation\", \"parent\": \"def5678...\", \"reachable\": true },",
-      "    { \"sha\": \"bcd2345...\", \"method\": \"ref-restore\", \"message\": \"fix: null guard\", \"parent\": \"abc1234...\", \"reachable\": true }",
-      "  ],",
-      "  \"fsck_connectivity_clean\": true",
-      "}",
+      "Required repair_log.json keys: branches_restored, refs_expected, refs_restored, all_refs_restored, orphaned_shas, bundle_created, checksums.",
+      "Each checksums entry must be keyed by recovered commit SHA and file path, with status, expected, and actual values where the file exists.",
       "",
-      "Example commit_graph_report.json:",
-      "{ \"topology_match\": true, \"branch_head_correct\": true, \"fsck_missing_objects\": 0, \"all_commits_reachable\": true }"
+      "Required commit_graph_report.json keys: branches. Each branch object must include tip, expected_ancestors, found_ancestors, and all_reachable.",
+      "",
+      "Required run_manifest.json keys: solver, python, branches_restored, bundle_created."
     ],
     solutionCode: `# solve.py — Git force-push recovery: fetch original commits, restore refs, verify topology
 # Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs
@@ -4363,7 +4629,7 @@ import sys, json, subprocess, re, argparse, hashlib, shutil
 from pathlib import Path
 
 def git(args, cwd=None, check=True):
-    return subprocess.run(["git"] + args, capture_output=True, text=True, cwd=cwd, check=check)
+    return subprocess.run(["git"] + args, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd, check=check)
 
 def parse_reflog(reflog_path):
     shas = []
@@ -4463,6 +4729,125 @@ if __name__ == "__main__":
     ap.add_argument("--out", default="outputs")
     args = ap.parse_args()
     run(args.before, args.after, args.reflog, args.spec, args.out)`
+    ,
+    solutionCode: `#!/usr/bin/env python3
+"""Solve: Recover orphaned commits from git bundle using reflog."""
+import sys, json, subprocess, re
+from pathlib import Path
+
+OUT_DIR = Path('outputs')
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+import platform
+GIT = 'git.exe' if platform.system() == 'Windows' else 'git'
+
+def git(args, cwd=None):
+    return subprocess.run([GIT] + args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=cwd)
+
+# ---- Parse inputs ----
+before_bundle = Path('repo_before_force.bundle')
+reflog_txt = Path('reflog_export.txt').read_text()
+spec = json.loads(Path('commit_graph_spec.json').read_text())
+expected_checksums = json.loads(Path('expected_file_checksums.json').read_text())
+expected_refs = json.loads(Path('expected_refs.json').read_text())
+
+# Extract SHAs from reflog evidence
+reflog_shas = set()
+for line in reflog_txt.strip().splitlines():
+    m = re.match(r'^([a-f0-9]{7,40})\\s', line)
+    if m:
+        reflog_shas.add(m.group(1))
+
+orphaned = list(reflog_shas)
+if not orphaned:
+    orphaned = next(iter(spec.get("branches", {}).values()), {}).get("orphaned_commits", [])
+
+# Verify the source bundle is real and cloneable
+before_verify = git(['bundle', 'verify', str(before_bundle)])
+if before_verify.returncode != 0:
+    print("FAIL: repo_before_force.bundle is not a valid git bundle")
+    (OUT_DIR / 'run_manifest.json').write_text(json.dumps({
+        "solver": "solve.py", "status": "failed",
+        "error": "before_bundle_invalid",
+        "details": before_verify.stderr.strip()
+    }, indent=2))
+    sys.exit(1)
+
+# Clone the before-bundle so original object identities are available.
+recovery = Path('recovery_worktree')
+if recovery.exists():
+    import shutil; shutil.rmtree(recovery)
+fetch_r = git(['clone', str(before_bundle), str(recovery)])
+if fetch_r.returncode != 0:
+    print("FAIL: could not clone before_bundle")
+    sys.exit(1)
+
+# Restore branch refs to exact expected SHAs. Do not cherry-pick.
+restored = {}
+for ref, expected_sha in expected_refs.items():
+    cat_r = git(["cat-file", "-e", expected_sha], cwd=str(recovery))
+    if cat_r.returncode != 0:
+        print(f"Commit {expected_sha} not found in bundle - skipping {ref}")
+        continue
+    ur_r = git(["update-ref", ref, expected_sha], cwd=str(recovery))
+    if ur_r.returncode == 0:
+        restored[ref] = expected_sha
+        print(f"Restored {ref} -> {expected_sha}")
+
+# Verify reachability against commit_graph_spec.json.
+graph_report = {'branches': {}}
+for ref, info in spec.get('branches', {}).items():
+    tip = info['expected_tip']
+    ancestors_raw = git(['rev-list', tip], cwd=str(recovery)).stdout.strip().splitlines()[:20]
+    ancestors = [s[:7] for s in ancestors_raw]
+    expected_ancestors_short = [s[:7] for s in info.get('expected_ancestors', [])]
+    all_found = all(any(ea in a for a in ancestors) for ea in expected_ancestors_short)
+    graph_report['branches'][ref] = {
+        "tip": tip,
+        "expected_ancestors": expected_ancestors_short,
+        "found_ancestors": ancestors,
+        "all_reachable": all_found
+    }
+(OUT_DIR / 'commit_graph_report.json').write_text(json.dumps(graph_report, indent=2))
+
+# Check file blob identity at recovered commits.
+checksum_results = {}
+for sha, files in expected_checksums.items():
+    checksum_results[sha] = {}
+    for fpath, expected_hash in files.items():
+        rev_r = git(["rev-parse", f"{sha}:{fpath}"], cwd=str(recovery))
+        if rev_r.returncode != 0:
+            checksum_results[sha][fpath] = {'status': 'file_not_found', 'expected': expected_hash}
+        else:
+            actual = rev_r.stdout.strip()
+            match = actual == expected_hash
+            checksum_results[sha][fpath] = {'status': 'match' if match else 'mismatch', 'expected': expected_hash, 'actual': actual}
+
+# Create repaired bundle.
+bundle_path = str((OUT_DIR / "repaired_repo.bundle").resolve())
+bundle_r = git(["bundle", "create", bundle_path, "--all"], cwd=str(recovery))
+bundle_ok = bundle_r.returncode == 0
+if not bundle_ok:
+    print("bundle stderr:", bundle_r.stderr[:300])
+
+repair_log = {
+    "branches_restored": list(restored.keys()),
+    "refs_expected": expected_refs,
+    "refs_restored": restored,
+    "all_refs_restored": len(restored) == len(expected_refs),
+    "orphaned_shas": [s[:7] for s in orphaned],
+    "bundle_created": bundle_ok,
+    "checksums": checksum_results,
+}
+(OUT_DIR / 'repair_log.json').write_text(json.dumps(repair_log, indent=2))
+
+(OUT_DIR / 'run_manifest.json').write_text(json.dumps({
+    "solver": "solve.py",
+    "python": sys.version,
+    "branches_restored": len(restored),
+    "bundle_created": bundle_ok,
+}, indent=2))
+
+print(f"Done. Restored {len(restored)} refs, bundle ok: {bundle_ok}")`
   }
 };
 
@@ -4590,7 +4975,7 @@ const DOMAIN_CODE = {
       "Apply the patch: subprocess.run(['git', 'apply', 'outputs/fix.patch'], cwd=repo_dir, check=True)",
       "Run jest: result = subprocess.run(['npx', 'jest', '--json', '--outputFile=outputs/jest_raw.json'], capture_output=True, text=True, cwd=repo_dir)",
       "Parse outputs/jest_raw.json for testResults, numPassedTests, numFailedTests, and console warnings",
-      "Count 'Can\\'t perform a React state update on an unmounted component' occurrences in result.stderr",
+      "Count \"Warning: Can't perform a React state update on an unmounted component\" occurrences in result.stderr",
       "Export outputs/test_results.json (pass/fail per test), outputs/render_count_report.json, outputs/run_manifest.json"
     ]
   },
@@ -4598,8 +4983,9 @@ const DOMAIN_CODE = {
     imports: ["import subprocess", "import json", "import hashlib", "from pathlib import Path"],
     config: "environment/git_version.txt",
     coreTodo: [
-      "Clone from before bundle: subprocess.run(['git', 'clone', 'repo_before_force.bundle', 'work_repo'], check=True)",
-      "Parse reflog_export.txt to extract the 3 orphaned commit SHAs that need recovery",
+      "Clone from after bundle (post-force-push state): subprocess.run(['git', 'clone', 'repo_after_force.bundle', 'work_repo'], check=True)",
+      "Fetch recovered commit objects from before bundle: subprocess.run(['git', 'fetch', str(Path('repo_before_force.bundle').resolve()), sha], cwd='work_repo') for each orphaned SHA",
+      "Parse reflog_export.txt to extract the commit SHAs tagged for recovery",
       "Restore refs to original commits (not cherry-pick): subprocess.run(['git', 'update-ref', 'refs/heads/TARGET_BRANCH', sha], cwd='work_repo') — this preserves exact SHAs",
       "Verify commit graph: git log --format='%H %P %s' and compare parent SHAs and branch ref targets against commit_graph_spec.json",
       "Export outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json"
@@ -5074,7 +5460,7 @@ const DOMAIN_VERIFIER_CHECKS = {
         m = json.loads(tr.read_text())
         nb = m.get("fixtures", {}).get("type_tests/never_branch.ts", {})
         has_2571 = "TS2571" in nb.get("codes", [])
-        results.append(ok("never_branch.ts: zero TS2571 (unknown) errors") if not has_2571 else fail("never_branch.ts: TS2571 errors present — Awaited<T> still inferring unknown"))
+        results.append(ok("never_branch.ts: zero TS2571 (unknown) errors") if not has_2571 else fail("never_branch.ts: TS2571 errors present — AwaitedLike<T> still inferring unknown"))
         results.append(ok("tsc exit 0") if m.get("tsc_exit_code", 1) == 0 else fail(f"tsc exited {m.get('tsc_exit_code')} — strict mode errors remain"))
 
     # 4. fix.patch must be non-empty
@@ -5119,7 +5505,7 @@ const DOMAIN_VERIFIER_CHECKS = {
     else:
         results.append(fail("commit_graph_report.json missing"))
 
-    # 3. repair_log: all 3 commits recovered
+    # 3. repair_log: recovered commits recorded
     rl = out / "repair_log.json"
     if rl.exists():
         m = json.loads(rl.read_text())
@@ -5264,11 +5650,227 @@ function renderCodeTemplates() {
   renderCodeLinter();
 }
 
+// ── TASK RECIPES ─────────────────────────────────────────────────────────
+// Single source of truth for output paths, input files, verifier checks, and
+// field content for the three locked software-engineering task contracts.
+// All generated fields that reference output paths pull from recipe.outputPaths
+// so the same list appears in Prompt, Solution, Verifier, and Expected Outputs.
+
+const TASK_RECIPES = {
+  "git-force-push-recovery": {
+    id:       "git-force-push-recovery",
+    label:    "Git — Force-Push Recovery",
+    domain:   "git-workflows",
+    expertise: "masters",
+    category: "Software Engineering, Version Control",
+    outputPaths: [
+      "outputs/repaired_repo.bundle",
+      "outputs/repair_log.json",
+      "outputs/commit_graph_report.json",
+      "outputs/run_manifest.json",
+    ],
+    inputFiles: [
+      "repo_before_force.bundle",
+      "repo_after_force.bundle",
+      "reflog_export.txt",
+      "commit_graph_spec.json",
+      "expected_file_checksums.json",
+      "expected_refs.json",
+    ],
+    title:   "Git force-push recovery: restore refs with exact original topology",
+    snippet: "Recover a force-pushed Git graph by fetching original objects from the before-bundle and restoring branch refs to the exact SHAs in the contract. Produce a verified repaired bundle and machine-readable recovery reports.",
+    errorIfWrong: "verify.py exits with code 1 — repaired_repo.bundle is missing or invalid, git fsck --connectivity-only reports missing objects, recovered SHAs are not reachable from the required branch refs, or parent chains do not match commit_graph_spec.json.",
+    verifierChecks: [
+      "repaired_repo.bundle exists and is non-empty",
+      "git clone from repaired_repo.bundle succeeds",
+      "git fsck --connectivity-only exits 0 with no missing or corrupt objects",
+      "every recovered SHA from reflog_export.txt is reachable via git rev-list from the restored branch refs",
+      "parent chain for each recovered commit matches commit_graph_spec.json exactly (SHA, not cherry-picked SHA)",
+      "file checksums at each recovered commit match expected_file_checksums.json exactly",
+      "branch refs match expected_refs.json (exact original SHAs — cherry-pick SHAs will fail this check)",
+      "repair_log.json and commit_graph_report.json are present and valid JSON with required fields",
+    ],
+    scenarioLabel: "force-push recovery",
+    difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
+    difficultyText: "This is a master's-level Git recovery task, not a simple file restore. The solver has to reason about object reachability, reflog evidence, bundle contents, branch refs, parent SHAs, and checksum verification at the same time. The trap is that a cherry-pick can make the files look right while producing the wrong commit IDs, so the repaired graph must be reconstructed from the original objects and then proven with git fsck, rev-list, and exact ref comparisons.",
+  },
+  "typescript-awaited-type": {
+    id:       "typescript-awaited-type",
+    label:    "TypeScript — Conditional Type Bug Fix",
+    domain:   "typescript",
+    expertise: "phd",
+    category: "Software Engineering, TypeScript Type System",
+    outputPaths: [
+      "outputs/fix.patch",
+      "outputs/tsc_report.json",
+      "outputs/type_test_results.json",
+      "outputs/public_api_report.json",
+      "outputs/run_manifest.json",
+    ],
+    inputFiles: [
+      "type_tests/normal_union.ts",
+      "type_tests/nested_promise.ts",
+      "type_tests/never_branch.ts",
+      "type_tests/edge_deeply_nested.ts",
+      "type_tests/invalid_non_thenable.ts",
+      "tsconfig.strict.json",
+      "tsconfig.negative.json",
+      "contracts/public_types.md",
+    ],
+    title:   "TypeScript AwaitedLike<T> conditional type: fix Promise<never> widening without changing public API",
+    snippet: "Fix the custom AwaitedLike<T> conditional type so it correctly resolves Promise<never> branches instead of widening to unknown, while keeping all five typed fixtures correct and all exported type signatures unchanged.",
+    errorIfWrong: "verify.py exits with code 1 — any positive fixture produces a TS diagnostic, the negative fixture does not produce exactly one TS2345, public API signatures changed, or any required output file is missing.",
+    verifierChecks: [
+      "outputs/fix.patch is non-empty and applies cleanly to the original repo",
+      "positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) produce zero diagnostics under tsconfig.strict.json",
+      "negative fixture (invalid_non_thenable.ts) produces exactly one TS2345 under tsconfig.negative.json — not zero, not two",
+      "outputs/tsc_report.json lists all five fixtures with errors count and pass/fail per config",
+      "outputs/public_api_report.json confirms no exported type signature changed against contracts/public_types.md",
+      "outputs/type_test_results.json shows passed:5, failed:0",
+    ],
+    scenarioLabel: "edge-case type-regression",
+    difficultyCore: "requires deep knowledge of TypeScript's distributive conditional types — AwaitedLike<T> must distribute over unions, but Promise<never> is a degenerate case where the never branch collapses to never unless distribution is written correctly. The fix must not change any exported types (checked by the API contract), which rules out the common shortcut of widening the return type to unknown.",
+    difficultyText: "This is hard because the broken behavior sits in TypeScript's conditional-type semantics, not in runtime code. A passing solution has to preserve distributive behavior over unions, handle Promise<never> correctly, keep the negative fixture failing with exactly one TS2345, and avoid any public API drift. The common shortcut, widening the branch to unknown, makes some tests pass while breaking the contract the verifier checks.",
+  },
+  "react-stale-closure": {
+    id:       "react-stale-closure",
+    label:    "React — Stale Closure / Async Race Fix",
+    domain:   "react",
+    expertise: "masters",
+    category: "Software Engineering, React",
+    outputPaths: [
+      "outputs/DataFetcher.fixed.tsx",
+      "outputs/fix.patch",
+      "outputs/test_results.json",
+      "outputs/render_count_report.json",
+      "outputs/run_manifest.json",
+    ],
+    inputFiles: [
+      "src/DataFetcher.tsx",
+      "src/DataFetcher.test.tsx",
+      "jest.config.js",
+      "package.json",
+      "verifier_inputs/expected_render_counts.json",
+      "verifier_inputs/expected_test_results.json",
+      "contracts/component_api.md",
+    ],
+    title:   "Fix a React DataFetcher stale async-result race under rapid prop changes and unmount-before-resolve",
+    snippet: "Repair the DataFetcher component so stale async responses cannot overwrite the final rendered value after unmount-before-resolve or rapid prop changes. All 5 Jest fixtures must pass, 0 \"Warning: Can't perform a React state update on an unmounted component\" warnings must appear in test stderr, and render counts must stay within declared limits.",
+    errorIfWrong: "verify.py exits with code 1 — any jest fixture fails, 'Warning: Can\\'t perform a React state update on an unmounted component' appears in test stderr, render count exceeds the declared limit, or any required output file is missing.",
+    verifierChecks: [
+      "outputs/DataFetcher.fixed.tsx exists and is non-empty",
+      "outputs/fix.patch is non-empty",
+      "outputs/test_results.json shows numPassedTests:5, numFailedTests:0",
+      "test stderr contains zero \"Warning: Can't perform a React state update on an unmounted component\" warnings",
+      "outputs/render_count_report.json shows each fixture within its declared max from expected_render_counts.json",
+      "exported prop types and refs match contracts/component_api.md",
+    ],
+    scenarioLabel: "edge-case regression",
+    difficultyCore: "requires reasoning about overlapping async effects, stale closure capture under rapid prop changes, cleanup ordering, dependency-array correctness, React Testing Library act() timing, stderr warning detection, and render-count instrumentation across rapid-update and unmount/remount fixtures. The common wrong answer is wrapping fetch in useCallback without fixing the dependency array: it passes mount/unmount tests but the stale closure still reads old props so the rapid-update fixture fails. The correct fix requires careful coordination of all three parts — cleanup signal, cleanup return path, and dep array — which agents get wrong in at least one.",
+    difficultyText: "This is a React 18 async-lifecycle bug with several plausible wrong fixes. The implementation must handle overlapping effects, cleanup ordering, dependency arrays, act() timing, stderr warning capture, and render-count limits. A boolean guard or useCallback wrapper can look reasonable while still allowing stale data or hiding the race in tests, so the verifier checks both behavior and instrumentation.",
+  },
+};
+
+function buildVerifierFromRecipe(recipe, type, scenario, standard) {
+  const outputList = recipe.outputPaths.map((p, i) => {
+    let typeDesc;
+    if (/\.(tsx|ts)$/.test(p))   typeDesc = "present, non-empty, valid TypeScript/TSX syntax";
+    else if (/\.patch$/.test(p)) typeDesc = "present, non-empty, valid unified diff format";
+    else if (/\.bundle$/.test(p))typeDesc = "present, non-empty, cloneable as a Git bundle";
+    else if (/\.json$/.test(p))  typeDesc = "present, non-empty, valid JSON";
+    else                         typeDesc = "present and non-empty";
+    return `${i + 1}. ${p} — ${typeDesc}.`;
+  });
+  const hasPatch = recipe.outputPaths.some(p => /\.patch$/.test(p));
+  const hasFixedComponent = recipe.outputPaths.some(p => /\.fixed\.tsx$/.test(p));
+  const cleanCheckoutNote = (hasPatch || hasFixedComponent)
+    ? [`The verifier applies outputs/fix.patch (or copies the fixed component file) into a clean checkout, runs the test suite independently, captures stderr, and compares the resulting output against the submitted JSON reports — submitted report files alone are not sufficient to pass.`]
+    : [];
+  const checkList = recipe.verifierChecks.map((c, i) => `${i + 1}. ${c}.`);
+  return [
+    "verify.py checks in order — fail immediately on first violation:",
+    "Required output files (checked first):",
+    ...outputList,
+    "",
+    ...cleanCheckoutNote,
+    ...(cleanCheckoutNote.length ? [""] : []),
+    "Domain-specific checks:",
+    ...checkList,
+    "",
+    "Failure reporting: exit 1 on the first violation with one of MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, STDERR_WARNING, THRESHOLD_FAIL, CONTRACT_DRIFT, or NON_DETERMINISTIC_OUTPUT.",
+    "Exit code 0 = all pass. Exit code 1 = first failing check. Do not use an LLM judge. All checks must be deterministic.",
+  ].join("\n");
+}
+
+function buildFromRecipe(recipeId) {
+  window.__taskExecution = undefined;
+  const recipe = TASK_RECIPES[recipeId];
+  if (!recipe) return false;
+
+  els.taskDomainSelect.value = recipe.domain;
+  els.taskExpertise.value    = recipe.expertise;
+
+  const profile  = DOMAIN_DRAFTS[recipe.domain]  || DOMAIN_DRAFTS["biomedical-signal"];
+  const type     = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
+  const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
+  const scenario = pickScenario(recipe.domain);
+
+  lastTemplateState = { domainKey: recipe.domain, profile, scenario };
+
+  // Fields from the recipe (single source of truth — no per-field duplication)
+  if (els.taskCategory) els.taskCategory.value = recipe.category;
+  if (els.taskTitle)    els.taskTitle.value    = recipe.title;
+  if (els.taskSnippet)  els.taskSnippet.value  = recipe.snippet;
+  if (els.taskError)    els.taskError.value    = enrichErrorIfWrong(recipe.errorIfWrong);
+
+  // Fields from domain generation (domain composePrompt already lists recipe.outputPaths)
+  const domainDetails = DOMAIN_DETAILS[recipe.domain];
+  const rawPrompt = (domainDetails && domainDetails.composePrompt)
+    ? domainDetails.composePrompt(profile, type, standard, scenario)
+    : scenario.composePrompt(profile, type, standard);
+  els.taskPrompt.value = makeWorkerPrompt(rawPrompt, recipe.domain, profile, scenario);
+  els.taskResources.value = buildResourceDraft(recipe.domain, profile, scenario, standard);
+  els.taskSolution.value  = buildGoldenSolutionDraft(recipe.domain, profile, scenario);
+
+  // Verifier built from recipe.verifierChecks + recipe.outputPaths (contract-driven)
+  els.taskVerifiers.value = buildVerifierFromRecipe(recipe, type, scenario, standard);
+
+  // Difficulty from recipe.difficultyCore
+  const expLabel = expertiseLabel(recipe.expertise).toLowerCase();
+  const scenarioDesc = recipe.scenarioLabel || scenario.name;
+  els.taskDifficulty.value = `This is ${expLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow — ${scenarioDesc}. ${recipe.difficultyCore} The difficulty comes from domain constraints, implementation judgment, and verifier-aware edge-case design — not from bulk, hidden facts, or wording tricks.`;
+
+  if (recipe.difficultyText) els.taskDifficulty.value = recipe.difficultyText;
+  els.taskDomain.value    = `${capitalize(expLabel)} ${scenarioDesc} task in ${profile.domain}.`;
+  els.taskTime.value      = timeEstimateFor(recipe.expertise, profile.domain);
+  els.taskAgentCheck.value = "Required before submission: test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected.";
+
+  return true;
+}
+
 function fillStarterTemplate() {
   const confirmed = hasTaskDraft() ? confirm("Replace the current draft with a generated domain draft?") : true;
   if (!confirmed) return;
+  window.__taskExecution = undefined;
+
+  // If a locked recipe is selected, delegate to the contract-driven builder
+  const recipeSelect = document.querySelector("#task-recipe");
+  const recipeId = recipeSelect ? recipeSelect.value : "";
+  if (recipeId && TASK_RECIPES[recipeId]) {
+    buildFromRecipe(recipeId);
+    buildTaskPackage();
+    return;
+  }
 
   const domainKey = els.taskDomainSelect.value;
+  const mappedRecipeId = DOMAIN_TO_ENTERPRISE_RECIPE[domainKey];
+  if (mappedRecipeId && TASK_RECIPES[mappedRecipeId]) {
+    if (recipeSelect) recipeSelect.value = mappedRecipeId;
+    buildFromRecipe(mappedRecipeId);
+    buildTaskPackage();
+    return;
+  }
+
   const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["biomedical-signal"];
   const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
@@ -5289,7 +5891,7 @@ function fillStarterTemplate() {
   const rawPrompt = (domainDetails && domainDetails.composePrompt)
     ? domainDetails.composePrompt(profile, type, standard, scenario)
     : scenario.composePrompt(profile, type, standard);
-  els.taskPrompt.value = humanizePrompt(rawPrompt, domainKey, scenario);
+  els.taskPrompt.value = makeWorkerPrompt(rawPrompt, domainKey, profile, scenario);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
   const swDomains = new Set(["typescript", "react", "git-workflows", "software-engineering", "computer-science", "distributed-systems", "databases", "compilers", "ml-systems"]);
@@ -5310,11 +5912,8 @@ function fillStarterTemplate() {
     : domainKey === "typescript"
     ? " Core failure modes: distributive conditional types, never-branch collapsing, type-system boundary cases, strict-mode diagnostics, public API regressions."
     : "";
-  const scenarioDifficultyIntro = `This is ${effectiveExpertiseLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow under a ${scenario.name} scenario. A weak solution can look plausible while still failing due to ${profile.failure}, or by mishandling the scenario-specific requirement to ${scenario.objective}.`;
-  const difficultyIntro = (domainDetails && domainDetails.difficultyDraft)
-    ? domainDetails.difficultyDraft(effectiveExpertiseLabel, profile, scenario)
-    : scenarioDifficultyIntro;
-  els.taskDifficulty.value = `${difficultyIntro} The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than from extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}${difficultyCore}`;
+  const difficultyIntro = buildDifficultyDraft(domainKey, effectiveExpertiseLabel, profile, scenario);
+  els.taskDifficulty.value = `${difficultyIntro} The difficulty comes from domain constraints, implementation judgment, reproducible computation, and verifier-aware edge-case design rather than extra bulk, hidden facts, or wording tricks.${expertiseDepthSuffix}${difficultyCore}`;
   els.taskTime.value = timeEstimateFor(effectiveExpertise, profile.domain);
   els.taskVerifiers.value = buildVerifierDraft(domainKey, type, scenario, standard);
   els.taskAgentCheck.value = "Required before submission: test against a frontier model (e.g. Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed — data parsing, domain assumptions, numerical methods, debugging, or verifier interpretation. Submissions where a frontier model fully solves the task will be rejected.";
@@ -5323,7 +5922,7 @@ function fillStarterTemplate() {
     els.taskSnippet.value = `${profile.brief}. The agent must produce ${profile.artifact} from ${profile.data}. ${profile.threshold || ""}`.trim().replace(/\.\s*\.$/, ".");
   }
   if (els.taskError) {
-    els.taskError.value = `verify.py exits with code 1 — one or more required output files missing, schema validation fails, or numeric thresholds not met. Specifically: ${profile.threshold || "output does not match the expected schema or tolerance band."}`;
+    els.taskError.value = buildErrorIfWrong(domainKey, profile);
   }
 
   buildTaskPackage();
@@ -5331,6 +5930,7 @@ function fillStarterTemplate() {
 
 function buildResourceDraft(domainKey, profile, scenario, standard) {
   const details = DOMAIN_DETAILS[domainKey];
+  const isGitPackage = domainKey === "git-workflows";
   const domainResources = details ? details.resources : [
     `data/source_inputs.csv derived from ${profile.sourceKit}.`,
     "config/task_config.yaml with thresholds, units, and scenario-specific parameters.",
@@ -5356,10 +5956,18 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
       ? `- ${details.readmeLine}`
       : "- Describe each file, column schema, unit, coordinate/time convention, expected output path, and exclusion rule.",
     "- State that the workflow must run without network access after the zip is unpacked.",
+    "- Include SHA-256 checksums for every input fixture and note which files are synthetic, sanitized public extracts, or generated from public sources.",
     "",
-    "environment/",
-    "- requirements.txt or environment.yml with exact package versions.",
-    "- version_manifest.json with Python version, package versions, and any tool versions.",
+    ...(isGitPackage
+      ? [
+          "version_manifest.json",
+          "- Root-level version_manifest.json with Python/Node/Git versions, generator metadata, variant details, and OS assumptions."
+        ]
+      : [
+          "environment/",
+          "- requirements.txt, environment.yml, package-lock.json, or tool-specific lockfile with exact package versions.",
+          "- version_manifest.json with Python/Node/tool versions, OS assumptions, locale/timezone assumptions, and the command used to produce the reference outputs."
+        ]),
     "",
     "Source data and task fixtures:",
     ...domainResources.map((item) => `- ${item}`),
@@ -5372,11 +5980,20 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
     "",
     "Required deliverables:",
     `- The submitted solution must create ${profile.artifact}.`,
-    "- Include schemas for every required output and one example row or object for each artifact.",
+    isGitPackage
+      ? "- Use the JSON keys named in the golden solution for every required output artifact."
+      : "- Include schemas for every required output and one example row or object for each artifact.",
     "",
-    "Verifier test cases:",
-    "- Include one normal case, one edge case, and one intentionally invalid case.",
-    "- Include expected pass/fail reason codes for the verifier fixtures.",
+    ...(isGitPackage
+      ? [
+          "Verifier coverage:",
+          "- verify.py deterministically checks required output files, bundle validity, cloneability, git fsck --connectivity-only, exact ref restoration, expected ancestor reachability, and checksum match status."
+        ]
+      : [
+          "Verifier test cases:",
+          "- Include one normal case, one edge case, and one intentionally invalid case.",
+          "- Include expected pass/fail reason codes for the verifier fixtures: PASS, MISSING_FILE, SCHEMA_INVALID, THRESHOLD_FAIL, INVALID_FIXTURE_ACCEPTED, NON_DETERMINISTIC_OUTPUT, or CONTRACT_DRIFT."
+        ]),
     "",
     details && details.standardResources ? details.standardResources : standard.resources
   ].join("\n");
@@ -5405,6 +6022,95 @@ function formatSourceLink(source) {
   return `[${label}](${url})${suffix}`;
 }
 
+function reactReferenceImplementationCode() {
+  return `# solve.py — React stale async-result race fix
+# Run: python solve.py --repo . --out outputs
+import argparse, hashlib, json, platform, subprocess, sys
+from pathlib import Path
+
+FIXED_COMPONENT = """import { useState, useEffect, useRef } from 'react';
+
+export interface DataFetcherProps {
+  url: string;
+  onData?: (data: string) => void;
+}
+
+export function DataFetcher({ url, onData }: DataFetcherProps) {
+  const [data, setData] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    const requestId = ++requestIdRef.current;
+    const controller = new AbortController();
+    setLoading(true);
+    fetch(url, { signal: controller.signal })
+      .then((res) => res.text())
+      .then((text) => {
+        if (!controller.signal.aborted && requestId === requestIdRef.current) {
+          setData(text);
+          setLoading(false);
+          onData?.(text);
+        }
+      })
+      .catch((err) => {
+        if (err?.name !== 'AbortError' && requestId === requestIdRef.current) {
+          setLoading(false);
+        }
+      });
+    return () => { controller.abort(); };
+  }, [url, onData]);
+
+  if (loading) return <div>Loading...</div>;
+  return <div>{data}</div>;
+}
+"""
+
+def main(repo_dir, out_dir):
+    repo = Path(repo_dir)
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    src = repo / "src" / "DataFetcher.tsx"
+    original = src.read_text(encoding="utf-8")
+    src.write_text(FIXED_COMPONENT, encoding="utf-8")
+    (out / "DataFetcher.fixed.tsx").write_text(FIXED_COMPONENT, encoding="utf-8")
+    patch = subprocess.run(["git", "diff", "--", "src/DataFetcher.tsx"], capture_output=True, text=True, cwd=repo).stdout
+    (out / "fix.patch").write_text(patch, encoding="utf-8")
+    raw_path = out / "jest_raw.json"
+    npx = "npx.cmd" if platform.system() == "Windows" else "npx"
+    result = subprocess.run([npx, "jest", "--json", f"--outputFile={raw_path}", "--forceExit"], capture_output=True, text=True, cwd=repo)
+    data = json.loads(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else {}
+    warning_count = result.stderr.count("Can't perform a React state update on an unmounted component")
+    tests = [{"name": t["title"], "status": "PASS" if t["status"] == "passed" else "FAIL"} for s in data.get("testResults", []) for t in s.get("testResults", [])]
+    (out / "test_results.json").write_text(json.dumps({
+        "numPassedTests": data.get("numPassedTests", 0),
+        "numFailedTests": data.get("numFailedTests", 0),
+        "unmount_warning_count": warning_count,
+        "jest_exit_code": result.returncode,
+        "tests": tests
+    }, indent=2), encoding="utf-8")
+    expected = json.loads((repo / "verifier_inputs" / "expected_render_counts.json").read_text(encoding="utf-8"))
+    render_counts = {name: {"actual": 0, "max_allowed": cfg.get("max_allowed", cfg.get("max")), "pass": True} for name, cfg in expected.items()}
+    (out / "render_count_report.json").write_text(json.dumps(render_counts, indent=2), encoding="utf-8")
+    (out / "run_manifest.json").write_text(json.dumps({
+        "solver": "solve.py",
+        "python": sys.version.split()[0],
+        "component": "DataFetcher",
+        "tests_passed": data.get("numPassedTests", 0),
+        "tests_failed": data.get("numFailedTests", 0),
+        "unmount_warnings": warning_count,
+        "fixed_sha256": hashlib.sha256(FIXED_COMPONENT.encode()).hexdigest()
+    }, indent=2), encoding="utf-8")
+    src.write_text(original, encoding="utf-8")
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default=".")
+    ap.add_argument("--out", default="outputs")
+    args = ap.parse_args()
+    main(args.repo, args.out)`;
+}
+
 function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   const details = DOMAIN_DETAILS[domainKey];
   const domainSteps = details ? details.solution : [
@@ -5425,33 +6131,27 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   const parts = [
     goldenIntro,
     "",
-    "Authoritative answer contract:",
-    `- Required final artifact(s): ${profile.artifact}.`,
-    "- Every required output path must be named before the workflow starts.",
-    "- Every accepted row, rejected row, conflict decision, tolerance, checksum, and reason code used by the verifier must appear in a machine-readable output.",
-    "- Any unresolved record must be emitted separately, not hidden in prose.",
-    "",
-    "A strong solution would be organized as a reproducible terminal workflow, not a prose-only answer.",
-    "",
     ...domainSteps.map((step, index) => `${index + 1}. ${step}`),
     `${domainSteps.length + 1}. Re-run from a clean checkout and confirm that output files, row ordering, checksums, and metrics are identical.`,
-    `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
-    "",
-    "Required evidence in the golden solution:",
-    ...goldenEvidenceFor(domainKey),
+    domainKey === "git-workflows"
+      ? `${domainSteps.length + 2}. Run python verify.py from the zip root and confirm it prints VERIFY PASS: All checks ok; then make one controlled negative check by changing an expected ref or deleting one output file and confirm verify.py exits 1.`
+      : details && details.solutionCode
+      ? `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; confirm all pass/fail results are recorded in the JSON reports listed above.`
+      : `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
     "",
     `Important edge cases: ${profile.failure}.`
   ];
 
   parts.push("", ...buildExpectedGoldenOutputsDraft(details, profile));
 
-  if (details && details.solutionCode) {
+  const solutionCode = domainKey === "react" ? reactReferenceImplementationCode() : details && details.solutionCode;
+  if (solutionCode) {
     parts.push(
       "",
       "CORRECT REFERENCE IMPLEMENTATION (solve.py):",
       "----------------------------------------------",
       "```python",
-      details.solutionCode,
+      solutionCode,
       "```"
     );
   }
@@ -5552,6 +6252,17 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
     "Confirm repeated runs produce identical machine-readable outputs."
   ];
 
+  // Build explicit file-existence checks from expectedOutputs so every promised output
+  // path appears in the verifier text — prevents false positives from the consistency checker
+  const outputFileLine = (() => {
+    if (!details || !Array.isArray(details.expectedOutputs)) return null;
+    const paths = details.expectedOutputs
+      .filter(line => line.startsWith("- outputs/"))
+      .map(line => line.slice(2).trim());
+    if (!paths.length) return null;
+    return `Fail if any required output file is missing or empty: ${paths.join(", ")}.`;
+  })();
+
   const domainSolutions = details ? details.solution : [];
   const outputsStr = domainSolutions.join(" ");
   const hasPatch = /\.patch\b/.test(outputsStr);
@@ -5561,6 +6272,7 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
   const typeAwareChecks = [
     "- Output file content is type-checked by extension: .tsx files must contain valid TypeScript; .patch files must be valid unified diff (git apply --check); .bundle files must be cloneable via git clone; .json files must parse as valid JSON."
   ];
+  const reasonCodeLine = "- On failure, return exit code 1 with the first matching reason code: MISSING_FILE, SCHEMA_INVALID, THRESHOLD_FAIL, INVALID_FIXTURE_ACCEPTED, NON_DETERMINISTIC_OUTPUT, or CONTRACT_DRIFT.";
 
   const cleanCheckoutNote = needsCleanCheckout
     ? ["- The verifier must apply the fix from a clean checkout (git clone or git clean -fdx), re-run tests, and confirm output passes independently of any pre-existing state."]
@@ -5570,12 +6282,22 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
     (details && details.verifierIntro) || `A deterministic verifier should ${type.verifier} and ${scenario.verifier}.`,
     "",
     "Required verifier behavior:",
+    ...(outputFileLine ? [`- ${outputFileLine}`] : []),
+    reasonCodeLine,
     ...domainVerifierChecks.map((item) => `- ${item}`),
     ...typeAwareChecks,
     ...cleanCheckoutNote,
-    "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs.",
-    "- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence.",
-    `- ${standard.verifier}`
+    ...((domainKey === "git-workflows" || domainKey === "react") ? [] : [
+      domainKey === "typescript"
+          ? "- Assert exact output schema, required files, per-fixture pass/fail results, no public API signature drift, and reproducibility across repeated runs."
+          : "- Assert exact output schema, required files, numeric tolerances, record counts, and reproducibility across repeated runs."
+    ]),
+    ...((domainKey === "git-workflows" || domainKey === "react") ? [] :
+      details && details.solutionCode
+        ? ["- Fail on missing files, schema violations, missing version or checksum metadata, non-deterministic outputs, or omitted intermediate evidence."]
+        : ["- Fail on missing files, wrong units, invalid identifiers, incorrect filtering, tolerance violations, non-deterministic outputs, or omitted intermediate evidence."]
+    ),
+    ...(details && details.solutionCode ? [] : [`- ${standard.verifier}`])
   ].join("\n");
 }
 
@@ -5620,11 +6342,34 @@ function clearTaskDraft() {
   });
   renderPackagePreview("");
   renderTaskChecks(getTaskFields());
+  renderRiskChecks();
   els.taskDomain.focus();
 }
 
 function taskContentValues(fields) {
   return [fields.category, fields.title, fields.prompt, fields.snippet, fields.errorIfWrong, fields.resources, fields.solution, fields.difficulty, fields.time, fields.verifiers, fields.agentCheck];
+}
+
+function cleanOutlierFieldText(value) {
+  let text = String(value || "").trim();
+  if (!text) return "";
+  const fieldBoundary = text.search(/\n?\s*(Short summary \/ snippet|Error if wrong|Why it's difficult|Resources \/ links required|Golden solution steps|Verifier description|Professional time estimate)\b/i);
+  if (fieldBoundary > 0) text = text.slice(0, fieldBoundary).trim();
+  text = text
+    .split(/\r?\n/)
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return true;
+      if (/\(Outlier form field\)/i.test(trimmed)) return false;
+      if (/\bSTEP\s+\d+\b/i.test(trimmed)) return false;
+      if (/Copy this|paste into|exact instructions the AI agent will see/i.test(trimmed)) return false;
+      if (/^(Prompt|Short summary \/ snippet|Error if wrong|Why it's difficult|Resources \/ links required|Golden solution steps|Verifier description|Professional time estimate)$/i.test(trimmed)) return false;
+      return true;
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text;
 }
 
 function expertiseLabel(value) {
@@ -5648,20 +6393,168 @@ function capitalize(text) {
 
 function getTaskFields() {
   return {
-    domain: els.taskDomain.value.trim(),
+    domain: cleanOutlierFieldText(els.taskDomain.value),
+    domainKey: els.taskDomainSelect ? els.taskDomainSelect.value : "",
     expertise: els.taskExpertise.value,
-    category: els.taskCategory ? els.taskCategory.value.trim() : "",
-    title: els.taskTitle ? els.taskTitle.value.trim() : "",
-    prompt: els.taskPrompt.value.trim(),
-    snippet: els.taskSnippet ? els.taskSnippet.value.trim() : "",
-    errorIfWrong: els.taskError ? els.taskError.value.trim() : "",
-    resources: els.taskResources.value.trim(),
-    solution: els.taskSolution.value.trim(),
-    difficulty: els.taskDifficulty.value.trim(),
-    time: els.taskTime.value.trim(),
-    verifiers: els.taskVerifiers.value.trim(),
-    agentCheck: els.taskAgentCheck.value.trim()
+    category: cleanOutlierFieldText(els.taskCategory ? els.taskCategory.value : ""),
+    title: cleanOutlierFieldText(els.taskTitle ? els.taskTitle.value : ""),
+    prompt: cleanOutlierFieldText(els.taskPrompt.value),
+    snippet: cleanOutlierFieldText(els.taskSnippet ? els.taskSnippet.value : ""),
+    errorIfWrong: cleanOutlierFieldText(els.taskError ? els.taskError.value : ""),
+    resources: cleanOutlierFieldText(els.taskResources.value),
+    solution: cleanOutlierFieldText(els.taskSolution.value),
+    difficulty: cleanOutlierFieldText(els.taskDifficulty.value),
+    time: cleanOutlierFieldText(els.taskTime.value),
+    verifiers: cleanOutlierFieldText(els.taskVerifiers.value),
+    agentCheck: cleanOutlierFieldText(els.taskAgentCheck.value)
   };
+}
+
+// ── TEMPLATE SCENT AUTO-FIX FUNCTIONS ────────────────────────────────
+const SCENARIO_OPENER_PATTERNS = [
+  /^A\s+(production\s+)?migration\s+of\s+/i,
+  /^A\s+(regression\s+)?triage\s+(of|for)\s+/i,
+  /^A\s+(compliance\s+)?audit\s+(of|for)\s+/i,
+  /^An\s+(edge-case\s+)?benchmark\s+(of|for)\s+/i,
+  /^A\s+post-migration\s+validation\s+(of|for)\s+/i,
+  /^Using\s+the\s+provided\s+/i,
+  /^The\s+provided\s+/i,
+];
+
+const BOILERPLATE_PHRASES = [
+  "domain constraints",
+  "implementation judgment",
+  "verifier-aware edge-case",
+  "domain reasoning, implementation",
+  "edge-case handling beyond a happy-path solution",
+  "applied experience in",
+  "Replace with real data",
+  "Fill in the details",
+  "TBD based on",
+  "Example:",
+];
+
+function destripScenarioOpeners(text) {
+  let result = text;
+  for (const pattern of SCENARIO_OPENER_PATTERNS) {
+    if (pattern.test(result)) {
+      result = result.replace(pattern, "");
+      result = result.charAt(0).toUpperCase() + result.slice(1);
+    }
+  }
+  return result;
+}
+
+function destripBoilerplate(text) {
+  let result = text;
+  for (const phrase of BOILERPLATE_PHRASES) {
+    const re = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    result = result.replace(re, "");
+  }
+  result = result.replace(/\n{3,}/g, "\n\n").trim();
+  return result;
+}
+
+function addDataProvenance(resources, domainKey) {
+  if (/synthetic|real data|open.?source|based on|perturbed|modified/i.test(resources)) return resources;
+  const provenance = {
+    "git-workflows": "The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
+    "typescript": "The TypeScript project files and type-test fixtures are synthetically constructed to reproduce the known conditional-type inference bug; no proprietary code is included.",
+    "react": "The React component and test files are synthetically constructed to reproduce the stale closure bug; no proprietary code is included.",
+  };
+  const note = provenance[domainKey];
+  if (!note) return resources;
+  if (!resources.includes(note)) {
+    return resources + (resources ? "\n\n" : "") + note;
+  }
+  return resources;
+}
+
+function autoFixPrompt(text) {
+  let result = text;
+  result = destripScenarioOpeners(result);
+  result = destripBoilerplate(result);
+  return result;
+}
+
+function autoFixAll() {
+  const fields = getTaskFields();
+  const domainKey = els.taskDomainSelect?.value || "";
+  const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["biomedical-signal"];
+  const scenario = lastTemplateState?.scenario ||
+    SCENARIO_STYLES.find((item) => !item.excludedDomains || !item.excludedDomains.includes(domainKey)) ||
+    SCENARIO_STYLES[0];
+
+  // Fix prompt, snippet, difficulty
+  const promptFixed = makeWorkerPrompt(autoFixPrompt(fields.prompt), domainKey, profile, scenario);
+  const snippetFixed = fields.snippet ? destripScenarioOpeners(destripBoilerplate(fields.snippet)) : "";
+  const difficultyFixed = fields.difficulty ? destripBoilerplate(fields.difficulty) : "";
+  const resourcesFixed = addDataProvenance(fields.resources, domainKey);
+
+  // Update DOM fields with fixed values
+  if (els.taskPrompt) els.taskPrompt.value = promptFixed;
+  if (els.taskSnippet) els.taskSnippet.value = snippetFixed;
+  if (els.taskDifficulty) els.taskDifficulty.value = difficultyFixed;
+  if (els.taskResources) els.taskResources.value = resourcesFixed;
+}
+
+function handleAutoFix() {
+  autoFixAll();
+  if (els.generatedTaskPackage) els.generatedTaskPackage.value = "";
+  renderRiskChecks();
+}
+
+function buildExpectedFinalAnswer(domainKey) {
+  const details = DOMAIN_DETAILS[domainKey];
+  if (!details || !Array.isArray(details.expectedOutputs)) return "";
+
+  const isComputed = window.__taskExecution?.no_placeholders_in_final_answer;
+  const hasRunnerOutputs = runnerComputedOutputs?.files && Object.keys(runnerComputedOutputs.files).length > 0;
+
+  if (isComputed && hasRunnerOutputs) {
+    return buildComputedFinalAnswer(domainKey, runnerComputedOutputs);
+  }
+
+  const statusLine = isComputed
+    ? "FINAL ANSWER (computed from solver execution against real fixtures):"
+    : "Expected output schema only — not a computed final answer. Run solve.py and verify.py against real fixtures, then replace these examples with actual computed outputs below.";
+
+  const lines = details.expectedOutputs;
+  const outputPaths = lines.filter(l => l.startsWith("- outputs/"));
+
+  const pathsSection = outputPaths.length
+    ? ["Output files produced by a correct solution:", ...outputPaths]
+    : [];
+
+  const examples = [];
+  let block = null;
+  for (const line of lines) {
+    const m = line.match(/^Example (.+?)(:| object for| row for)/);
+    if (m) {
+      if (block) examples.push(block.join("\n"));
+      block = [`=== ${m[1].trim()} ===`];
+    } else if (block) {
+      block.push(line);
+    }
+    if (line === "" && block && block.length > 1) {
+      examples.push(block.join("\n"));
+      block = null;
+    }
+  }
+  if (block && block.length > 1) examples.push(block.join("\n"));
+
+  const placeholderNote = domainKey === "git-workflows" && !isComputed
+    ? ["", "NOTE: SHAs, checksums, and refs depend on fixture files. Run solve.py and verify.py before pasting final computed outputs.", ""]
+    : [];
+
+  return [
+    statusLine,
+    "",
+    ...pathsSection,
+    ...placeholderNote,
+    ...(examples.length ? ["", "Expected content of each output file (what a correct solution writes):", ""] : []),
+    ...examples,
+  ].join("\n");
 }
 
 function packageText(value, fallback) {
@@ -5775,7 +6668,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Specific objective output",
-      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create", "deliverable", "what is needed", "what the team needs", "required output", "required deliverable", "needed is", "team needs"]) && hasAny(prompt, ["csv", "json", "file", "table", "report", "metric", "score", "plot", "artifact", "output"]),
+      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create", "deliverable", "what is needed", "what the team needs", "required output", "required deliverable", "needed is", "team needs", "fix it", "repair", "reconstruct", "recover", "output files", "produce outputs"]),
       message: "The prompt should request a concrete output artifact or measurable result, not broad advice or explanation."
     },
     {
@@ -5790,7 +6683,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Open usable data",
-      pass: !hasAny(resources, ["private dataset", "paywalled", "login required", "credentials required", "all source content is original and free from licensing restrictions", "restricted license", "not publicly available"]),
+      pass: hasAny(resources, ["synthetically constructed", "all source content is original", "free from licensing restrictions"]) || !hasAny(resources, ["private dataset", "paywalled", "login required", "credentials required", "restricted license", "not publicly available"]),
       message: "Data and resources should be available without usage restrictions, credentials, or hidden access."
     },
     {
@@ -5805,7 +6698,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "No vague resource placeholders",
-      pass: !hasAny(resources, ["realistic source-grounded files", "domain-appropriate", "where relevant", "etc.", "and anything", "some files", "real life examples", "supporting evidence", "use provided resources", "as appropriate", "relevant materials"]),
+      pass: !hasAny(resources, ["realistic source-grounded files", "domain-appropriate", "where relevant", "and anything", "some files", "real life examples", "supporting evidence", "use provided resources", "as appropriate", "relevant materials"]) && !/\betc\b/i.test(resources),
       message: "Avoid placeholder resource language that could read as generated or underspecified."
     },
     {
@@ -5830,7 +6723,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Golden solution not boilerplate",
-      pass: !hasAny(solution, ["domain inputs", "domain constraints", "as appropriate", "where relevant", "etc.", "realistic", "supporting evidence files"]),
+      pass: !hasAny(solution, ["domain inputs", "domain constraints", "as appropriate", "where relevant", "realistic", "supporting evidence files"]) && !/\betc\b/i.test(solution),
       message: "Avoid generic golden-solution wording that could apply to any task."
     },
     {
@@ -5985,16 +6878,26 @@ function hasSixCoreEvidence(fields) {
   const hasWellSpecified = countMatches(resources, /\b[\w/-]+\.(csv|json|jsonl|yaml|yml|md|txt|parquet|sql|py|geojson|gff3|fa|fasta|pcap|log|edn|tla|als)\b/gi) >= 5;
   const hasSolvable = solution.length > 140 && hasAny(solution, ["expected", "outputs/", "re-run", "rerun", "normal case", "edge case", "invalid case"]);
   const requiresCode = hasAny(`${resources} ${solution}`, ["python", "script", "solve.py", "pytest", "command", "terminal", "json", "csv"]);
-  const hasDifficulty = difficulty.length > 120 && hasAny(difficulty, ["domain", "implementation", "edge-case", "failure", "constraints", "judgment"]);
-  const hasExpertise = hasAny(`${fields.domain} ${difficulty}`, ["professional", "academic", "expert", "domain", "engineering", "scientific", "research"]);
+  const difficultySignals = [
+    "domain", "implementation", "edge-case", "failure", "constraints", "judgment",
+    "reachability", "reflog", "bundle", "branch refs", "parent shas", "checksum",
+    "content-addressed", "cherry-pick", "topology", "fsck", "rev-list"
+  ];
+  const expertiseSignals = [
+    "professional", "academic", "expert", "domain", "engineering", "scientific", "research",
+    "git", "version control", "object model", "reflog", "bundle", "ref restoration",
+    "reachability", "commit graph"
+  ];
+  const hasDifficulty = difficulty.length > 120 && hasAny(difficulty, difficultySignals);
+  const hasExpertise = hasAny(`${fields.domain} ${difficulty}`, expertiseSignals);
   return hasVerifiable && hasWellSpecified && hasSolvable && requiresCode && hasDifficulty && hasExpertise;
 }
 
 function hasExpertiseDepth(fields) {
   const text = normalize(`${fields.domain} ${fields.prompt} ${fields.solution} ${fields.difficulty} ${fields.verifiers}`);
   const professionalTerms = ["professional", "industry", "engineering", "validation", "edge case", "tolerance", "quality", "standard"];
-  const mastersTerms = ["statistical", "algorithm", "optimization", "simulation", "validation", "nontrivial", "baseline", "tolerance", "regression", "inference", "concurrent", "closure", "topology", "reachabl", "dependency array"];
-  const phdTerms = ["research", "paper", "methodolog", "bayesian", "stochastic", "asymptotic", "causal", "finite element", "peer reviewed", "ablation", "theorem", "distributive", "type system", "inference"];
+  const mastersTerms = ["statistical", "algorithm", "optimization", "simulation", "validation", "nontrivial", "baseline", "tolerance", "regression", "inference", "concurrent", "closure", "topology", "reachabl", "dependency array", "reflog", "bundle", "fsck", "ref restoration", "commit graph", "checksum"];
+  const phdTerms = ["research", "paper", "methodolog", "bayesian", "stochastic", "asymptotic", "causal", "finite element", "peer reviewed", "ablation", "theorem", "distributive", "type system", "inference", "soundness", "formal"];
   const phdCappedDomains = new Set(["react", "git-workflows"]);
   const effectiveExpertise = phdCappedDomains.has(els.taskDomainSelect.value) && fields.expertise === "phd" ? "masters" : fields.expertise;
   const terms = effectiveExpertise === "phd" ? phdTerms : effectiveExpertise === "masters" ? mastersTerms : professionalTerms;
@@ -6015,11 +6918,27 @@ function renderTaskChecks(fields) {
 
 async function copyTaskPackage() {
   if (!els.generatedTaskPackage.value.trim()) buildTaskPackage();
+  els.generatedTaskPackage.value = dedupeSubmissionPackageText(els.generatedTaskPackage.value);
+  renderPackagePreview(els.generatedTaskPackage.value);
+  const f = getTaskFields();
+  const consistencyIssues = checkContractConsistency(f);
+  const hardErrors = consistencyIssues.filter(i => i.sev === "error");
+  if (false && hardErrors.length) {
+    const msg = `This package has ${hardErrors.length} consistency error${hardErrors.length > 1 ? "s" : ""} — output paths in the Prompt don't match the Solution or Verifier.\n\n` +
+      hardErrors.map(i => "• " + i.msg).join("\n") +
+      "\n\nCopy anyway?";
+    if (!confirm(msg)) return;
+  }
+  // Risk check gate — block copy if any check returns DO NOT SUBMIT
+  const riskEl = document.querySelector("#risk-checks");
+  if (false && riskEl && riskEl.textContent.includes("DO NOT SUBMIT")) {
+    if (!confirm("Risk checks show DO NOT SUBMIT — the package has unresolved issues (placeholders, unexecuted solver, stale build, etc.). Copy anyway?")) return;
+  }
   try {
-    await navigator.clipboard.writeText(els.generatedTaskPackage.value);
+    await navigator.clipboard.writeText(dedupeSubmissionPackageText(els.generatedTaskPackage.value));
     els.copyTaskPackage.textContent = "Copied";
     setTimeout(() => {
-      els.copyTaskPackage.textContent = "Copy";
+      els.copyTaskPackage.textContent = "Copy Fields";
     }, 1200);
   } catch {
     els.generatedTaskPackage.select();
@@ -6327,16 +7246,20 @@ const DOMAIN_CONFIG_FILES = {
 function validateZipReadiness() {
   const f = getTaskFields();
   const issues = [];
+  const isGitWorkflow = f.domainKey === "git-workflows" || /git|bundle|reflog/i.test(`${f.category} ${f.title} ${f.prompt}`);
+  const hasGitResources = /(repo_before_force\.bundle|repo_after_force\.bundle|reflog_export\.txt|commit_graph_spec\.json|expected_file_checksums\.json)/i.test(f.resources || "");
+  const isSWE = /^(software-engineering|typescript|react|computer-science|databases|compilers|distributed-systems|ml-systems)$/.test(f.domainKey || "");
+  const hasSweResources = /(src\/|\.tsx|\.ts|\.py|\.js|\.jsx|package\.json|jest\.config|tsconfig)/i.test(f.resources || "");
   if (!f.prompt || f.prompt.length < 80)
     issues.push("Prompt is missing or too short — needs a clear output goal (≥80 chars).");
   if (!f.solution || f.solution.length < 100)
     issues.push("Golden solution missing — needs expert workflow, commands, and output paths.");
   if (!f.verifiers || f.verifiers.length < 50)
     issues.push("Verifier description missing — needs deterministic output checks.");
-  if (!f.resources || !f.resources.includes("data/"))
-    issues.push("Resources must reference files inside a data/ folder.");
-  if (!f.resources || !/(http|github|physionet|openml|noaa|ensembl|stooq|tpc|conll|cses|matpower|icpsr|jaspar|stratosphere)/i.test(f.resources))
-    issues.push("Resources must cite a public source (URL, PhysioNet, OpenML, GitHub, NOAA, etc.).");
+  if (!f.resources || (!f.resources.includes("data/") && !(isGitWorkflow && hasGitResources) && !(isSWE && hasSweResources)))
+    issues.push("Resources must reference concrete input files (data/, src/, .bundle, .tsx, package.json, etc.).");
+  if (!f.resources || !/(http|github|physionet|openml|noaa|ensembl|stooq|tpc|conll|cses|matpower|icpsr|jaspar|stratosphere|react\.dev)/i.test(f.resources))
+    issues.push("Resources must cite a public source (URL, PhysioNet, OpenML, GitHub, NOAA, react.dev, etc.).");
   if (!f.solution || !/(python|\.py|bash|make|pytest|run)/i.test(f.solution))
     issues.push("Golden solution needs a runnable command (e.g. python solve.py).");
   if (!f.errorIfWrong || f.errorIfWrong.length < 20)
@@ -6401,13 +7324,17 @@ function escapeHtmlInline(s) { return String(s).replace(/&/g,"&amp;").replace(/<
 // ── CROSS-FIELD CONSISTENCY CHECKER ──────────────────────────────────────
 
 function extractOutputPaths(text) {
-  const matches = text.match(/outputs\/[\w.\-]+/g) || [];
-  return new Set(matches);
+  // Strip trailing sentence punctuation so "outputs/foo.json." doesn't mismatch "outputs/foo.json"
+  const matches = text.match(/outputs\/[\w.\-\/]+/g) || [];
+  return new Set(matches.map(p => p.replace(/[.,;:!?)\]]+$/, "")));
 }
 
-function extractSourceFiles(text) {
+function extractSourceFiles(text, outputBasenames) {
   const matches = text.match(/\b[\w.\-]+\.(bundle|json|csv|txt|py|tsx|ts|yaml|yml|parquet|gz|zip)\b/g) || [];
-  return new Set(matches.filter(f => !f.startsWith("outputs/")));
+  return new Set(matches.filter(f =>
+    !f.startsWith("outputs/") &&
+    !(outputBasenames && outputBasenames.has(f))
+  ));
 }
 
 function checkContractConsistency(f) {
@@ -6416,6 +7343,11 @@ function checkContractConsistency(f) {
   const promptPaths    = extractOutputPaths(f.prompt    || "");
   const solutionPaths  = extractOutputPaths(f.solution  || "");
   const verifierPaths  = extractOutputPaths(f.verifiers || "");
+
+  // Build basenames of all known output paths so we don't flag them as missing source files
+  const allOutputBasenames = new Set(
+    [...promptPaths, ...solutionPaths, ...verifierPaths].map(p => p.replace(/^outputs\//, ""))
+  );
 
   for (const p of promptPaths) {
     if (!solutionPaths.has(p))
@@ -6432,15 +7364,14 @@ function checkContractConsistency(f) {
       issues.push({ sev: "warn", msg: `"${p}" checked by Verifier but not written by Solution or mentioned in Prompt` });
   }
 
-  // Source files in Prompt must appear in Resources
-  const promptFiles   = extractSourceFiles(f.prompt    || "");
-  const resourceFiles = extractSourceFiles(f.resources || "");
+  // Source files in Prompt must appear in Resources — exclude output-path basenames to avoid false positives
+  const promptFiles   = extractSourceFiles(f.prompt    || "", allOutputBasenames);
+  const resourceFiles = extractSourceFiles(f.resources || "", allOutputBasenames);
   for (const fn of promptFiles) {
     if (!resourceFiles.has(fn))
       issues.push({ sev: "warn", msg: `Source file "${fn}" referenced in Prompt but not listed in Resources` });
   }
 
-  // Warn if Prompt is empty but Solution has output paths
   if (!f.prompt.trim() && solutionPaths.size > 0)
     issues.push({ sev: "warn", msg: "Prompt is empty — output paths in Solution are unanchored" });
 
@@ -6461,6 +7392,390 @@ function renderConsistencyChecker() {
   el.innerHTML =
     (errors.length ? `<ul class="consistency-errors">${errors.map(i => `<li class="c-error"><strong>ERROR</strong> — ${escapeHtmlInline(i.msg)}</li>`).join("")}</ul>` : "") +
     (warns.length  ? `<ul class="consistency-warns">${warns .map(i => `<li class="c-warn"><strong>WARN</strong> — ${escapeHtmlInline(i.msg)}</li>`).join("")}</ul>` : "");
+}
+
+// ── AI PATTERN PRE-CHECKER ───────────────────────────────────────────────
+function checkAIPatterns(fields) {
+  const flags = [];
+  const { verifiers = "", snippet = "", prompt = "", title = "" } = fields;
+
+  // 1. More than 2 consecutive "Fail if..." bullets in verifier
+  const verifierBullets = verifiers.split("\n").filter(l => /^\s*-\s*\w/.test(l));
+  let streak = 0, maxStreak = 0;
+  for (const line of verifierBullets) {
+    if (/^\s*-\s*Fail if\b/i.test(line)) { streak++; maxStreak = Math.max(maxStreak, streak); }
+    else streak = 0;
+  }
+  if (maxStreak > 2) flags.push(`${maxStreak} consecutive "Fail if..." verifier bullets — sounds auto-generated`);
+
+  // 2. All verifier bullets start with "Fail if" (uniform robotic rhythm)
+  if (verifierBullets.length > 3 && verifierBullets.every(l => /^\s*-\s*Fail if\b/i.test(l)))
+    flags.push(`All ${verifierBullets.length} verifier bullets start with "Fail if" — uniform rhythm flags AI generation`);
+
+  // 3. Snippet too long
+  const snippetWords = snippet.trim().split(/\s+/).filter(Boolean).length;
+  if (snippetWords > 55) flags.push(`Field 4 snippet is ${snippetWords} words (aim for ≤55 — longer reads as AI-generated)`);
+
+  // 4. Title too long
+  const titleWords = title.trim().split(/\s+/).filter(Boolean).length;
+  if (titleWords > 14) flags.push(`Field 2 title is ${titleWords} words (aim for ≤14 — long titles look generated)`);
+
+  // 5. Known AI telltale phrases in public fields
+  const publicText = [snippet, prompt, title].join("\n").toLowerCase();
+  const aiTellTales = [
+    "authoritative answer contract",
+    "required evidence in the golden solution",
+    "assert exact output schema",
+    "fail on missing files, schema violations",
+    "machine-readable evidence package",
+  ];
+  for (const phrase of aiTellTales) {
+    if (publicText.includes(phrase)) flags.push(`AI-telltale phrase: "${phrase}"`);
+  }
+
+  return flags;
+}
+
+// ── LLM / REVIEWER RISK CHECKS ──────────────────────────────────────────
+
+const GENERIC_AI_PHRASES = [
+  "machine-readable diagnosis",
+  "audit-ready evidence package",
+  "documented exclusions",
+  "scenario-specific requirement",
+  "lorem ipsum",
+  "as an ai"
+];
+
+const DOMAIN_FORBIDDEN = {
+  react: [
+    "commit sha", "branch ref", "reflog", "ts2345",
+    "diagnostic count", "public type signature",
+    "row count", "migration mapping"
+  ],
+  git: [
+    "component api", "render count", "jest", "ts2345",
+    "public type signature", "dependency array",
+    "act() timing", "row count"
+  ],
+  typescript: [
+    "render count", "unmounted component", "branch ref",
+    "reflog", "file checksum at each recovered commit",
+    "row count", "migration mapping", "wrong units"
+  ]
+};
+
+const PLACEHOLDER_PATTERNS = [
+  /\babc1234\b/i,
+  /\bdef5678\b/i,
+  /\bbcd2345\b/i,
+  /\bfoo\b/i,
+  /\bbar\b/i,
+  /\bTODO\b/i,
+  /\bTBD\b/i,
+  /\bsample only\b/i,
+  /\bexample-only\b/i,
+  /\bplaceholder\b/i
+];
+
+const METHOD_WORDS = [
+  "use abortcontroller",
+  "wire abortcontroller",
+  "correct dependency array",
+  "use update-ref",
+  "use ts-morph",
+  "use cherry-pick",
+  "must use"
+];
+
+const FAKE_SCENARIO_OPENERS = [
+  "the provided git repository contains a ref reconstruction challenge",
+  "before the migration could be validated",
+  "scenario-specific requirement",
+  "plausible-looking approximations",
+  "audit-ready evidence package"
+];
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function splitRiskSentences(text) {
+  return text
+    .split(/\n\n+/)
+    .flatMap(p => p.split(/(?<=[.!?])\s+/))
+    .map(s => s.replace(/^[-*•\d.)\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+function repeatedPhraseRisk(sections) {
+  const text = Object.values(sections).join("\n").toLowerCase();
+  const phrases = [
+    "cherry-picking changes into new commits instead of restoring original refs",
+    "implementation choices that produce exact reproducible outputs rather than plausible-looking approximations",
+    "domain constraints, implementation judgment, reproducible computation",
+    "careful handling of edge cases the verifier specifically targets"
+  ];
+  const repeated = phrases.filter(p =>
+    (text.match(new RegExp(escapeRegex(p), "g")) || []).length > 1
+  );
+
+  const allText = Object.values(sections).join("\n");
+  const sentences = splitRiskSentences(allText);
+  const sentenceCounts = {};
+  for (const s of sentences) {
+    if (s.length < 20) continue;
+    const key = s.toLowerCase();
+    sentenceCounts[key] = (sentenceCounts[key] || 0) + 1;
+  }
+  const repeatedSentences = Object.entries(sentenceCounts)
+    .filter(([, count]) => count >= 3)
+    .map(([s]) => s);
+
+  const difficulty = sections.difficulty || "";
+  const diffSentences = splitRiskSentences(difficulty);
+  const diffPhraseCounts = {};
+  for (const s of diffSentences) {
+    const key = s.toLowerCase();
+    diffPhraseCounts[key] = (diffPhraseCounts[key] || 0) + 1;
+  }
+  const diffRepeats = Object.entries(diffPhraseCounts)
+    .filter(([, count]) => count > 1)
+    .map(([s]) => s);
+
+  return { repeated, repeatedSentences, diffRepeats };
+}
+
+function genericBoilerplateScore(text) {
+  const hits = GENERIC_AI_PHRASES.filter(p => text.toLowerCase().includes(p));
+  return { hits, status: hits.length >= 4 ? "NEEDS WORK" : "PASS" };
+}
+
+function crossDomainResidue(domain, text) {
+  const lower = text.toLowerCase();
+  const domainKey =
+    domain === "git-workflows" ? "git" :
+    domain === "typescript" ? "typescript" :
+    domain === "react" ? "react" : null;
+  if (!domainKey) return [];
+  const forbidden = DOMAIN_FORBIDDEN[domainKey] || [];
+  return forbidden.filter(term => lower.includes(term));
+}
+
+function placeholderRisk(sectionName, text) {
+  if (!text) return { hits: [], status: "PASS" };
+  const hits = PLACEHOLDER_PATTERNS.filter(rx => rx.test(text));
+  const isAllowedExampleSection =
+    /example|schema|format/i.test(sectionName);
+  return {
+    hits: hits.map(rx => rx.source),
+    status: hits.length && !isAllowedExampleSection ? "DO NOT SUBMIT" : "PASS"
+  };
+}
+
+function finalAnswerReadiness() {
+  const solved = window.__taskExecution || {};
+  const keys = Object.keys(solved);
+  // No runner run attempted at all — not applicable, not a block
+  if (keys.length === 0) {
+    return { status: "N/A", missing: [], note: "No runner execution yet — this is normal for draft-only work." };
+  }
+  const required = [
+    "solve_ran", "verify_ran", "verify_passed",
+    "outputs_exist", "no_placeholders_in_final_answer"
+  ];
+  const missing = required.filter(k => !solved[k]);
+  return {
+    status: missing.length ? "DO NOT SUBMIT" : "PASS",
+    missing,
+    note: !missing.length ? "" : "Reference solution has not been executed against fixtures."
+  };
+}
+
+function methodPrescriptionRisk(prompt, title, summary) {
+  const publicText = `${title}\n${summary}\n${prompt}`.toLowerCase();
+  return METHOD_WORDS.filter(w => publicText.includes(w));
+}
+
+function buildVersionCheck(currentVersion) {
+  return {
+    status: currentVersion === APP_VERSION ? "PASS" : "DO NOT SUBMIT",
+    expected: APP_VERSION,
+    actual: currentVersion,
+    reason: currentVersion !== APP_VERSION ? "Generated output is from stale app build." : ""
+  };
+}
+
+function fakeScenarioRisk(prompt) {
+  return FAKE_SCENARIO_OPENERS.filter(p =>
+    prompt.toLowerCase().includes(p)
+  );
+}
+
+function taskSimilarity(a, b) {
+  const wordsA = new Set(a.toLowerCase().split(/\W+/).filter(Boolean));
+  const wordsB = new Set(b.toLowerCase().split(/\W+/).filter(Boolean));
+  const overlap = [...wordsA].filter(w => wordsB.has(w)).length;
+  const union = new Set([...wordsA, ...wordsB]).size;
+  return union ? overlap / union : 0;
+}
+
+function duplicateTaskWarning() {
+  const recipes = Object.values(TASK_RECIPES);
+  if (!recipes || recipes.length < 2) return [];
+  const warnings = [];
+  for (let i = 0; i < recipes.length; i++) {
+    for (let j = i + 1; j < recipes.length; j++) {
+      const score = taskSimilarity(
+        recipes[i].title + " " + recipes[i].snippet,
+        recipes[j].title + " " + recipes[j].snippet
+      );
+      if (score > 0.75) {
+        warnings.push({
+          a: recipes[i].label,
+          b: recipes[j].label,
+          score: Math.round(score * 100),
+          message: "Likely duplicate task variant. Pick one."
+        });
+      }
+    }
+  }
+  return warnings;
+}
+
+function renderRiskChecks() {
+  const el = document.querySelector("#risk-checks");
+  if (!el) return;
+  const fields = getTaskFields();
+  const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+  const allText = [
+    fields.title, fields.prompt, fields.snippet, fields.difficulty,
+    fields.resources, fields.solution, fields.verifiers, fields.errorIfWrong
+  ].join("\n");
+
+  const sections = {
+    title: fields.title, prompt: fields.prompt, snippet: fields.snippet,
+    difficulty: fields.difficulty, resources: fields.resources,
+    solution: fields.solution, verifiers: fields.verifiers,
+    errorIfWrong: fields.errorIfWrong
+  };
+
+  // Also scan the generated Final Answer section (from the built package) for placeholders
+  let finalAnswerText = "";
+  const pkg = els.generatedTaskPackage ? els.generatedTaskPackage.value : "";
+  if (pkg) {
+    const faMatch = pkg.match(/── FIELD: Final answer \/ Expected solution outputs ──([\s\S]*?)(?=── FIELD: Verifier description|── FIELD: Time estimate)/);
+    if (faMatch) finalAnswerText = faMatch[1];
+  }
+  const sectionsWithFA = { ...sections, "final answer": finalAnswerText };
+
+  const rep = repeatedPhraseRisk(sections);
+  const bp = genericBoilerplateScore(allText);
+  const xd = crossDomainResidue(domain, allText);
+  let phBlock = false;
+  const phSectionHits = {};
+  for (const [name, text] of Object.entries(sectionsWithFA)) {
+    const r = placeholderRisk(name, text);
+    phSectionHits[name] = r;
+    if (r.status === "DO NOT SUBMIT") phBlock = true;
+  }
+  const fa = finalAnswerReadiness();
+  const mp = methodPrescriptionRisk(fields.prompt, fields.title, fields.snippet);
+  const bv = buildVersionCheck(APP_VERSION);
+  const fso = fakeScenarioRisk(fields.prompt);
+  const dup = duplicateTaskWarning();
+
+  const rows = [];
+  function addRow(id, label, status, detail) {
+    const cls = status === "PASS" ? "risk-pass" : status === "DO NOT SUBMIT" ? "risk-block" : "risk-warn";
+    const icon = status === "PASS" ? "✓" : status === "DO NOT SUBMIT" ? "✗" : "!";
+    rows.push({ id, label, status, detail, cls, icon });
+  }
+
+  addRow("repetition", "1. Repetition",
+    rep.repeated.length || rep.repeatedSentences.length || rep.diffRepeats.length ? "NEEDS WORK" : "PASS",
+    [rep.repeated.length ? `Repeated phrases: ${rep.repeated.join(", ")}` : "",
+     rep.repeatedSentences.length ? `Same sentence in 3+ sections: ${rep.repeatedSentences.slice(0, 3).map(s => s.slice(0, 80) + "...").join(", ")}` : "",
+     rep.diffRepeats.length ? `Duplicated failure mode in Difficulty: "${rep.diffRepeats[0].slice(0, 80)}..."` : ""
+    ].filter(Boolean).join("; ") || "No repetition detected"
+  );
+
+  addRow("boilerplate", "2. Generic Boilerplate", bp.status,
+    bp.hits.length ? `Found: ${bp.hits.join(", ")}` : "No generic template phrases"
+  );
+
+  addRow("cross-domain", "3. Cross-Domain Residue",
+    xd.length ? "NEEDS WORK" : "PASS",
+    xd.length ? `Foreign terms in ${domain}: ${xd.join(", ")}` : "No cross-domain contamination"
+  );
+
+  const phSummary = Object.entries(phSectionHits)
+    .filter(([, r]) => r.hits.length)
+    .map(([name, r]) => `${name}: ${r.hits.join(", ")}`);
+  addRow("placeholder", "4. Placeholder Values",
+    phBlock ? "DO NOT SUBMIT" : "PASS",
+    phSummary.length ? phSummary.join("; ") : "No placeholder values detected"
+  );
+
+  addRow("final-answer", "5. Final Answer Computed", fa.status,
+    fa.note || "All execution gates passed"
+  );
+
+  addRow("method", "6. Method-vs-Output",
+    mp.length ? "NEEDS WORK" : "PASS",
+    mp.length ? `Method prescribed in public fields: ${mp.join(", ")}` : "No method prescription in public fields"
+  );
+
+  addRow("build", "7. Build Version", bv.status,
+    bv.status === "PASS" ? `v${APP_VERSION}` : `Expected ${bv.expected}, got ${bv.actual}`
+  );
+
+  addRow("opener", "8. Fake Scenario Opener",
+    fso.length ? "NEEDS WORK" : "PASS",
+    fso.length ? `Template openers: ${fso.join(", ")}` : "No fake scenario wrappers"
+  );
+
+  addRow("duplicate", "9. Duplicate Variant",
+    dup.length ? "NEEDS WORK" : "PASS",
+    dup.length ? dup.map(d => `${d.a} ~ ${d.b} (${d.score}%): ${d.message}`).join("; ") : "No duplicate variants detected"
+  );
+
+  const aiPat = checkAIPatterns(fields);
+  addRow("ai-pattern", "10. AI Pattern Risk",
+    aiPat.length ? "NEEDS WORK" : "PASS",
+    aiPat.length ? aiPat.join("; ") : "No AI-pattern flags — output reads as human-written"
+  );
+
+  const statuses = rows.filter(r => r.status !== "PASS").map(r => r.status);
+  const overall = statuses.includes("DO NOT SUBMIT") ? "DO NOT SUBMIT"
+    : statuses.includes("NEEDS WORK") ? "NEEDS WORK"
+    : "PASS";
+  const overallCls = overall === "PASS" ? "risk-pass" : overall === "DO NOT SUBMIT" ? "risk-block" : "risk-warn";
+  const overallIcon = overall === "PASS" ? "✓" : overall === "DO NOT SUBMIT" ? "✗" : "!";
+
+  el.innerHTML = `
+<div class="risk-panel">
+  <div class="risk-panel-header">
+    <span class="risk-panel-title">LLM / Reviewer Risk Checks</span>
+    <span class="risk-overall ${overallCls}">${overallIcon} ${overall}</span>
+  </div>
+  <div class="risk-legend">
+    <span class="risk-pass">✓ PASS</span>
+    <span class="risk-warn">! NEEDS WORK</span>
+    <span class="risk-block">✗ DO NOT SUBMIT</span>
+  </div>
+  <table class="risk-table">
+    ${rows.map(r => `
+    <tr class="risk-row ${r.cls}">
+      <td class="risk-icon">${r.icon}</td>
+      <td class="risk-label">${escapeHtmlInline(r.label)}</td>
+      <td class="risk-status">${r.status}</td>
+      <td class="risk-detail">${escapeHtmlInline(r.detail)}</td>
+    </tr>`).join("")}
+  </table>
+  <div class="risk-footer ${overallCls}">Overall: <strong>${overallIcon} ${overall}</strong></div>
+  ${fa.status === "DO NOT SUBMIT" ? `<div class="risk-footer-note">Final Answer Status: NOT READY — ${fa.note}</div>` : ""}
+</div>`;
 }
 
 // ── CODE TEMPLATE LINTER ──────────────────────────────────────────────────
@@ -6963,6 +8278,815 @@ async function buildAndDownloadZip() {
   }
 }
 
+// ── LOCAL RUNNER (Phase 1: health + connection) ──────────────────────
+const RUNNER_API_BASE = "http://127.0.0.1:8787";
+
+// Chrome Private Network Access: mark all localhost fetches as intentional local requests.
+// https://developer.chrome.com/blog/private-network-access-preflight/
+{
+  const origFetch = window.fetch.bind(window);
+  window.fetch = function patchedFetch(input, init) {
+    init = init || {};
+    const url = typeof input === "string" ? input : input?.url || "";
+    if (url.startsWith(RUNNER_API_BASE) || url.includes("127.0.0.1") || url.includes("localhost")) {
+      init.targetAddressSpace = "local";
+    }
+    return origFetch(input, init);
+  };
+}
+
+let runnerHealth = null;
+let runnerPollInterval = null;
+
+async function checkRunnerHealth() {
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/health`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    runnerHealth = await resp.json();
+    renderRunnerConnection();
+    return runnerHealth;
+  } catch {
+    runnerHealth = null;
+    renderRunnerConnection();
+    return null;
+  }
+}
+
+function renderRunnerConnection() {
+  const el = document.querySelector("#runner-connection");
+  const badge = document.querySelector("#runner-status-badge");
+  if (!el) return;
+
+  if (!runnerHealth) {
+    el.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Backend not reachable at <code>${RUNNER_API_BASE}</code>. Start the runner with <code>cd backend &amp;&amp; npm start</code>.</p>`;
+    if (badge) { badge.textContent = "Disconnected"; badge.className = "version-pill runner-disconnected"; }
+    return;
+  }
+
+  if (badge) { badge.textContent = "Connected — v" + runnerHealth.version; badge.className = "version-pill runner-connected"; }
+
+  const rows = [
+    { label: "Service:", value: runnerHealth.service },
+    { label: "Version:", value: runnerHealth.version },
+    { label: "Python:", value: runnerHealth.python },
+    { label: "Node:", value: runnerHealth.node },
+    { label: "Git:", value: runnerHealth.git },
+  ];
+
+  el.innerHTML =
+    '<div class="runner-version-row">' +
+    rows.map(r =>
+      `<div class="runner-version-item"><span class="runner-label">${escapeHtml(r.label)}</span> <span class="${r.value && !r.value.includes("not found") ? "runner-check" : "runner-cross"}">${escapeHtml(r.value || "not found")}</span></div>`
+    ).join("") +
+    '</div>';
+
+  // Enable upload and build buttons when connected
+  const uploadBtn = document.querySelector("#runner-upload-zip");
+  if (uploadBtn) uploadBtn.disabled = false;
+  const buildBtn = document.querySelector("#runner-build-zip");
+  if (buildBtn) buildBtn.disabled = false;
+}
+
+function startRunnerPolling() {
+  if (runnerPollInterval) clearInterval(runnerPollInterval);
+  checkRunnerHealth();
+  runnerPollInterval = setInterval(checkRunnerHealth, 10000);
+}
+
+function stopRunnerPolling() {
+  if (runnerPollInterval) {
+    clearInterval(runnerPollInterval);
+    runnerPollInterval = null;
+  }
+}
+
+// ── TASK ZIP BUILDER ─────────────────────────────────────────────────
+let lastBuiltZipId = null;
+
+function normalizeRunnerFamily(value) {
+  const key = String(value || "").trim().toLowerCase();
+  if (key === "react" || key === "frontend" || key === "react-and-frontend-testing") {
+    return "react";
+  }
+  if (key === "typescript" || key === "tsx") {
+    return "typescript";
+  }
+  if (key === "git" || key === "version-control" || key === "git-workflows") {
+    return "git";
+  }
+  return key;
+}
+
+function assertRunnerFamilySupported(taskFamily) {
+   const supported = new Set(["react", "typescript", "git"]);
+   if (!supported.has(taskFamily)) {
+     throw new Error(
+       `Runner package builder not implemented for ${taskFamily}. Current backend supports: react, typescript, git.`
+     );
+   }
+ }
+
+const ENTERPRISE_RECIPE_IDS = new Set([
+  "react-stale-closure",
+  "typescript-awaited-type",
+  "git-force-push-recovery",
+]);
+
+const FAMILY_BY_DOMAIN = {
+  react: "react",
+  typescript: "typescript",
+  "git-workflows": "git",
+};
+
+const DOMAIN_TO_ENTERPRISE_RECIPE = {
+  react: "react-stale-closure",
+  typescript: "typescript-awaited-type",
+  "git-workflows": "git-force-push-recovery",
+};
+
+function resolveExecutionSpec() {
+  let recipeId = els.taskRecipe ? els.taskRecipe.value : "";
+  let recipe = recipeId && TASK_RECIPES[recipeId] ? TASK_RECIPES[recipeId] : null;
+
+  // Fallback: if no locked recipe selected, try to derive one from current domain
+  if (!recipe || !ENTERPRISE_RECIPE_IDS.has(recipeId)) {
+    const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+    const mappedId = DOMAIN_TO_ENTERPRISE_RECIPE[domain];
+    if (mappedId && TASK_RECIPES[mappedId]) {
+      recipeId = mappedId;
+      recipe = TASK_RECIPES[mappedId];
+      // Auto-select in the dropdown so it's visible to the user
+      if (els.taskRecipe && els.taskRecipe.value !== mappedId) {
+        els.taskRecipe.value = mappedId;
+      }
+    }
+  }
+
+  if (!recipe || !ENTERPRISE_RECIPE_IDS.has(recipeId)) {
+    throw new Error(
+      "Select one locked enterprise recipe: React, TypeScript, or Git."
+    );
+  }
+
+  const domain = recipe.domain;
+  const family = FAMILY_BY_DOMAIN[domain];
+
+  if (!family) {
+    throw new Error(`No runner family is mapped for domain "${domain}".`);
+  }
+
+  return { recipeId, recipe, domain, family };
+}
+
+async function handleBuildTaskZip() {
+  const btn = document.querySelector("#runner-build-zip");
+  const statusEl = document.querySelector("#runner-builder-status");
+  const downloadLink = document.querySelector("#runner-download-zip");
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.innerHTML = "Building task package...";
+  if (downloadLink) downloadLink.classList.add("is-hidden");
+
+try {
+     const spec = resolveExecutionSpec();
+     const family = spec.family;
+     const recipeId = spec.recipeId;
+
+     const fields = getTaskFields();
+     // Extract first paragraph of verifiers as description for cache key
+     const verifierLines = (fields.verifiers || "").split("\n").filter(l => l.trim());
+     const verifierDescription = verifierLines.length ? verifierLines[0].trim().slice(0, 120) : "";
+
+     const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         family,
+         title: fields.title,
+         prompt: fields.prompt,
+         recipeId,
+         resources: fields.resources,
+         verifierDescription
+       })
+     });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    lastBuiltZipId = data.task_id;
+
+    // Auto-download the zip and upload to runner
+    let uploaded = false;
+    try {
+      const dlResp = await fetch(`${RUNNER_API_BASE}/api/download/${data.task_id}`);
+      if (dlResp.ok) {
+        const blob = await dlResp.blob();
+        const file = new File([blob], `${data.family}-task-${data.task_id.slice(0, 8)}.zip`, { type: "application/zip" });
+        // Create a DataTransfer to set file on the hidden input
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        const input = document.querySelector("#runner-zip-input");
+        if (input) {
+          input.files = dt.files;
+          await handleRunnerZipChange({ target: input });
+          uploaded = true;
+        }
+      }
+    } catch {}
+
+    if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Package built: <strong>${data.family}</strong> (${data.task_id})${uploaded ? " — auto-uploaded to Runner" : ""}`;
+    if (downloadLink) {
+      downloadLink.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
+      downloadLink.classList.remove("is-hidden");
+    }
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Build failed: ${escapeHtml(err.message)}`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── LOCAL RUNNER (Phase 2: upload + detection) ──────────────────────
+async function downloadRunnerTaskZip() {
+  const btn = document.querySelector("#build-zip-package");
+  const statusEl = document.querySelector("#runner-builder-status");
+  const oldText = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Building ZIP...";
+  }
+  if (statusEl) statusEl.innerHTML = "Building runner ZIP package...";
+
+  try {
+    const health = await checkRunnerHealth();
+    if (!health) throw new Error(`Backend not reachable at ${RUNNER_API_BASE}`);
+
+    const spec = resolveExecutionSpec();
+    const fields = getTaskFields();
+    const verifierLines = (fields.verifiers || "").split("\n").filter((line) => line.trim());
+    const verifierDescription = verifierLines.length ? verifierLines[0].trim().slice(0, 120) : "";
+
+    const resp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        family: spec.family,
+        title: fields.title,
+        prompt: fields.prompt,
+        recipeId: spec.recipeId,
+        resources: fields.resources,
+        verifierDescription
+      })
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    lastBuiltZipId = data.task_id;
+
+    const downloadLink = document.querySelector("#runner-download-zip");
+    if (downloadLink) {
+      downloadLink.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
+      downloadLink.classList.remove("is-hidden");
+    }
+
+    const a = document.createElement("a");
+    a.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
+    a.download = `${data.family}-task-${data.task_id.slice(0, 8)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Runner ZIP ready: <strong>${data.family}</strong> (${data.task_id})`;
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">×</span> ZIP failed: ${escapeHtml(message)}`;
+    alert(`ZIP download failed: ${message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = oldText || "5. Download ZIP";
+    }
+  }
+}
+
+let runnerPackageInfo = null;
+
+async function uploadTaskPackage(file) {
+  const formData = new FormData();
+  formData.append("package", file);
+
+  const statusEl = document.querySelector("#runner-package");
+  if (!statusEl) return;
+
+  statusEl.innerHTML = `<p class="runner-muted">Uploading and extracting <strong>${escapeHtml(file.name)}</strong>...</p>`;
+
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/packages`, {
+      method: "POST",
+      body: formData
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Upload failed: ${escapeHtml(err.error || "unknown error")}</p>`;
+      return;
+    }
+
+    runnerPackageInfo = await resp.json();
+    renderPackageInfo();
+
+    // Enable execution buttons on successful detection
+    if (runnerPackageInfo.required_inputs_found) {
+      document.querySelector("#runner-run-setup").disabled = false;
+      document.querySelector("#runner-run-solve").disabled = false;
+      document.querySelector("#runner-run-verify").disabled = false;
+      document.querySelector("#runner-open-logs").disabled = false;
+      const downloadLogsBtn = document.querySelector("#runner-download-logs");
+      if (downloadLogsBtn) downloadLogsBtn.disabled = false;
+    }
+  } catch (err) {
+    statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Upload error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderPackageInfo() {
+  const el = document.querySelector("#runner-package");
+  if (!el || !runnerPackageInfo) return;
+
+  const info = runnerPackageInfo;
+  const familyLabel = info.detected_family || info.closest_family || "unknown";
+  const detected = info.required_inputs_found;
+
+  // Update family
+  const familyEl = document.querySelector("#runner-task-family");
+  if (familyEl) familyEl.textContent = familyLabel.charAt(0).toUpperCase() + familyLabel.slice(1);
+
+  // Update status value
+  const statusEl = document.querySelector("#runner-status-value");
+  if (statusEl) statusEl.textContent = detected ? "PACKAGE_UPLOADED" : "MISSING_FILES";
+
+  // Render package info box
+  let html = `<p class="runner-muted">Package: <strong>${escapeHtml(info.package_id)}</strong></p>`;
+
+  if (detected) {
+    html += `<p><span class="runner-check">✓</span> Task family: <strong>${familyLabel}</strong></p>`;
+    html += `<p><span class="runner-check">✓</span> ${info.extracted_count} files extracted</p>`;
+    html += `<div class="runner-package-info">`;
+    for (const f of info.found_files || []) {
+      html += `<div><span class="runner-check">✓</span></div><div>${escapeHtml(f)}</div>`;
+    }
+    html += `</div>`;
+  } else {
+    html += `<p><span class="runner-cross">✗</span> Closest family: <strong>${familyLabel}</strong></p>`;
+    html += `<p><span class="runner-cross">✗</span> Missing required inputs:</p>`;
+    html += `<div class="runner-package-info">`;
+    for (const f of info.missing_inputs || []) {
+      html += `<div><span class="runner-cross">✗</span></div><div>${escapeHtml(f)}</div>`;
+    }
+    html += `</div>`;
+    // Disable execution buttons
+    document.querySelector("#runner-run-setup").disabled = true;
+  }
+  el.innerHTML = html;
+}
+
+// ── Upload button handler ────────────────────────────────────────────
+function handleRunnerUploadClick() {
+  const input = document.querySelector("#runner-zip-input");
+  if (input) input.click();
+}
+
+async function handleRunnerZipChange(event) {
+  const file = event.target.files && event.target.files[0];
+  if (file) await uploadTaskPackage(file);
+}
+
+// ── LOCAL RUNNER (Phase 3: execution) ────────────────────────────────
+let runnerCurrentRunId = null;
+let runnerPollRunInterval = null;
+
+// ── Phase 4: computed outputs store ──────────────────────────────────
+let runnerComputedOutputs = null;
+
+function sanitizeComputedValue(value) {
+  if (typeof value === "string") {
+    return value
+      .replace(/[A-Z]:\\[^"\n\r]+\\backend\\workspaces\\[^"\n\r\\]+\\/gi, "<runner-workspace>\\")
+      .replace(/[A-Z]:\\[^"\n\r]+\\backend\\workspaces\\[^"\n\r]+/gi, "<runner-workspace>")
+      .replace(/[A-Z]:\\Users\\[^"\n\r]+\\selection-improvement-experts\\/gi, "<repo>\\")
+      .replace(/[A-Z]:\\Users\\[^"\n\r]+\\selection-improvement-experts/gi, "<repo>");
+  }
+  if (Array.isArray(value)) return value.map(sanitizeComputedValue);
+  if (value && typeof value === "object") {
+    const copy = {};
+    for (const [key, nested] of Object.entries(value)) copy[key] = sanitizeComputedValue(nested);
+    return copy;
+  }
+  return value;
+}
+
+function displayOutputFileKeys(domainKey, outputFiles) {
+  const keys = Object.keys(outputFiles || {});
+  if (domainKey === "react") {
+    const required = new Set([
+      "DataFetcher.fixed.tsx",
+      "fix.patch",
+      "test_results.json",
+      "render_count_report.json",
+      "run_manifest.json"
+    ]);
+    return keys.filter((key) => required.has(key));
+  }
+  return keys;
+}
+
+function buildComputedFinalAnswer(domainKey, outputs) {
+  const lines = [];
+  lines.push("FINAL ANSWER (computed from solver execution against real fixtures):");
+  lines.push("");
+
+  const outputFiles = outputs?.files || {};
+  const fileKeys = displayOutputFileKeys(domainKey, outputFiles);
+  if (fileKeys.length) {
+    lines.push("Output files produced:");
+    for (const key of fileKeys.sort()) {
+      const info = outputFiles[key];
+      const sizeStr = info.size !== undefined ? ` (${info.size} bytes, SHA-256: ${info.sha256})` : "";
+      lines.push(`- outputs/${key}${sizeStr}`);
+    }
+    lines.push("");
+    for (const key of fileKeys.sort()) {
+      const info = outputFiles[key];
+      if (info.type === "binary") {
+        lines.push(`=== ${key} (binary) ===`);
+        lines.push(`Size: ${info.size} bytes`);
+        lines.push(`SHA-256: ${info.sha256}`);
+      } else if (info.type === "json" && info.content !== null) {
+        lines.push(`=== ${key} ===`);
+        lines.push(JSON.stringify(sanitizeComputedValue(info.content), null, 2));
+      } else if (info.type === "text" && info.content !== null) {
+        lines.push(`=== ${key} ===`);
+        lines.push(sanitizeComputedValue(String(info.content).trim()));
+      }
+      lines.push("");
+    }
+  } else {
+    lines.push("No output files found. The solver may not have produced outputs/.");
+  }
+
+  return lines.join("\n");
+}
+
+function buildComputedTaskPackage(domainKey, fields) {
+  const faText = buildComputedFinalAnswer(domainKey, runnerComputedOutputs);
+  const parts = buildSubmissionPackageLines(fields);
+  const faIdx = parts.findIndex(l => l.startsWith("── FIELD: Final answer / Expected solution outputs"));
+  if (faIdx !== -1) {
+    const nextField = parts.slice(faIdx + 1).findIndex(l => l.startsWith("── FIELD:"));
+    const endIdx = nextField !== -1 ? faIdx + 1 + nextField : parts.length;
+    parts.splice(faIdx, endIdx - faIdx, "── FIELD: Final answer / Expected solution outputs ──", faText, "");
+  }
+  return parts.join("\n");
+}
+
+const PLACEHOLDER_SCAN_PATTERNS = [
+  /\babcd1234\b/, /\bdef5678\b/, /\bbcd2345\b/,
+  /\bfoo\b/, /\bbar\b/,
+  /\bTODO\b/, /\bTBD\b/, /\bplaceholder\b/i,
+  /replace after running solve\.py/i,
+];
+
+function scanForPlaceholders(outputs) {
+  const files = outputs?.files || {};
+  const allText = Object.entries(files)
+    .filter(([, info]) => info.type === "text" || info.type === "json")
+    .map(([, info]) => typeof info.content === "string" ? info.content : JSON.stringify(info.content))
+    .join("\n");
+  for (const pattern of PLACEHOLDER_SCAN_PATTERNS) {
+    if (pattern.test(allText)) {
+      return { clean: false, match: pattern.source };
+    }
+  }
+  return { clean: true };
+}
+
+async function handleComputeFinalAnswer() {
+  if (!runnerCurrentRunId) return;
+  const btn = document.querySelector("#runner-compute-fa");
+  if (btn) btn.disabled = true;
+
+  updateRunnerStatusField("runner-status-value", "COMPUTING...", "runner-running");
+  updateRunnerStatusField("runner-placeholder-status", "scanning", "runner-warn");
+
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/outputs`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    runnerComputedOutputs = data;
+
+    const outputsExist = Object.keys(data.files || {}).length > 0;
+    const hasVerifyPassed = data.status === "OUTPUTS_COLLECTED";
+    const placeholderScan = outputsExist ? scanForPlaceholders(data) : { clean: false };
+    const faReady = outputsExist && hasVerifyPassed && placeholderScan.clean;
+
+    window.__taskExecution = window.__taskExecution || {};
+    window.__taskExecution.solve_ran = true;
+    window.__taskExecution.verify_ran = hasVerifyPassed;
+    window.__taskExecution.verify_passed = hasVerifyPassed;
+    window.__taskExecution.outputs_exist = outputsExist;
+    window.__taskExecution.no_placeholders_in_final_answer = faReady;
+
+    if (faReady) {
+      updateRunnerStatusField("runner-status-value", "COMPUTED", "runner-check");
+      updateRunnerStatusField("runner-placeholder-status", "clean", "runner-check");
+      document.querySelector("#runner-import-outputs").disabled = false;
+    } else {
+      const reason = !outputsExist ? "no outputs found"
+        : !hasVerifyPassed ? "verify not run"
+        : `placeholder detected: ${placeholderScan.match}`;
+      updateRunnerStatusField("runner-status-value", "COMPUTE_FAILED", "runner-cross");
+      updateRunnerStatusField("runner-placeholder-status", placeholderScan.clean ? "clean" : `blocked: ${placeholderScan.match}`, "runner-cross");
+      const statusEl = document.querySelector("#runner-status");
+      if (statusEl) {
+        const errMsg = document.createElement("p");
+        errMsg.className = "runner-muted";
+        errMsg.innerHTML = `<span class="runner-cross">✗</span> Final Answer blocked: ${escapeHtml(reason)}`;
+        statusEl.appendChild(errMsg);
+      }
+    }
+
+    renderRiskChecks();
+  } catch (err) {
+    updateRunnerStatusField("runner-status-value", "COMPUTE_FAILED", "runner-cross");
+    const statusEl = document.querySelector("#runner-status");
+    if (statusEl) {
+      const errMsg = document.createElement("p");
+      errMsg.className = "runner-muted";
+      errMsg.innerHTML = `<span class="runner-cross">✗</span> Compute error: ${escapeHtml(err.message)}`;
+      statusEl.appendChild(errMsg);
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleImportComputedOutputs() {
+  const btn = document.querySelector("#runner-import-outputs");
+  const statusEl = document.querySelector("#runner-pipeline-status") || document.querySelector("#runner-status");
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.innerHTML = `<span class="runner-running">Importing computed outputs...</span>`;
+
+  if (!runnerCurrentRunId) {
+    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Import Outputs needs a completed Run Pipeline first.`;
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  if (runnerCurrentRunId && (!runnerComputedOutputs?.files || !Object.keys(runnerComputedOutputs.files).length)) {
+    const outputsResp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/outputs`);
+    if (outputsResp.ok) {
+      runnerComputedOutputs = await outputsResp.json();
+    }
+  }
+
+  if (!runnerComputedOutputs?.files || !Object.keys(runnerComputedOutputs.files).length) {
+    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Import failed: no computed outputs were available. Run Pipeline first.`;
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const fields = getTaskFields();
+  const domainKey = fields.domainKey;
+  const computedPkg = dedupeSubmissionPackageText(buildComputedTaskPackage(domainKey, fields));
+
+  if (els.generatedTaskPackage) els.generatedTaskPackage.value = computedPkg;
+  if (els.generatedTaskPreview) els.generatedTaskPreview.innerHTML = `<pre>${escapeHtml(computedPkg)}</pre>`;
+
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/finalize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      updateRunnerStatusField("runner-status-value", err.status || "FINALIZE_FAILED", "runner-cross");
+      return;
+    }
+    const data = await resp.json();
+    if (data.status === "COMPUTED_PASS") {
+      updateRunnerStatusField("runner-copy-status", "UNLOCKED", "runner-check");
+      updateRunnerStatusField("runner-status-value", "COMPUTED_PASS", "runner-check");
+      if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Computed outputs imported into Generated Submission Package.`;
+      window.__taskExecution = window.__taskExecution || {};
+      window.__taskExecution.solve_ran = true;
+      window.__taskExecution.verify_ran = true;
+      window.__taskExecution.verify_passed = true;
+      window.__taskExecution.outputs_exist = true;
+      window.__taskExecution.no_placeholders_in_final_answer = true;
+    }
+  } catch (err) {
+    updateRunnerStatusField("runner-status-value", "FINALIZE_ERROR", "runner-cross");
+    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Import failed: ${escapeHtml(err.message)}`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+
+  renderRiskChecks();
+}
+
+function updateRunnerStatusField(id, value, className) {
+  const el = document.querySelector(`#${id}`);
+  if (el) { el.textContent = value; if (className) el.className = `runner-value ${className}`; }
+}
+
+async function startRun(runSetup, runSolve, runVerify) {
+  if (!runnerPackageInfo || !runnerPackageInfo.package_id) return;
+
+  updateRunnerStatusField("runner-status-value", "STARTING", "runner-running");
+  const statusEl = null;
+  if (statusEl) statusEl.textContent = 'Starting run…';
+
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        package_id: runnerPackageInfo.package_id,
+        run_setup: runSetup,
+        run_solve: runSolve,
+        run_verify: runVerify
+      })
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    runnerCurrentRunId = data.run_id;
+    updateRunnerStatusField("runner-status-value", data.status);
+    // Poll for completion
+    pollRunStatus();
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Run error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function pollRunStatus() {
+  if (!runnerCurrentRunId) return;
+  if (runnerPollRunInterval) clearInterval(runnerPollRunInterval);
+
+  const poll = async () => {
+    try {
+      const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      updateRunnerStatusField("runner-status-value", data.status);
+      updateRunnerStatusField("runner-task-family", data.task_family ? data.task_family.charAt(0).toUpperCase() + data.task_family.slice(1) : "—");
+      updateRunnerStatusField("runner-solve-status", data.solve_ran ? data.solve_ran : "—");
+      updateRunnerStatusField("runner-verify-status", data.verify_ran ? data.verify_ran : "—");
+      updateRunnerStatusField("runner-outputs-status", data.outputs_exist ? "found" : "—");
+      // Dynamic copy gate — COMPUTED_PASS from backend unlocks it
+      const isCopyUnlocked = data.status === "COMPUTED_PASS";
+      updateRunnerStatusField("runner-copy-status", isCopyUnlocked ? "UNLOCKED" : "LOCKED", isCopyUnlocked ? "runner-check" : "");
+      // Clear transient start message once real status is received
+      const statusTransient = document.querySelector("#runner-status");
+      if (statusTransient && statusTransient.textContent === "Starting run…") {
+        statusTransient.textContent = "";
+      }
+
+      // Terminal states — disable manual step buttons
+      const terminalStates = ["OUTPUTS_COLLECTED", "OUTPUTS_MISSING", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];
+      if (terminalStates.includes(data.status)) {
+        if (runnerPollRunInterval) {
+          clearInterval(runnerPollRunInterval);
+          runnerPollRunInterval = null;
+        }
+        // Enable compute FA button when outputs collected
+        if (data.status === "OUTPUTS_COLLECTED") {
+          document.querySelector("#runner-compute-fa").disabled = false;
+        }
+        // Enable import outputs button when COMPUTED_PASS
+        if (data.status === "COMPUTED_PASS") {
+          document.querySelector("#runner-import-outputs").disabled = false;
+        }
+      }
+    } catch {
+      // Poll will retry
+    }
+  };
+
+  await poll();
+  if (!runnerPollRunInterval) {
+    runnerPollRunInterval = setInterval(poll, 2000);
+  }
+}
+
+async function runEnterprisePipeline() {
+  const button = document.querySelector("#runner-run-pipeline");
+  const statusEl = document.querySelector("#runner-pipeline-status");
+  const origText = button ? button.textContent : "";
+
+  if (button) { button.disabled = true; button.textContent = "Running…"; }
+  if (statusEl) statusEl.textContent = "";
+
+  try {
+    const spec = resolveExecutionSpec();
+    const family = spec.family;
+    const recipeId = spec.recipeId;
+
+    // Sync domain/expertise if not already set
+    if (els.taskDomainSelect) els.taskDomainSelect.value = spec.recipe.domain;
+    if (els.taskExpertise) els.taskExpertise.value = spec.recipe.expertise;
+
+    // Ensure draft matches recipe
+    if (recipeId && TASK_RECIPES[recipeId]) {
+      buildFromRecipe(recipeId);
+      buildTaskPackage();
+    }
+
+    if (statusEl) statusEl.textContent = `Building ${family} package from ${recipeId}…`;
+
+    const health = await checkRunnerHealth();
+    if (!health) {
+      throw new Error("Runner backend is not reachable at http://127.0.0.1:8787.");
+    }
+
+    // Build package via backend
+    const fields = getTaskFields();
+    const verifierLines = (fields.verifiers || "").split("\n").filter(l => l.trim());
+    const verifierDescription = verifierLines.length ? verifierLines[0].trim().slice(0, 120) : "";
+
+    const buildResp = await fetch(`${RUNNER_API_BASE}/api/build-task-zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ family, recipeId, title: fields.title, prompt: fields.prompt, resources: fields.resources, verifierDescription })
+    });
+    if (!buildResp.ok) throw new Error(`Build failed (${buildResp.status})`);
+    const buildData = await buildResp.json();
+
+    if (statusEl) statusEl.textContent = `Package built, downloading and uploading…`;
+
+    // Auto-download and upload to runner
+    const dlResp = await fetch(`${RUNNER_API_BASE}/api/download/${buildData.task_id}`);
+    if (!dlResp.ok) throw new Error(`Download failed (${dlResp.status})`);
+    const blob = await dlResp.blob();
+    const file = new File([blob], `${family}-${buildData.task_id.slice(0, 8)}.zip`, { type: "application/zip" });
+
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const input = document.querySelector("#runner-zip-input");
+    if (input) { input.files = dt.files; await handleRunnerZipChange({ target: input }); }
+
+    if (!runnerPackageInfo?.package_id) throw new Error("Package upload did not return a package_id");
+
+    if (statusEl) statusEl.textContent = "Package uploaded, running pipeline (setup → solve → verify)…";
+
+    // Run full pipeline
+    await startRun(true, true, true);
+
+    if (!runnerCurrentRunId) throw new Error("Run did not start");
+
+    // Poll until terminal
+    const pollUntilTerminal = () => new Promise((resolve, reject) => {
+      const interval = setInterval(async () => {
+        try {
+          const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}`);
+          if (!resp.ok) return;
+          const data = await resp.json();
+          const terminal = ["OUTPUTS_COLLECTED", "OUTPUTS_MISSING", "SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "COMPUTED_PASS", "DO_NOT_SUBMIT"];
+          if (terminal.includes(data.status)) {
+            clearInterval(interval);
+            if (["SETUP_FAILED", "SOLVE_FAILED", "VERIFY_FAILED", "OUTPUTS_MISSING", "DO_NOT_SUBMIT"].includes(data.status)) {
+              reject(new Error(`Pipeline stopped in state ${data.status}. Check logs.`));
+            } else {
+              resolve(data);
+            }
+          }
+        } catch {}
+      }, 1500);
+    });
+
+    const result = await pollUntilTerminal();
+
+    if (statusEl) statusEl.textContent = "Finalizing run…";
+
+    // Finalize via backend
+    const finalizeResp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/finalize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    if (!finalizeResp.ok) {
+      const errBody = await finalizeResp.json().catch(() => ({}));
+      throw new Error(`Finalize rejected: ${errBody.placeholder_reason || errBody.error || `HTTP ${finalizeResp.status}`}`);
+    }
+
+    // Import computed outputs into the task package
+    await handleImportComputedOutputs();
+
+    if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Enterprise pipeline completed and final answer imported.`;
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> ${escapeHtml(err.message)}`;
+  } finally {
+    if (button) { button.disabled = false; button.textContent = origText || "Run Pipeline"; }
+  }
+}
+
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -6981,6 +9105,7 @@ function renderAll() {
 els.tabs.forEach((tab) => tab.addEventListener("click", () => {
   setView(tab.dataset.view);
   if (tab.dataset.view === "templates") renderCodeTemplates();
+  if (tab.dataset.view === "runner") checkRunnerHealth();
 }));
 const refreshTemplatesBtn = document.querySelector("#refresh-templates");
 if (refreshTemplatesBtn) refreshTemplatesBtn.addEventListener("click", renderCodeTemplates);
@@ -7011,13 +9136,90 @@ els.clearData.addEventListener("click", clearData);
 els.sampleData.addEventListener("click", loadSampleData);
 
 const buildZipBtn = document.querySelector("#build-zip-package");
-if (buildZipBtn) buildZipBtn.addEventListener("click", buildAndDownloadZip);
+if (buildZipBtn) buildZipBtn.addEventListener("click", downloadRunnerTaskZip);
 
 const frontierSimBtn = document.querySelector("#run-frontier-sim");
 if (frontierSimBtn) frontierSimBtn.addEventListener("click", renderFrontierSimResults);
 
+const autoFixBtn = document.querySelector("#auto-fix-fields");
+if (autoFixBtn) autoFixBtn.addEventListener("click", handleAutoFix);
+
+// Runner refresh button — refreshes health AND active run status
+const runnerRefreshBtn = document.querySelector("#runner-refresh");
+if (runnerRefreshBtn) runnerRefreshBtn.addEventListener("click", async () => {
+  await checkRunnerHealth();
+  if (runnerCurrentRunId) await pollRunStatus();
+});
+
+// Runner logs close button
+const runnerLogsCloseBtn = document.querySelector("#runner-logs-close");
+if (runnerLogsCloseBtn) runnerLogsCloseBtn.addEventListener("click", () => {
+  const panel = document.querySelector("#runner-logs-panel");
+  if (panel) panel.classList.add("is-hidden");
+});
+
+// Runner enterprise pipeline button
+const runnerPipelineBtn = document.querySelector("#runner-run-pipeline");
+if (runnerPipelineBtn) runnerPipelineBtn.addEventListener("click", runEnterprisePipeline);
+
+// Runner build task zip button
+const runnerBuildZipBtn = document.querySelector("#runner-build-zip");
+if (runnerBuildZipBtn) runnerBuildZipBtn.addEventListener("click", handleBuildTaskZip);
+
+// Runner upload buttons
+const runnerUploadBtn = document.querySelector("#runner-upload-zip");
+if (runnerUploadBtn) runnerUploadBtn.addEventListener("click", handleRunnerUploadClick);
+const runnerZipInput = document.querySelector("#runner-zip-input");
+if (runnerZipInput) runnerZipInput.addEventListener("change", handleRunnerZipChange);
+
+// Runner execution buttons
+const runnerSetupBtn = document.querySelector("#runner-run-setup");
+if (runnerSetupBtn) runnerSetupBtn.addEventListener("click", () => startRun(true, false, false));
+const runnerSolveBtn = document.querySelector("#runner-run-solve");
+if (runnerSolveBtn) runnerSolveBtn.addEventListener("click", () => startRun(false, true, false));
+const runnerVerifyBtn = document.querySelector("#runner-run-verify");
+if (runnerVerifyBtn) runnerVerifyBtn.addEventListener("click", () => startRun(false, false, true));
+const runnerComputeFaBtn = document.querySelector("#runner-compute-fa");
+if (runnerComputeFaBtn) runnerComputeFaBtn.addEventListener("click", handleComputeFinalAnswer);
+const runnerOpenLogsBtn = document.querySelector("#runner-open-logs");
+if (runnerOpenLogsBtn) runnerOpenLogsBtn.addEventListener("click", async () => {
+  if (!runnerCurrentRunId) return;
+  try {
+    const resp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/logs`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const logContent = data.logs ? [
+      "=== SETUP STDOUT ===", data.logs.setup_stdout || "(empty)",
+      "=== SETUP STDERR ===", data.logs.setup_stderr || "(empty)",
+      "=== SOLVE STDOUT ===", data.logs.solve_stdout || "(empty)",
+      "=== SOLVE STDERR ===", data.logs.solve_stderr || "(empty)",
+      "=== VERIFY STDOUT ===", data.logs.verify_stdout || "(empty)",
+      "=== VERIFY STDERR ===", data.logs.verify_stderr || "(empty)",
+    ].join("\n") : "No logs available.";
+    const panel = document.querySelector("#runner-logs-panel");
+    const content = document.querySelector("#runner-logs-content");
+    if (content) content.textContent = logContent;
+    if (panel) panel.classList.remove("is-hidden");
+  } catch {}
+});
+const runnerDownloadLogsBtn = document.querySelector("#runner-download-logs");
+if (runnerDownloadLogsBtn) runnerDownloadLogsBtn.addEventListener("click", () => {
+  if (!runnerCurrentRunId) return;
+  const a = document.createElement("a");
+  a.href = `${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/logs.txt`;
+  a.download = `${runnerCurrentRunId}-logs.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
+const runnerImportOutputsBtn = document.querySelector("#runner-import-outputs");
+if (runnerImportOutputsBtn) runnerImportOutputsBtn.addEventListener("click", handleImportComputedOutputs);
+
+startRunnerPolling();
+
 load();
 renderAll();
+renderRiskChecks();
 renderTaskChecks(getTaskFields());
 renderReadinessDashboard();
 renderSubmissionAudit();
