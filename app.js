@@ -4299,17 +4299,10 @@ if __name__ == "__main__":
       "- outputs/commit_graph_report.json",
       "- outputs/run_manifest.json",
       "",
-      "Example repair_log.json:",
-      "{",
-      "  \"recovered_commits\": [",
-      "    { \"sha\": \"abc1234...\", \"method\": \"ref-restore\", \"message\": \"feat: add validation\", \"parent\": \"def5678...\", \"reachable\": true },",
-      "    { \"sha\": \"bcd2345...\", \"method\": \"ref-restore\", \"message\": \"fix: null guard\", \"parent\": \"abc1234...\", \"reachable\": true }",
-      "  ],",
-      "  \"fsck_connectivity_clean\": true",
-      "}",
+      "Required repair_log.json keys: recovered_commits, branch_results, fsck_connectivity_clean, fsck_exit_code.",
+      "Each recovered_commits item must include sha, method, message, parent, and reachable.",
       "",
-      "Example commit_graph_report.json:",
-      "{ \"topology_match\": true, \"branch_head_correct\": true, \"fsck_missing_objects\": 0, \"all_commits_reachable\": true }"
+      "Required commit_graph_report.json keys: topology_match, branch_head_correct, fsck_missing_objects, all_commits_reachable."
     ],
     solutionCode: `# solve.py — Git force-push recovery: fetch original commits, restore refs, verify topology
 # Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs
@@ -5963,7 +5956,7 @@ function buildExpectedFinalAnswer(domainKey) {
   if (block && block.length > 1) examples.push(block.join("\n"));
 
   const placeholderNote = domainKey === "git-workflows" && !isComputed
-    ? ["", "NOTE: SHAs, checksums, and refs shown below depend on fixture files. Replace placeholder values (abc1234...) with actual computed values after running solve.py.", ""]
+    ? ["", "NOTE: SHAs, checksums, and refs depend on fixture files. Run solve.py and verify.py before pasting final computed outputs.", ""]
     : [];
 
   return [
@@ -8140,6 +8133,13 @@ async function handleComputeFinalAnswer() {
 }
 
 async function handleImportComputedOutputs() {
+  if (runnerCurrentRunId && (!runnerComputedOutputs?.files || !Object.keys(runnerComputedOutputs.files).length)) {
+    const outputsResp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/outputs`);
+    if (outputsResp.ok) {
+      runnerComputedOutputs = await outputsResp.json();
+    }
+  }
+
   const fields = getTaskFields();
   const domainKey = fields.domainKey;
   const computedPkg = buildComputedTaskPackage(domainKey, fields);
