@@ -873,6 +873,13 @@ function buildTaskPackage() {
   renderReadinessDashboard();
   renderSubmissionAudit();
   renderConsistencyChecker();
+
+  const supportedRunnerDomains = new Set(["react", "typescript", "git-workflows"]);
+  const domain = els.taskDomainSelect ? els.taskDomainSelect.value : "";
+  const inlinePanel = document.querySelector("#inline-runner-panel");
+  if (inlinePanel) {
+    inlinePanel.classList.toggle("is-hidden", !supportedRunnerDomains.has(domain));
+  }
 }
 
 const DOMAIN_DRAFTS = {
@@ -7062,14 +7069,16 @@ const DOMAIN_CONFIG_FILES = {
 function validateZipReadiness() {
   const f = getTaskFields();
   const issues = [];
+  const isGitWorkflow = f.domainKey === "git-workflows" || /git|bundle|reflog/i.test(`${f.category} ${f.title} ${f.prompt}`);
+  const hasGitResources = /(repo_before_force\.bundle|repo_after_force\.bundle|reflog_export\.txt|commit_graph_spec\.json|expected_file_checksums\.json)/i.test(f.resources || "");
   if (!f.prompt || f.prompt.length < 80)
     issues.push("Prompt is missing or too short — needs a clear output goal (≥80 chars).");
   if (!f.solution || f.solution.length < 100)
     issues.push("Golden solution missing — needs expert workflow, commands, and output paths.");
   if (!f.verifiers || f.verifiers.length < 50)
     issues.push("Verifier description missing — needs deterministic output checks.");
-  if (!f.resources || !f.resources.includes("data/"))
-    issues.push("Resources must reference files inside a data/ folder.");
+  if (!f.resources || (!f.resources.includes("data/") && !(isGitWorkflow && hasGitResources)))
+    issues.push("Resources must reference concrete input files, either inside data/ or as Git workflow fixtures such as .bundle, reflog_export.txt, and commit_graph_spec.json.");
   if (!f.resources || !/(http|github|physionet|openml|noaa|ensembl|stooq|tpc|conll|cses|matpower|icpsr|jaspar|stratosphere)/i.test(f.resources))
     issues.push("Resources must cite a public source (URL, PhysioNet, OpenML, GitHub, NOAA, etc.).");
   if (!f.solution || !/(python|\.py|bash|make|pytest|run)/i.test(f.solution))
