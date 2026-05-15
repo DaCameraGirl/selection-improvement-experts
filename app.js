@@ -4388,16 +4388,16 @@ if __name__ == "__main__":
     standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "A bad force-push left the release refs pointing at incomplete history. Restore the original commit objects from the bundles and put the refs back on the expected SHAs.",
-        "regression triage": "The refs no longer reach the commits listed in the reflog export. Recover the original Git graph from the before/after bundles.",
-        "compliance audit": "Recover the force-push incident evidence: repaired refs, original SHAs, clean connectivity, and checksum proof.",
-        "edge-case benchmark": "Rebuild the refs after a force-push so each recovered SHA is reachable with its original parent chain."
+        "post-migration validation": "A force-push moved the release refs off the original history. Use the before/after bundles and reflog export to put them back on the original SHAs.",
+        "regression triage": "The refs no longer reach the commits in the reflog export. Recover the original Git graph from the before/after bundles.",
+        "compliance audit": "After a force-push, rebuild the repository state so the restored refs, SHAs, parent chain, and file contents can be audited.",
+        "edge-case benchmark": "Rebuild the refs so every recovered SHA is reachable through its original parent chain."
       };
       const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
       return [
         opener,
-        "Write the repaired bundle to outputs/repaired_repo.bundle and include outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
-        "The repaired repo must pass git fsck --connectivity-only, restore the refs in expected_refs.json, make the reflog SHAs reachable, and match the parent chains and file checksums. Do not cherry-pick replacement commits."
+        "Save the repaired bundle as outputs/repaired_repo.bundle. Also write outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
+        "When finished, the repaired repo should pass git fsck --connectivity-only. The restored refs must match expected_refs.json; the reflog SHAs must be reachable; parent chains and file checksums must match their expected files. Do not cherry-pick."
       ].join("\n\n");
     },
     sources: [
