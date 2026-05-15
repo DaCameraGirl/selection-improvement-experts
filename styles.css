@@ -999,10 +999,32 @@ legend {
 .c-warn  strong { color: #fbbf24; }
 
 /* ── LOCAL RUNNER PANEL ─────────────────────────────────────────────── */
+.runner-top-panel {
+  margin: 12px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.runner-top-panel > h3 {
+  margin: 0 0 10px;
+}
+
+.runner-workflow {
+  margin: 0 0 12px;
+}
+
 .runner-layout {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.runner-top-panel .runner-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  align-items: start;
 }
 
 .runner-section h3 {
@@ -1144,6 +1166,12 @@ legend {
 }
 .runner-download-link:hover {
   opacity: 0.9;
+}
+
+@media (max-width: 900px) {
+  .runner-top-panel .runner-layout {
+    grid-template-columns: 1fr;
+  }
 }
 .runner-download-link.is-hidden {
   display: none;

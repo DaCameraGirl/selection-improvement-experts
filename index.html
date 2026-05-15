@@ -120,6 +120,72 @@
                 <button id="run-frontier-sim" type="button">Analyze Task</button>
               </div>
             </div>
+            <div id="inline-runner-panel" class="is-hidden runner-top-panel">
+              <h3 style="display:flex;align-items:center;gap:.5rem">
+                Pipeline Runner
+                <span id="runner-status-badge" class="version-pill runner-disconnected">Disconnected</span>
+              </h3>
+              <p class="helper-copy runner-workflow">Normal order: Generate Draft, Build Package, Run Enterprise Pipeline, Import Computed Outputs, then Download ZIP.</p>
+              <div class="runner-layout">
+                <section class="runner-section">
+                  <div id="runner-connection" class="runner-box">
+                    <p class="runner-muted">Checking backend at <code>http://127.0.0.1:8787</code>...</p>
+                  </div>
+                </section>
+                <section class="runner-section">
+                  <h3>Enterprise Pipeline</h3>
+                  <div id="runner-pipeline" class="runner-box">
+                    <div class="runner-actions">
+                      <button id="runner-run-pipeline" class="primary" type="button">Run Enterprise Pipeline</button>
+                    </div>
+                    <div id="runner-pipeline-status" class="runner-builder-status"></div>
+                  </div>
+                </section>
+                <section class="runner-section">
+                  <h3>Status</h3>
+                  <div id="runner-status" class="runner-box">
+                    <div class="runner-status-grid">
+                      <div><span class="runner-label">Execution Status:</span> <span id="runner-status-value" class="runner-value">NOT RUN</span></div>
+                      <div><span class="runner-label">Task Family:</span> <span id="runner-task-family" class="runner-value">-</span></div>
+                      <div><span class="runner-label">solve.py:</span> <span id="runner-solve-status" class="runner-value">-</span></div>
+                      <div><span class="runner-label">verify.py:</span> <span id="runner-verify-status" class="runner-value">-</span></div>
+                      <div><span class="runner-label">outputs/:</span> <span id="runner-outputs-status" class="runner-value">-</span></div>
+                      <div><span class="runner-label">placeholder scan:</span> <span id="runner-placeholder-status" class="runner-value">-</span></div>
+                      <div><span class="runner-label">copy gate:</span> <span id="runner-copy-status" class="runner-value">LOCKED</span></div>
+                    </div>
+                  </div>
+                </section>
+                <section class="runner-section">
+                  <h3>Actions</h3>
+                  <div class="runner-actions">
+                    <button id="runner-open-logs" type="button" disabled>Open Logs</button>
+                    <button id="runner-download-logs" type="button" disabled>Download Logs</button>
+                    <button id="runner-import-outputs" type="button" disabled>Import Computed Outputs</button>
+                    <button id="runner-refresh" type="button">Refresh Status</button>
+                  </div>
+                </section>
+              </div>
+              <div id="runner-logs-panel" class="runner-logs is-hidden">
+                <div class="runner-logs-header">
+                  <h3>Execution Logs</h3>
+                  <button id="runner-logs-close" type="button">Close</button>
+                </div>
+                <pre id="runner-logs-content" class="runner-logs-content">No logs yet.</pre>
+              </div>
+              <div style="display:none">
+                <div id="runner-package"></div>
+                <div id="runner-builder"></div>
+                <div id="runner-builder-status"></div>
+                <button id="runner-build-zip" disabled></button>
+                <a id="runner-download-zip" href="#" download></a>
+                <button id="runner-upload-zip" disabled></button>
+                <input id="runner-zip-input" type="file" accept=".zip" />
+                <button id="runner-run-setup" disabled></button>
+                <button id="runner-run-solve" disabled></button>
+                <button id="runner-run-verify" disabled></button>
+                <button id="runner-compute-fa" disabled></button>
+              </div>
+            </div>
             <div class="task-layout">
               <section class="task-form">
                 <p class="helper-copy">Generate a worker submission draft, replace any generic details with real source material, then use the checks to catch weak resources, vague outputs, or unverifiable grading.</p>
@@ -260,7 +326,7 @@
                 <div id="generated-task-preview" class="generated-preview" aria-label="Generated Submission Package"><span class="preview-empty">Fill the fields and build a task package.</span></div>
                 <textarea id="generated-task-package" class="is-hidden" readonly aria-hidden="true"></textarea>
 
-                <div id="inline-runner-panel" class="is-hidden" style="margin-top:1.5rem">
+                <template id="inline-runner-panel-old">
                   <h3 style="display:flex;align-items:center;gap:.5rem">
                     Pipeline Runner
                     <span id="runner-status-badge" class="version-pill runner-disconnected">Disconnected</span>
@@ -325,7 +391,7 @@
                     <button id="runner-run-verify" disabled></button>
                     <button id="runner-compute-fa" disabled></button>
                   </div>
-                </div>
+                </template>
               </section>
             </div>
           </div>
