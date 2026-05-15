@@ -484,7 +484,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-14 human-prompt-generation";
+const APP_VERSION = "2026-05-14 prompt-variety";
 
 const state = {
   guides: [],
@@ -4520,16 +4520,16 @@ if __name__ == "__main__":
     standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The TypeScript project and fixture files in this zip are synthetically constructed to reproduce the known type-inference bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "After a type utility upgrade, AwaitedLike<T> silently widens Promise<never> union members to unknown. Fix it and produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, and outputs/run_manifest.json.",
-        "regression triage": "The TypeScript 5.x upgrade broke AwaitedLike<T> — Promise<never> members widen to unknown instead of resolving correctly. Fix it and produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, and outputs/run_manifest.json.",
-        "compliance audit": "A pre-release audit found AwaitedLike<T> widening Promise<never> to unknown under strict mode. Fix it without changing public type signatures. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, and outputs/run_manifest.json.",
-        "edge-case benchmark": "AwaitedLike<T> fails on an edge case: Promise<never> members infer unknown. Fix it without widening branches or changing public signatures. Produce outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, and outputs/run_manifest.json."
+        "post-migration validation": "AwaitedLike<T> is giving the wrong answer for Promise<never> inside union types after a type-utility cleanup. Patch the conditional type without changing the public API.",
+        "regression triage": "The TypeScript fixtures expose a narrow AwaitedLike<T> regression: Promise<never> is being widened to unknown instead of resolving through the intended branch.",
+        "compliance audit": "The strict-mode type audit found one bad branch in AwaitedLike<T>. Promise<never> must resolve correctly, and exported type signatures must stay byte-for-byte compatible with the contract.",
+        "edge-case benchmark": "Fix the AwaitedLike<T> edge case around Promise<never>. The solution has to preserve distributive behavior over unions and must not paper over the issue by widening to unknown."
       };
       const opener = openers[scenario && scenario.name] || openers["edge-case benchmark"];
       return [
         opener,
-        "Four positive fixtures (normal_union.ts, nested_promise.ts, never_branch.ts, edge_deeply_nested.ts) must compile clean under tsconfig.strict.json. invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json. No public type signature changes in contracts/public_types.md.",
-        standard.prompt
+        "Write outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json. The four positive fixtures must compile clean under tsconfig.strict.json. invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json.",
+        "Keep contracts/public_types.md unchanged. The reports must be deterministic and must explain pass/fail status for each fixture."
       ].join("\n\n");
     },
     sources: [
@@ -4717,16 +4717,16 @@ if __name__ == "__main__":
     standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The component and test fixtures in this zip are synthetically constructed to reproduce the known stale-closure bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "After the React 18 migration, DataFetcher commits stale async results when props change rapidly or the component unmounts mid-fetch. Fix it and produce outputs/DataFetcher.fixed.tsx, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "regression triage": "DataFetcher has a regression: stale async results overwrite the rendered value on rapid prop changes or unmount. Fix it using the provided Jest fixtures and produce outputs/DataFetcher.fixed.tsx, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "compliance audit": "An audit confirmed DataFetcher doesn't clean up async side effects on unmount, causing stale values and warnings. Fix it without changing the exported API. Produce outputs/DataFetcher.fixed.tsx, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "edge-case benchmark": "DataFetcher has a stale-closure bug: async results overwrite state after unmount or rapid prop changes. Fix it so all five fixtures pass. Produce outputs/DataFetcher.fixed.tsx, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json."
+        "post-migration validation": "DataFetcher started committing old async responses after the React 18 migration. Fix the component so a slower previous request cannot win after a prop change or unmount.",
+        "regression triage": "The DataFetcher tests reproduce a stale async-result race: rapid updates can render an older response, and unmount-before-resolve can still trigger state updates.",
+        "compliance audit": "DataFetcher is failing the cleanup audit. Async work must be cancelled or ignored correctly on unmount, and the exported component contract cannot change.",
+        "edge-case benchmark": "Repair DataFetcher’s async effect. The hard case is overlapping requests: only the latest live request may commit state."
       };
       const opener = openers[scenario && scenario.name] || openers["regression triage"];
       return [
         opener,
-        "All 5 Jest fixtures must pass. Rapid-update: final rendered value equals the last dispatched request. Unmount fixture: zero 'state update on unmounted component' warnings. Render counts within expected_render_counts.json. No API changes in contracts/component_api.md.",
-        standard.prompt
+        "Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json. All 5 Jest fixtures must pass; the rapid-update case must show the last dispatched request; test stderr must contain zero unmounted-state-update warnings.",
+        "Render counts must stay within expected_render_counts.json, and contracts/component_api.md must remain unchanged."
       ].join("\n\n");
     },
     sources: [
@@ -4870,16 +4870,16 @@ if __name__ == "__main__":
     standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "An accidental git push --force removed 3 commits from the release branch. Recover them with the exact topology specified in commit_graph_spec.json.",
-        "regression triage": "Three commits went missing after an accidental force-push. Recover them with the correct parent chain using the provided bundles and reflog.",
-        "compliance audit": "Incident review shows 3 commits are unreachable after an accidental force-push. Recover them with machine-verifiable checksum and topology evidence.",
-        "edge-case benchmark": "The repo lost 3 commits from an accidental force-push. Recover them with proper reachability, parent-chain, and checksum verification — no cherry-picking."
+        "post-migration validation": "A bad force-push left the release branch three commits short. Restore the original commit objects and refs; do not recreate the changes with cherry-pick.",
+        "regression triage": "The release ref no longer reaches three commits that appear in the reflog export. Recover the original chain from the supplied before/after bundles.",
+        "compliance audit": "Recovery evidence is required for a force-push incident: the repaired branch must point at the original SHAs, with checksum and parent-chain proof.",
+        "edge-case benchmark": "Rebuild the release refs after a force-push so the three orphaned commits are reachable again with their original topology."
       };
       const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
       return [
         opener,
-        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. git fsck --connectivity-only must report 0 missing objects. All 3 recovered commits must be reachable with the parent chain from commit_graph_spec.json. File checksums must match expected_file_checksums.json. Branch refs must point to the specified SHAs.",
-        standard.prompt
+        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. git fsck --connectivity-only must report 0 missing objects. All 3 recovered commits must be reachable from the required branch ref, and their parents must match commit_graph_spec.json.",
+        "File checksums must match expected_file_checksums.json, and branch refs must point to the exact SHAs listed in the spec. Keep the output paths fixed and make the reports rerunnable."
       ].join("\n\n");
     },
     sources: [
@@ -5881,6 +5881,7 @@ const TASK_RECIPES = {
     ],
     scenarioLabel: "force-push recovery",
     difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
+    difficultyText: "This is a master's-level Git recovery task, not a simple file restore. The solver has to reason about object reachability, reflog evidence, bundle contents, branch refs, parent SHAs, and checksum verification at the same time. The trap is that a cherry-pick can make the files look right while producing the wrong commit IDs, so the repaired graph must be reconstructed from the original objects and then proven with git fsck, rev-list, and exact ref comparisons.",
   },
   "typescript-awaited-type": {
     id:       "typescript-awaited-type",
@@ -5918,6 +5919,7 @@ const TASK_RECIPES = {
     ],
     scenarioLabel: "edge-case type-regression",
     difficultyCore: "requires deep knowledge of TypeScript's distributive conditional types — AwaitedLike<T> must distribute over unions, but Promise<never> is a degenerate case where the never branch collapses to never unless distribution is written correctly. The fix must not change any exported types (checked by the API contract), which rules out the common shortcut of widening the return type to unknown.",
+    difficultyText: "This is hard because the broken behavior sits in TypeScript's conditional-type semantics, not in runtime code. A passing solution has to preserve distributive behavior over unions, handle Promise<never> correctly, keep the negative fixture failing with exactly one TS2345, and avoid any public API drift. The common shortcut, widening the branch to unknown, makes some tests pass while breaking the contract the verifier checks.",
   },
   "react-stale-closure": {
     id:       "react-stale-closure",
@@ -5954,6 +5956,7 @@ const TASK_RECIPES = {
     ],
     scenarioLabel: "edge-case regression",
     difficultyCore: "requires reasoning about overlapping async effects, stale closure capture under rapid prop changes, cleanup ordering, dependency-array correctness, React Testing Library act() timing, stderr warning detection, and render-count instrumentation across rapid-update and unmount/remount fixtures. The common wrong answer is wrapping fetch in useCallback without fixing the dependency array: it passes mount/unmount tests but the stale closure still reads old props so the rapid-update fixture fails. The correct fix requires careful coordination of all three parts — cleanup signal, cleanup return path, and dep array — which agents get wrong in at least one.",
+    difficultyText: "This is a React 18 async-lifecycle bug with several plausible wrong fixes. The implementation must handle overlapping effects, cleanup ordering, dependency arrays, act() timing, stderr warning capture, and render-count limits. A boolean guard or useCallback wrapper can look reasonable while still allowing stale data or hiding the race in tests, so the verifier checks both behavior and instrumentation.",
   },
 };
 
@@ -6024,6 +6027,7 @@ function buildFromRecipe(recipeId) {
   const scenarioDesc = recipe.scenarioLabel || scenario.name;
   els.taskDifficulty.value = `This is ${expLabel} difficulty because it requires ${profile.method} in a real ${profile.domain} workflow — ${scenarioDesc}. ${recipe.difficultyCore} The difficulty comes from domain constraints, implementation judgment, and verifier-aware edge-case design — not from bulk, hidden facts, or wording tricks.`;
 
+  if (recipe.difficultyText) els.taskDifficulty.value = recipe.difficultyText;
   els.taskDomain.value    = `${capitalize(expLabel)} ${scenarioDesc} task in ${profile.domain}.`;
   els.taskTime.value      = timeEstimateFor(recipe.expertise, profile.domain);
   els.taskAgentCheck.value = "Required before submission: test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected.";
