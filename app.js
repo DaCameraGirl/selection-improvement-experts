@@ -4235,16 +4235,16 @@ if __name__ == "__main__":
     standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The component and test fixtures in this zip are synthetically constructed to reproduce the known stale-closure bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "DataFetcher started committing old async responses after the React 18 migration. Fix the component so a slower previous request cannot win after a prop change or unmount.",
-        "regression triage": "The DataFetcher tests reproduce a stale async-result race: rapid updates can render an older response, and unmount-before-resolve can still trigger state updates.",
-        "compliance audit": "DataFetcher is failing the cleanup audit. Async work must be cancelled or ignored correctly on unmount, and the exported component contract cannot change.",
+        "post-migration validation": "DataFetcher can show stale data when requests resolve out of order, and it can still update state after unmount. Fix the component without changing its exported API.",
+        "regression triage": "DataFetcher has an async race: rapid prop changes can render an older response, and unmount-before-resolve can still commit state. Fix the component without changing its exported API.",
+        "compliance audit": "DataFetcher needs a safe async cleanup path. A request that is no longer current must not update state, and unmounting must leave no state-update warnings.",
         "edge-case benchmark": "Repair DataFetcher’s async effect. The hard case is overlapping requests: only the latest live request may commit state."
       };
       const opener = openers[scenario && scenario.name] || openers["regression triage"];
       return [
         opener,
-        "Produce outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json. All 5 Jest fixtures must pass; the rapid-update case must show the last dispatched request; test stderr must contain zero unmounted-state-update warnings.",
-        "Render counts must stay within expected_render_counts.json, and contracts/component_api.md must remain unchanged."
+        "Save the fixed component as outputs/DataFetcher.fixed.tsx. Also include outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "All five Jest cases should pass. Rapid updates should render the latest request result, unmount-before-resolve should produce no React state-update warnings, and render counts should stay within expected_render_counts.json."
       ].join("\n\n");
     },
     sources: [
@@ -4388,16 +4388,16 @@ if __name__ == "__main__":
     standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "A force-push moved the release refs off the original history. Use the before/after bundles and reflog export to put them back on the original SHAs.",
-        "regression triage": "The refs no longer reach the commits in the reflog export. Recover the original Git graph from the before/after bundles.",
-        "compliance audit": "After a force-push, rebuild the repository state so the restored refs, SHAs, parent chain, and file contents can be audited.",
-        "edge-case benchmark": "Rebuild the refs so every recovered SHA is reachable through its original parent chain."
+        "post-migration validation": "Someone force-pushed the remote and the release refs now point at the wrong history. Use the two bundles and the reflog export to put the original refs back.",
+        "regression triage": "The release refs no longer reach the commits recorded in the reflog export. Use the before/after bundles to restore the original Git history.",
+        "compliance audit": "A force-push changed the published refs. Rebuild the repository state from the bundles so the original SHAs, parents, and file contents are restored.",
+        "edge-case benchmark": "Restore the force-pushed refs so every recovered SHA is reachable through the same parent chain it had before the push."
       };
       const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
       return [
         opener,
-        "Save the repaired bundle as outputs/repaired_repo.bundle. Also write outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
-        "When finished, the repaired repo should pass git fsck --connectivity-only. The restored refs must match expected_refs.json; the reflog SHAs must be reachable; parent chains and file checksums must match their expected files. Do not cherry-pick."
+        "Create outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
+        "Do not recreate the changes with cherry-pick. The restored refs must use the original SHAs from expected_refs.json, pass git fsck --connectivity-only, and match the parent-chain and checksum fixtures."
       ].join("\n\n");
     },
     sources: [
