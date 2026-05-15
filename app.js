@@ -765,7 +765,7 @@ function humanizePrompt(text, domainKey, scenario) {
     let result = paragraph;
 
     const boilerplatePatterns = [
-      [/\s*Produce outputs\/[^\s.]+(?:,\s*outputs\/[^\s.]+)*\.?/g, ""],
+      [/\s*Produce output summaries? only[^.]*\.?/gi, ""],
       [/\s*The JSON reports (?:must|need to|should) (?:list|include|contain)[^.]*\.?/g, ""],
       [/\s*The verifier (?:will )?(?:only )?grade[s]? (?:only )?(?:the submitted [^.]*,? )?not the [^.]*\.?/g, ""],
       [/\s*and pass\/fail reason codes\.?/g, ""],
@@ -5568,6 +5568,14 @@ function fillStarterTemplate() {
   }
 
   const domainKey = els.taskDomainSelect.value;
+  const mappedRecipeId = DOMAIN_TO_ENTERPRISE_RECIPE[domainKey];
+  if (mappedRecipeId && TASK_RECIPES[mappedRecipeId]) {
+    if (recipeSelect) recipeSelect.value = mappedRecipeId;
+    buildFromRecipe(mappedRecipeId);
+    buildTaskPackage();
+    return;
+  }
+
   const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["biomedical-signal"];
   const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;

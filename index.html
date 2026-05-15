@@ -112,12 +112,14 @@
               <div class="inline-actions">
                 <span id="app-version" class="version-pill">text-links</span>
                 <button id="fill-starter-template" class="primary" type="button">1. Generate Draft</button>
+                <button id="build-task-package" class="primary" type="button">2. Build Package</button>
+                <button id="runner-run-pipeline" class="primary" type="button">3. Run Enterprise Pipeline</button>
+                <button id="runner-import-outputs" class="primary" type="button" disabled>4. Import Computed Outputs</button>
+                <button id="build-zip-package" class="primary" type="button">5. Download ZIP</button>
+                <button id="copy-task-package" type="button">Copy Fields</button>
                 <button id="clear-task-draft" type="button">Clear Draft</button>
                 <button id="auto-fix-fields" type="button">Auto-Fix</button>
                 <button id="run-frontier-sim" type="button">Analyze Task</button>
-                <button id="build-task-package" class="primary" type="button">2. Build Package</button>
-                <button id="build-zip-package" class="primary" type="button">5. Download ZIP</button>
-                <button id="copy-task-package" type="button">Copy Fields</button>
               </div>
             </div>
             <div id="inline-runner-panel" class="is-hidden runner-top-panel">
@@ -135,9 +137,7 @@
                 <section class="runner-section">
                   <h3>Enterprise Pipeline</h3>
                   <div id="runner-pipeline" class="runner-box">
-                    <div class="runner-actions">
-                      <button id="runner-run-pipeline" class="primary" type="button">3. Run Enterprise Pipeline</button>
-                    </div>
+                    <p class="runner-muted">Use step 3 in the top workflow row.</p>
                     <div id="runner-pipeline-status" class="runner-builder-status"></div>
                   </div>
                 </section>
@@ -160,7 +160,6 @@
                   <div class="runner-actions">
                     <button id="runner-open-logs" type="button" disabled>Open Logs</button>
                     <button id="runner-download-logs" type="button" disabled>Download Logs</button>
-                    <button id="runner-import-outputs" class="primary" type="button" disabled>4. Import Computed Outputs</button>
                     <button id="runner-refresh" type="button">Refresh Status</button>
                   </div>
                 </section>
@@ -352,9 +351,7 @@
                     <section class="runner-section">
                       <h3>Enterprise Pipeline</h3>
                       <div id="runner-pipeline" class="runner-box">
-                        <div class="runner-actions">
-                          <button id="runner-run-pipeline" class="primary" type="button">Run Enterprise Pipeline</button>
-                        </div>
+                        <p class="runner-muted">Use step 3 in the top workflow row.</p>
                         <div id="runner-pipeline-status" class="runner-builder-status"></div>
                       </div>
                     </section>
@@ -377,7 +374,6 @@
                       <div class="runner-actions">
                         <button id="runner-open-logs" type="button" disabled>Open Logs</button>
                         <button id="runner-download-logs" type="button" disabled>Download Logs</button>
-                        <button id="runner-import-outputs" type="button" disabled>Import Computed Outputs</button>
                         <button id="runner-refresh" type="button">Refresh Status</button>
                       </div>
                     </section>
@@ -1259,7 +1255,7 @@ function humanizePrompt(text, domainKey, scenario) {
     let result = paragraph;
 
     const boilerplatePatterns = [
-      [/\s*Produce outputs\/[^\s.]+(?:,\s*outputs\/[^\s.]+)*\.?/g, ""],
+      [/\s*Produce output summaries? only[^.]*\.?/gi, ""],
       [/\s*The JSON reports (?:must|need to|should) (?:list|include|contain)[^.]*\.?/g, ""],
       [/\s*The verifier (?:will )?(?:only )?grade[s]? (?:only )?(?:the submitted [^.]*,? )?not the [^.]*\.?/g, ""],
       [/\s*and pass\/fail reason codes\.?/g, ""],
@@ -6062,6 +6058,14 @@ function fillStarterTemplate() {
   }
 
   const domainKey = els.taskDomainSelect.value;
+  const mappedRecipeId = DOMAIN_TO_ENTERPRISE_RECIPE[domainKey];
+  if (mappedRecipeId && TASK_RECIPES[mappedRecipeId]) {
+    if (recipeSelect) recipeSelect.value = mappedRecipeId;
+    buildFromRecipe(mappedRecipeId);
+    buildTaskPackage();
+    return;
+  }
+
   const profile = DOMAIN_DRAFTS[domainKey] || DOMAIN_DRAFTS["biomedical-signal"];
   const type = TYPE_DRAFTS[els.taskType.value] || TYPE_DRAFTS.analysis;
   const standard = STANDARD_DRAFTS[els.taskStandard.value] || STANDARD_DRAFTS.enterprise;
