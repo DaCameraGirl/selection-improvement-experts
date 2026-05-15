@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-11 all-domain-fixes-complete";
+const APP_VERSION = "2026-05-14 human-prompt-generation";
 
 const state = {
   guides: [],
@@ -733,6 +733,114 @@ const STANDARD_DRAFTS = {
     rubric: "Research pass criteria: valid benchmark setup, leakage prevention, meaningful baselines, reproducible metrics, and clear failure analysis."
   }
 };
+
+function humanizePrompt(text, domainKey, scenario) {
+  if (!text || text.length < 50) return text;
+
+  const paragraphs = text.split("\n\n").map((p) => p.trim()).filter(Boolean);
+
+  const humanOpeners = [
+    "Here's the situation",
+    "The context",
+    "Background",
+    "What we're dealing with",
+    "Here's what happened",
+    "The setup"
+  ];
+
+  const humanDeliverableOpeners = [
+    "We need",
+    "What I need from this",
+    "The ask is",
+    "Here's what needs to happen",
+    "What we're looking for",
+    "The goal",
+    "What needs to come out of this"
+  ];
+
+  const humanConstraintOpeners = [
+    "A few things to keep in mind",
+    "Important constraints",
+    "Things to watch out for",
+    "Key requirements",
+    "What matters here",
+    "Notes on the output"
+  ];
+
+  const humanAsides = [
+    " (this has tripped people up before)",
+    " (don't skip this part)",
+    " (we've seen this go wrong)",
+    " (worth double-checking)",
+    " (easy to miss, but it matters)",
+    ""
+  ];
+
+  function varySentenceBreaks(paragraph) {
+    const sentences = paragraph.split(/(?<=[.!?])\s+/);
+    if (sentences.length <= 1) return paragraph;
+
+    const result = [];
+    let i = 0;
+    while (i < sentences.length) {
+      if (i + 1 < sentences.length && sentences[i].length > 80 && sentences[i + 1].length < 40) {
+        result.push(sentences[i] + " " + sentences[i + 1]);
+        i += 2;
+      } else if (i + 1 < sentences.length && sentences[i].length < 30 && sentences[i + 1].length > 60) {
+        result.push(sentences[i] + " " + sentences[i + 1]);
+        i += 2;
+      } else {
+        result.push(sentences[i]);
+        i++;
+      }
+    }
+    return result.join(" ");
+  }
+
+  function replaceFormulaicTransitions(text) {
+    const replacements = [
+      [/^What's needed is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
+      [/^The deliverable is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
+      [/^The required deliverable is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
+      [/^The required output is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
+      [/^What the team needs is /i, () => humanDeliverableOpeners[Math.floor(Math.random() * humanDeliverableOpeners.length)] + " "],
+      [/^The JSON reports must /i, () => "On the reporting side, " + text.slice(0, 1).toLowerCase() + "the JSON reports need to "],
+      [/^The verifier will grade /i, () => "Just so it's clear, " + text.slice(0, 1).toLowerCase() + "the verifier is only grading "],
+    ];
+
+    let result = text;
+    for (const [pattern, replacement] of replacements) {
+      result = result.replace(pattern, replacement());
+    }
+    return result;
+  }
+
+  function addHumanCadence(paragraph, index) {
+    let result = varySentenceBreaks(paragraph);
+    result = replaceFormulaicTransitions(result);
+
+    if (index === 0 && result.length > 100) {
+      const firstPeriod = result.indexOf(".");
+      if (firstPeriod > 20 && firstPeriod < result.length - 40) {
+        const aside = humanAsides[Math.floor(Math.random() * humanAsides.length)];
+        if (aside) {
+          result = result.slice(0, firstPeriod) + aside + result.slice(firstPeriod);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  const humanized = paragraphs.map((p, i) => addHumanCadence(p, i));
+
+  if (humanized.length === 3 && Math.random() > 0.5) {
+    const merged = humanized[1] + " " + humanized[2];
+    return [humanized[0], merged].join("\n\n");
+  }
+
+  return humanized.join("\n\n");
+}
 
 const SCENARIO_STYLES = [
   {
@@ -5178,9 +5286,10 @@ function fillStarterTemplate() {
 
   if (els.taskCategory) els.taskCategory.value = DOMAIN_CATEGORY[domainKey] || profile.domain;
   if (els.taskTitle) els.taskTitle.value = profile.brief || `${capitalize(effectiveExpertiseLabel)} ${domainLabel}.`;
-  els.taskPrompt.value = (domainDetails && domainDetails.composePrompt)
+  const rawPrompt = (domainDetails && domainDetails.composePrompt)
     ? domainDetails.composePrompt(profile, type, standard, scenario)
     : scenario.composePrompt(profile, type, standard);
+  els.taskPrompt.value = humanizePrompt(rawPrompt, domainKey, scenario);
   els.taskResources.value = buildResourceDraft(domainKey, profile, scenario, standard);
   els.taskSolution.value = buildGoldenSolutionDraft(domainKey, profile, scenario);
   const swDomains = new Set(["typescript", "react", "git-workflows", "software-engineering", "computer-science", "distributed-systems", "databases", "compilers", "ml-systems"]);

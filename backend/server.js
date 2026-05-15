@@ -25,6 +25,21 @@ app.use(express.static(path.join(__dirname, "..")));
 const packages = new Map();
 const runs = new Map();
 
+function safeRmDir(dirPath) {
+  if (!fs.existsSync(dirPath)) return;
+  const trashPath = `${dirPath}.old-${Date.now()}-${uid()}`;
+  try {
+    fs.renameSync(dirPath, trashPath);
+    fs.rmSync(trashPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  } catch (err) {
+    try {
+      fs.rmSync(dirPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch (secondErr) {
+      console.warn(`[builder] cleanup skipped for ${dirPath}: ${secondErr.message}`);
+    }
+  }
+}
+
 // ── Synchronous runtime detection at startup ──────────────────────────
 function detectRuntimesSync() {
   const checks = [
@@ -776,7 +791,7 @@ function generateTypeScriptPackage(taskDir, fields) {
     ``,
     `export type { ${typeName} };`,
     ``,
-    `export type TypeEq<A, B> = A extends B ? (B extends A ? true : false) : false;`,
+    `export type TypeEq<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;`,
     ``,
     `export function ${funcName}<T>(value: T): ${typeName}<T> {`,
     `  if (value instanceof Promise) {`,
@@ -856,6 +871,10 @@ function generateTypeScriptPackage(taskDir, fields) {
       `// Case 12: undefined should not cause infinite recursion`,
       `type Test12 = ${typeName}<undefined>;`,
       `const u: Test12 = undefined;`,
+      ``,
+      `// Intentional negative check: non-thenable object must not be assignable to string`,
+      `declare function needsString(value: string): void;`,
+      `needsString(obj);`,
     ].join('\n'),
   };
 
@@ -968,7 +987,7 @@ function generateTypeScriptPackage(taskDir, fields) {
     `  : T;`,
     ``,
     `export type { ${typeName} };`,
-    `export type TypeEq<A, B> = A extends B ? (B extends A ? true : false) : false;`,
+    `export type TypeEq<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;`,
     ``,
     `export function ${funcName}<T>(value: T): ${typeName}<T> {`,
     `  if (value instanceof Promise) {`,
@@ -1349,7 +1368,7 @@ function generateReactPackage(taskDir, fields) {
     '```',
     ``,
     `## Expected behavior after fix`,
-    `- Fetch is cancelled on unmount via a \`cancelled\` flag`,
+    `- Fetch is cancelled on unmount via an \`AbortController\``,
     `- Rapid ${urlProp} prop changes do not allow stale responses to overwrite the latest`,
     `- No state updates after unmount`,
     `- \`${cbProp}\` is called only for the winning (non-stale) response`,
@@ -1386,7 +1405,7 @@ function generateReactPackage(taskDir, fields) {
     `src_path = Path('src/${fileName}')`,
     `original = src_path.read_text()`,
     ``,
-    `fixed = '''import { useState, useEffect } from 'react';`,
+    `fixed = '''import { useState, useEffect, useRef } from 'react';`,
     ``,
     `export interface ${iface} {`,
     `  ${urlProp}: string;`,
@@ -1396,20 +1415,27 @@ function generateReactPackage(taskDir, fields) {
     `export function ${compName}({ ${urlProp}, ${cbProp} }: ${iface}) {`,
     `  const [${stateVar}, set${capState}] = useState<string | null>(null);`,
     `  const [loading, setLoading] = useState(true);`,
+    `  const requestIdRef = useRef(0);`,
     ``,
     `  useEffect(() => {`,
-    `    let cancelled = false;`,
+    `    const requestId = ++requestIdRef.current;`,
+    `    const controller = new AbortController();`,
     `    setLoading(true);`,
-    `    fetch(${urlProp})`,
+    `    fetch(${urlProp}, { signal: controller.signal })`,
     `      .then((res) => res.text())`,
     `      .then((text) => {`,
-    `        if (!cancelled) {`,
+    `        if (!controller.signal.aborted && requestId === requestIdRef.current) {`,
     `          set${capState}(text);`,
     `          setLoading(false);`,
     `          ${cbProp}?.(text);`,
     `        }`,
+    `      })`,
+    `      .catch((err) => {`,
+    `        if (err?.name !== 'AbortError' && requestId === requestIdRef.current) {`,
+    `          setLoading(false);`,
+    `        }`,
     `      });`,
-    `    return () => { cancelled = true; };`,
+    `    return () => { controller.abort(); };`,
     `  }, [${urlProp}, ${cbProp}]);`,
     ``,
     `  if (loading) return <div>Loading...</div>;`,
@@ -1943,11 +1969,27 @@ function generateGitPackage(taskDir, fields) {
   ].join("\n"));
 
   // ── README.md ─────────────────────────────────────────────────────────
+  const fixtureFiles = [
+    "repo_before_force.bundle",
+    "repo_after_force.bundle",
+    "reflog_export.txt",
+    "commit_graph_spec.json",
+    "expected_file_checksums.json",
+    "expected_refs.json",
+    "solve.py",
+    "verify.py"
+  ];
+  const sha256For = (fileName) => {
+    const fullPath = path.join(taskDir, fileName);
+    return crypto.createHash("sha256").update(fs.readFileSync(fullPath)).digest("hex");
+  };
+
   fs.writeFileSync(path.join(taskDir, "README.md"), [
     "# Git Force-Push Recovery",
     "",
     "## Overview",
     "Recover three orphaned commits lost to an accidental `git push --force`.",
+    "The workflow is self-contained and must run without network access after the zip is unpacked.",
     "",
     "## Files",
     "| Path | Role |",
@@ -1958,6 +2000,23 @@ function generateGitPackage(taskDir, fields) {
     "| `commit_graph_spec.json` | Expected commit topology |",
     "| `expected_file_checksums.json` | File checksums per commit |",
     "| `expected_refs.json` | Expected branch ref SHAs |",
+    "| `solve.py` | Reference solver that writes outputs/ |",
+    "| `verify.py` | Deterministic verifier; exit 0 = pass, exit 1 = fail |",
+    "| `version_manifest.json` | Runtime and generator manifest |",
+    "",
+    "## Expected outputs",
+    "- `outputs/repaired_repo.bundle`",
+    "- `outputs/repair_log.json`",
+    "- `outputs/commit_graph_report.json`",
+    "- `outputs/run_manifest.json`",
+    "",
+    "## Provenance",
+    "All repository contents and fixtures are synthetic, generated locally for this force-push recovery scenario, and have no licensing restrictions.",
+    "",
+    "## SHA-256 checksums",
+    "| Path | SHA-256 |",
+    "|---|---|",
+    ...fixtureFiles.map((fileName) => `| \`${fileName}\` | ${sha256For(fileName)} |`)
   ].join("\n"));
 
   // ── version_manifest.json ─────────────────────────────────────────────
@@ -1984,12 +2043,10 @@ const {  family = "typescript",  task_id: clientTaskId,  title = "",  prompt = "
       const packageHash = crypto.createHash("sha256").update(JSON.stringify({ family, recipeId, title, prompt, resources, verifierDescription, nonce })).digest("hex");
       const shortHash = packageHash.slice(0, 16);
       const packageKey = `${family}:${shortHash}`;
-      const task_id = clientTaskId || `${family}_${shortHash}_${uid()}`;
+     const task_id = clientTaskId || `${family}_${shortHash}_${uid()}`;
 
      const taskDir = path.join(GENERATED_PACKAGES_DIR, task_id);
-     if (fs.existsSync(taskDir)) {
-       fs.rmSync(taskDir, { recursive: true, force: true });
-     }
+     safeRmDir(taskDir);
      ensureDir(taskDir);
 
 switch (family) {
@@ -2016,8 +2073,8 @@ switch (family) {
      // Cache by prompt identity (not family alone), so every unique prompt gets its own package
      builtPackages.set(packageKey, task_id);
 
-     // Clean up the working directory
-     fs.rmSync(taskDir, { recursive: true, force: true });
+     // Clean up the working directory; Windows may keep handles briefly, so failures are non-fatal.
+     safeRmDir(taskDir);
 
      res.status(201).json({
        ok: true,
