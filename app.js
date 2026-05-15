@@ -592,10 +592,10 @@ const DOMAIN_DRAFTS = {
     domain: "Git internals using the object model, reflog, bundle files, ref restoration, reachability analysis, and deterministic commit graph validation",
     artifact: "a repaired git bundle, a repair log JSON, and a commit graph verification report JSON",
     method: "git reflog parsing, git fsck --connectivity-only object integrity checks, ref restoration to make original commit objects reachable, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
-    data: "git bundles containing the object store before and after the force-push, a reflog export showing the 3 orphaned commit SHAs, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
+    data: "git bundles containing the object store before and after the force-push, a reflog export showing the commit SHAs to recover, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
     failure: "cherry-picking changes into new commits instead of restoring original refs (producing different SHAs than expected), recovering commits in the wrong order breaking the parent chain, leaving recovered commits unreachable from the required branch ref, and failing to verify file contents at each recovered commit match the expected checksums",
-    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing 3 orphaned SHAs), commit_graph_spec.json (expected parent SHAs, branch ref targets, and commit messages), verifier_inputs/expected_file_checksums.json (file contents at each recovered commit), environment/git_version.txt (git 2.43.0)",
-    threshold: "git fsck --connectivity-only on the repaired repository must report 0 missing or corrupt objects; all 3 recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
+    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing the SHAs to recover), commit_graph_spec.json (expected parent SHAs, branch ref targets, and commit messages), verifier_inputs/expected_file_checksums.json (file contents at each recovered commit), environment/git_version.txt (git 2.43.0)",
+    threshold: "git fsck --connectivity-only on the repaired repository must report 0 missing or corrupt objects; every recovered SHA listed in reflog_export.txt must be reachable from the required branch refs with the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
   },
   "software-engineering": {
     brief: "Triage a real repository regression where a fix may have broken an existing public API contract",
@@ -813,13 +813,13 @@ function humanizePrompt(text, domainKey, scenario) {
       [/^The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures\. Repair the component so all five fixtures pass and no stale state updates occur\.$/,
        "DataFetcher has a stale-closure bug: async results overwrite state after unmount or rapid prop changes. Fix it so all five fixtures pass."],
       [/^An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before release validation completed\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified\.$/,
-       "An accidental git push --force removed 3 commits from the release branch. Recover them with the exact topology specified in commit_graph_spec.json."],
+       "A bad force-push left refs pointing at incomplete history. Restore the original graph using the provided bundles and reflog."],
       [/^Exactly 3 commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so the original recovered commits are reachable\.$/,
-       "Three commits went missing after an accidental force-push. Recover them with the correct parent chain using the provided bundles and reflog."],
+       "A bad force-push left refs pointing at incomplete history. Restore the original graph using the provided bundles and reflog."],
       [/^An incident review confirmed that 3 commits are no longer reachable on the release branch after an accidental force-push\. Recovery must be machine-verifiable with full checksum and topology evidence\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so all 3 original commits are reachable with the exact topology specified\.$/,
-       "Incident review shows 3 commits are unreachable after an accidental force-push. Recover them with machine-verifiable checksum and topology evidence."],
+       "Incident review shows refs no longer reach the expected Git history. Recover it with machine-verifiable checksum and topology evidence."],
       [/^The provided Git repository contains a ref reconstruction challenge: exactly 3 commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs\.$/,
-       "The repo lost 3 commits from an accidental force-push. Recover them with proper reachability, parent-chain, and checksum verification — no cherry-picking."],
+       "The repo lost part of its expected history after a force-push. Recover it with reachability, parent-chain, and checksum verification."],
     ];
 
     for (const [pattern, replacement] of openerSwaps) {
@@ -851,7 +851,7 @@ function humanizePrompt(text, domainKey, scenario) {
       [/^All five Jest fixtures must pass under the pinned package versions\. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response\. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr\. Render counts for each fixture must not exceed the limits in verifier_inputs\/expected_render_counts\.json\. The exported component API in contracts\/component_api\.md must not change\.$/,
        "All five Jest fixtures must pass. Rapid-update: final rendered value equals the last dispatched request. Unmount fixture: zero 'state update on unmounted component' warnings. Render counts within expected_render_counts.json. No API changes."],
       [/^All 3 recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec\.json; file checksums at each recovered commit must match expected_file_checksums\.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec\.json\.$/,
-       "All 3 recovered commits must be reachable with the parent chain from commit_graph_spec.json. File checksums must match expected_file_checksums.json. Branch refs must point to the specified SHAs."],
+       "Recovered SHAs must be reachable with the parent chain from commit_graph_spec.json. File checksums must match expected_file_checksums.json. Branch refs must point to the specified SHAs."],
     ];
 
     for (const [pattern, replacement] of deliverableSwaps) {
@@ -4375,9 +4375,9 @@ if __name__ == "__main__":
     verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
     scenarioEvidence: [
-      "repo_before_force.bundle — object store before the force-push, including the 3 orphaned commits",
+      "repo_before_force.bundle — object store before the force-push, including the lost commit objects",
       "repo_after_force.bundle — object store after the force-push (what the remote now has)",
-      "reflog_export.txt — 3 orphaned commit SHAs tagged RECOVER_ME",
+      "reflog_export.txt — commit SHAs tagged RECOVER_ME",
       "commit_graph_spec.json — expected branch ref targets, parent SHA chains, and commit messages",
       "expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit",
       "expected_refs.json — exact branch ref → SHA mappings the verifier will check",
@@ -4388,16 +4388,16 @@ if __name__ == "__main__":
     standardResources: "Include the verifier fixture bundles, output JSON schemas, expected refs, and a version manifest. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openers = {
-        "post-migration validation": "A bad force-push left the release branch three commits short. Restore the original commit objects and refs; do not recreate the changes with cherry-pick.",
-        "regression triage": "The release ref no longer reaches three commits that appear in the reflog export. Recover the original chain from the supplied before/after bundles.",
-        "compliance audit": "Recovery evidence is required for a force-push incident: the repaired branch must point at the original SHAs, with checksum and parent-chain proof.",
-        "edge-case benchmark": "Rebuild the release refs after a force-push so the three orphaned commits are reachable again with their original topology."
+        "post-migration validation": "A bad force-push left the release refs pointing at incomplete history. Restore the original commit objects from the bundles and put the refs back on the expected SHAs.",
+        "regression triage": "The refs no longer reach the commits listed in the reflog export. Recover the original Git graph from the before/after bundles.",
+        "compliance audit": "Recover the force-push incident evidence: repaired refs, original SHAs, clean connectivity, and checksum proof.",
+        "edge-case benchmark": "Rebuild the refs after a force-push so each recovered SHA is reachable with its original parent chain."
       };
       const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
       return [
         opener,
-        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json. git fsck --connectivity-only must report 0 missing objects. All 3 recovered commits must be reachable from the required branch ref, and their parents must match commit_graph_spec.json.",
-        "File checksums must match expected_file_checksums.json, and branch refs must point to the exact SHAs listed in the spec. Keep the output paths fixed and make the reports rerunnable."
+        "Produce outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
+        "The verifier checks clean fsck, exact refs from expected_refs.json, reachable reflog SHAs, matching parent chains, and matching file checksums. Cherry-picked replacement commits must fail."
       ].join("\n\n");
     },
     sources: [
@@ -4408,12 +4408,12 @@ if __name__ == "__main__":
     downloads: [
       "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
       "Git 2.43.0 or compatible, recorded in environment/git_version.txt.",
-      "reflog_export.txt — included in the zip; contains the 3 orphaned commit SHAs to recover."
+      "reflog_export.txt — included in the zip; contains the commit SHAs to recover."
     ],
     resources: [
-      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the 3 lost commits.",
+      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the lost commit objects.",
       "repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.",
-      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; the 3 orphaned commits to recover are tagged RECOVER_ME.",
+      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; commit SHAs to recover are tagged RECOVER_ME.",
       "commit_graph_spec.json — declares the expected final branch topology: branch name, expected HEAD SHA, expected parent SHA chain, and commit messages.",
       "verifier_inputs/expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit.",
       "environment/git_version.txt — git 2.43.0."
@@ -4421,8 +4421,8 @@ if __name__ == "__main__":
     solution: [
       "Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs",
       "Clone repo_after_force.bundle into a work directory to start from the post-force-push state: git clone repo_after_force.bundle work_repo",
-      "Parse reflog_export.txt to identify the 3 orphaned SHAs tagged RECOVER_ME — you must know the SHAs before fetching.",
-      "Fetch the 3 recovered commit objects from repo_before_force.bundle: for each orphaned SHA, run git fetch <path_to_repo_before_force.bundle> <sha>",
+      "Parse reflog_export.txt to identify every SHA tagged RECOVER_ME — you must know the SHAs before fetching.",
+      "Fetch each recovered commit object from repo_before_force.bundle: for each recovered SHA, run git fetch <path_to_repo_before_force.bundle> <sha>",
       "Reconstruct refs per commit_graph_spec.json: use git update-ref to point the required branch ref at the specified HEAD SHA so the original commits become reachable. Do not cherry-pick — cherry-pick creates new commit objects with different SHAs.",
       "Run git fsck --connectivity-only and confirm 0 missing or corrupt objects. Run git rev-list <branch> and verify all recovered commit SHAs are reachable. Run git log --format='%H %P %s' and compare parent chains to commit_graph_spec.json.",
       "Verify file checksums at each recovered commit: git show <sha>:<file> | sha256sum, compare to expected_file_checksums.json.",
@@ -4430,7 +4430,7 @@ if __name__ == "__main__":
     ],
     verifiers: [
       "repaired_repo.bundle must be cloneable from a fresh directory and pass git fsck --connectivity-only with 0 missing or corrupt objects.",
-      "All 3 recovered commit SHAs must be reachable from the restored branch ref (git rev-list).",
+      "Every recovered SHA from reflog_export.txt must be reachable from the restored branch refs (git rev-list).",
       "Branch HEAD must exactly match the SHA declared in commit_graph_spec.json — a cherry-picked SHA with the same diff will not pass.",
       "Parent chain for each recovered commit must match commit_graph_spec.json.",
       "File checksums at each recovered commit must match expected_file_checksums.json.",
@@ -4692,7 +4692,7 @@ const DOMAIN_CODE = {
     coreTodo: [
       "Clone from after bundle (post-force-push state): subprocess.run(['git', 'clone', 'repo_after_force.bundle', 'work_repo'], check=True)",
       "Fetch recovered commit objects from before bundle: subprocess.run(['git', 'fetch', str(Path('repo_before_force.bundle').resolve()), sha], cwd='work_repo') for each orphaned SHA",
-      "Parse reflog_export.txt to extract the three orphaned commit SHAs that need recovery",
+      "Parse reflog_export.txt to extract the commit SHAs tagged for recovery",
       "Restore refs to original commits (not cherry-pick): subprocess.run(['git', 'update-ref', 'refs/heads/TARGET_BRANCH', sha], cwd='work_repo') — this preserves exact SHAs",
       "Verify commit graph: git log --format='%H %P %s' and compare parent SHAs and branch ref targets against commit_graph_spec.json",
       "Export outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json"
@@ -5212,7 +5212,7 @@ const DOMAIN_VERIFIER_CHECKS = {
     else:
         results.append(fail("commit_graph_report.json missing"))
 
-    # 3. repair_log: all 3 commits recovered
+    # 3. repair_log: recovered commits recorded
     rl = out / "repair_log.json"
     if rl.exists():
         m = json.loads(rl.read_text())
@@ -5384,14 +5384,14 @@ const TASK_RECIPES = {
       "expected_file_checksums.json",
       "expected_refs.json",
     ],
-    title:   "Git force-push recovery: reconstruct three orphaned commits with exact topology",
-    snippet: "Recover three commits lost to an accidental git push --force by fetching original objects from a before-bundle and restoring branch refs to the exact SHA in the contract. Produce a verified repaired bundle and machine-readable verification reports.",
-    errorIfWrong: "verify.py exits with code 1 — repaired_repo.bundle is missing or invalid, git fsck --connectivity-only reports missing objects, recovered commit SHAs are not reachable from the required branch ref, or parent chain does not match commit_graph_spec.json.",
+    title:   "Git force-push recovery: restore refs with exact original topology",
+    snippet: "Recover a force-pushed Git graph by fetching original objects from the before-bundle and restoring branch refs to the exact SHAs in the contract. Produce a verified repaired bundle and machine-readable recovery reports.",
+    errorIfWrong: "verify.py exits with code 1 — repaired_repo.bundle is missing or invalid, git fsck --connectivity-only reports missing objects, recovered SHAs are not reachable from the required branch refs, or parent chains do not match commit_graph_spec.json.",
     verifierChecks: [
       "repaired_repo.bundle exists and is non-empty",
       "git clone from repaired_repo.bundle succeeds",
       "git fsck --connectivity-only exits 0 with no missing or corrupt objects",
-      "all three orphaned SHAs from reflog_export.txt are reachable via git rev-list from the restored branch ref",
+      "every recovered SHA from reflog_export.txt is reachable via git rev-list from the restored branch refs",
       "parent chain for each recovered commit matches commit_graph_spec.json exactly (SHA, not cherry-picked SHA)",
       "file checksums at each recovered commit match expected_file_checksums.json exactly",
       "branch refs match expected_refs.json (exact original SHAs — cherry-pick SHAs will fail this check)",
@@ -6448,15 +6448,25 @@ function hasSixCoreEvidence(fields) {
   const hasWellSpecified = countMatches(resources, /\b[\w/-]+\.(csv|json|jsonl|yaml|yml|md|txt|parquet|sql|py|geojson|gff3|fa|fasta|pcap|log|edn|tla|als)\b/gi) >= 5;
   const hasSolvable = solution.length > 140 && hasAny(solution, ["expected", "outputs/", "re-run", "rerun", "normal case", "edge case", "invalid case"]);
   const requiresCode = hasAny(`${resources} ${solution}`, ["python", "script", "solve.py", "pytest", "command", "terminal", "json", "csv"]);
-  const hasDifficulty = difficulty.length > 120 && hasAny(difficulty, ["domain", "implementation", "edge-case", "failure", "constraints", "judgment"]);
-  const hasExpertise = hasAny(`${fields.domain} ${difficulty}`, ["professional", "academic", "expert", "domain", "engineering", "scientific", "research"]);
+  const difficultySignals = [
+    "domain", "implementation", "edge-case", "failure", "constraints", "judgment",
+    "reachability", "reflog", "bundle", "branch refs", "parent shas", "checksum",
+    "content-addressed", "cherry-pick", "topology", "fsck", "rev-list"
+  ];
+  const expertiseSignals = [
+    "professional", "academic", "expert", "domain", "engineering", "scientific", "research",
+    "git", "version control", "object model", "reflog", "bundle", "ref restoration",
+    "reachability", "commit graph"
+  ];
+  const hasDifficulty = difficulty.length > 120 && hasAny(difficulty, difficultySignals);
+  const hasExpertise = hasAny(`${fields.domain} ${difficulty}`, expertiseSignals);
   return hasVerifiable && hasWellSpecified && hasSolvable && requiresCode && hasDifficulty && hasExpertise;
 }
 
 function hasExpertiseDepth(fields) {
   const text = normalize(`${fields.domain} ${fields.prompt} ${fields.solution} ${fields.difficulty} ${fields.verifiers}`);
   const professionalTerms = ["professional", "industry", "engineering", "validation", "edge case", "tolerance", "quality", "standard"];
-  const mastersTerms = ["statistical", "algorithm", "optimization", "simulation", "validation", "nontrivial", "baseline", "tolerance", "regression", "inference", "concurrent", "closure", "topology", "reachabl", "dependency array"];
+  const mastersTerms = ["statistical", "algorithm", "optimization", "simulation", "validation", "nontrivial", "baseline", "tolerance", "regression", "inference", "concurrent", "closure", "topology", "reachabl", "dependency array", "reflog", "bundle", "fsck", "ref restoration", "commit graph", "checksum"];
   const phdTerms = ["research", "paper", "methodolog", "bayesian", "stochastic", "asymptotic", "causal", "finite element", "peer reviewed", "ablation", "theorem", "distributive", "type system", "inference", "soundness", "formal"];
   const phdCappedDomains = new Set(["react", "git-workflows"]);
   const effectiveExpertise = phdCappedDomains.has(els.taskDomainSelect.value) && fields.expertise === "phd" ? "masters" : fields.expertise;
