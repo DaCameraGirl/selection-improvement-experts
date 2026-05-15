@@ -7887,6 +7887,8 @@ async function uploadTaskPackage(file) {
       document.querySelector("#runner-run-solve").disabled = false;
       document.querySelector("#runner-run-verify").disabled = false;
       document.querySelector("#runner-open-logs").disabled = false;
+      const downloadLogsBtn = document.querySelector("#runner-download-logs");
+      if (downloadLogsBtn) downloadLogsBtn.disabled = false;
     }
   } catch (err) {
     statusEl.innerHTML = `<p class="runner-muted"><span class="runner-cross">✗</span> Upload error: ${escapeHtml(err.message)}</p>`;
@@ -8428,6 +8430,16 @@ if (runnerOpenLogsBtn) runnerOpenLogsBtn.addEventListener("click", async () => {
     if (content) content.textContent = logContent;
     if (panel) panel.classList.remove("is-hidden");
   } catch {}
+});
+const runnerDownloadLogsBtn = document.querySelector("#runner-download-logs");
+if (runnerDownloadLogsBtn) runnerDownloadLogsBtn.addEventListener("click", () => {
+  if (!runnerCurrentRunId) return;
+  const a = document.createElement("a");
+  a.href = `${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/logs.txt`;
+  a.download = `${runnerCurrentRunId}-logs.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 });
 const runnerImportOutputsBtn = document.querySelector("#runner-import-outputs");
 if (runnerImportOutputsBtn) runnerImportOutputsBtn.addEventListener("click", handleImportComputedOutputs);

@@ -552,6 +552,35 @@ app.get("/api/runs/:runId/logs", (req, res) => {
 });
 
 // ── Get run outputs (file names, sizes, checksums, parsed contents) ──
+function formatRunLogs(run) {
+  const sections = [
+    ["RUN ID", run.runId],
+    ["STATUS", run.status],
+    ["TASK FAMILY", run.family || "(unknown)"],
+    ["SETUP STDOUT", run.logs.setup_stdout || "(empty)"],
+    ["SETUP STDERR", run.logs.setup_stderr || "(empty)"],
+    ["SOLVE STDOUT", run.logs.solve_stdout || "(empty)"],
+    ["SOLVE STDERR", run.logs.solve_stderr || "(empty)"],
+    ["VERIFY STDOUT", run.logs.verify_stdout || "(empty)"],
+    ["VERIFY STDERR", run.logs.verify_stderr || "(empty)"],
+    ["ERRORS", run.errors && run.errors.length ? run.errors.join("\n") : "(empty)"],
+  ];
+
+  return sections.map(([label, body]) => `=== ${label} ===\n${body}`).join("\n\n") + "\n";
+}
+
+app.get("/api/runs/:runId/logs.txt", (req, res) => {
+  const run = runs.get(req.params.runId);
+  if (!run) {
+    res.status(404).type("text/plain").send("Run not found\n");
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${run.runId}-logs.txt"`);
+  res.send(formatRunLogs(run));
+});
+
 app.get("/api/runs/:runId/outputs", (req, res) => {
   const run = runs.get(req.params.runId);
   if (!run) {
