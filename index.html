@@ -111,13 +111,13 @@
               <h2>Prompt Maker</h2>
               <div class="inline-actions">
                 <span id="app-version" class="version-pill">text-links</span>
-                <button id="fill-starter-template" type="button">Generate Draft</button>
+                <button id="fill-starter-template" class="primary" type="button">1. Generate Draft</button>
                 <button id="clear-task-draft" type="button">Clear Draft</button>
-                <button id="build-task-package" class="primary" type="button">Build Package</button>
-                <button id="copy-task-package" type="button">Copy</button>
-                <button id="build-zip-package" class="primary" type="button">Download ZIP</button>
                 <button id="auto-fix-fields" type="button">Auto-Fix</button>
                 <button id="run-frontier-sim" type="button">Analyze Task</button>
+                <button id="build-task-package" class="primary" type="button">2. Build Package</button>
+                <button id="build-zip-package" class="primary" type="button">5. Download ZIP</button>
+                <button id="copy-task-package" type="button">Copy Fields</button>
               </div>
             </div>
             <div id="inline-runner-panel" class="is-hidden runner-top-panel">
@@ -125,7 +125,7 @@
                 Pipeline Runner
                 <span id="runner-status-badge" class="version-pill runner-disconnected">Disconnected</span>
               </h3>
-              <p class="helper-copy runner-workflow">Normal order: Generate Draft, Build Package, Run Enterprise Pipeline, Import Computed Outputs, then Download ZIP.</p>
+              <p class="helper-copy runner-workflow">Run order: 1. Generate Draft, 2. Build Package, 3. Run Enterprise Pipeline, 4. Import Computed Outputs, 5. Download ZIP.</p>
               <div class="runner-layout">
                 <section class="runner-section">
                   <div id="runner-connection" class="runner-box">
@@ -136,7 +136,7 @@
                   <h3>Enterprise Pipeline</h3>
                   <div id="runner-pipeline" class="runner-box">
                     <div class="runner-actions">
-                      <button id="runner-run-pipeline" class="primary" type="button">Run Enterprise Pipeline</button>
+                      <button id="runner-run-pipeline" class="primary" type="button">3. Run Enterprise Pipeline</button>
                     </div>
                     <div id="runner-pipeline-status" class="runner-builder-status"></div>
                   </div>
@@ -160,7 +160,7 @@
                   <div class="runner-actions">
                     <button id="runner-open-logs" type="button" disabled>Open Logs</button>
                     <button id="runner-download-logs" type="button" disabled>Download Logs</button>
-                    <button id="runner-import-outputs" type="button" disabled>Import Computed Outputs</button>
+                    <button id="runner-import-outputs" class="primary" type="button" disabled>4. Import Computed Outputs</button>
                     <button id="runner-refresh" type="button">Refresh Status</button>
                   </div>
                 </section>
