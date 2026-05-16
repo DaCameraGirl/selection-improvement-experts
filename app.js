@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-15 runner-zip-download";
+const APP_VERSION = "2026-05-15 runner-zip-portable";
 
 const state = {
   guides: [],
@@ -805,7 +805,6 @@ function humanizePrompt(text, domainKey, scenario) {
 
   function stripBoilerplate(paragraph) {
     let result = paragraph;
-
     const boilerplatePatterns = [
       [/\s*Produce output summaries? only[^.]*\.?/gi, ""],
       [/\s*The JSON reports (?:must|need to|should) (?:list|include|contain)[^.]*\.?/g, ""],
@@ -814,108 +813,25 @@ function humanizePrompt(text, domainKey, scenario) {
       [/\s*and SHA-256 checksum of each required input file\.?/g, ""],
       [/\s*The verifier will grade only[^.]*\.?/g, ""],
     ];
-
     for (const [pattern, replacement] of boilerplatePatterns) {
       result = result.replace(pattern, replacement);
     }
-
-    result = result.replace(/\s{2,}/g, " ").trim();
-
-    return result;
-  }
-
-  function compactOpener(paragraph) {
-    let result = paragraph;
-
-    const openerSwaps = [
-      [/^A production migration of (.+?) has completed, but nobody has confirmed the migrated outputs actually match the legacy reference\. The pipeline is paused and the team needs sign-off before it can go live\.$/,
-       "We just migrated $1 and need to verify the outputs match the legacy reference before going live."],
-      [/^Something in a recent release broke (.+?) — metrics that were stable before the change have shifted, and the team cannot push a hotfix until the failure is pinned to a specific, reproducible cause\.$/,
-       "A recent release broke $1. We need to pin the failure to a specific reproducible cause before pushing a hotfix."],
-      [/^An upcoming audit of (.+?) has flagged a gap: the outputs exist but there is no documented chain connecting each final value to its validated input, applied exclusion rule, or calculation assumption\. The auditor needs that chain before sign-off\.$/,
-       "An audit of $1 flagged a gap — there's no documented chain from final values back to validated inputs and exclusion rules."],
-      [/^The current test suite for (.+?) only exercises the happy path — boundary conditions and malformed inputs are silently passing, and those silent failures have been reaching production downstream\.$/,
-       "The test suite for $1 only covers the happy path. Boundary conditions and malformed inputs are slipping through to production."],
-      [/^Two trusted operational systems are returning conflicting records for (.+?), and a downstream team is stuck — they cannot proceed until there is a single authoritative version of the data with a documented rationale for every conflict decision\.$/,
-       "Two systems disagree on records for $1. We need a single authoritative version with a rationale for every conflict."],
-      [/^After upgrading a shared type utility package, the custom AwaitedLike<T> conditional type now silently widens union members containing Promise<never> to unknown instead of the correct resolved type\. Repair the provided TypeScript project so AwaitedLike<T> distributes correctly over all union members without widening\.$/,
-       "After a type utility upgrade, AwaitedLike<T> silently widens Promise<never> union members to unknown. Fix it so distribution works correctly."],
-      [/^A recent TypeScript 5\.x upgrade introduced a regression in the custom AwaitedLike<T> utility: union members containing Promise<never> are now widened to unknown at the call site instead of resolving to the correct type\. Repair the project so AwaitedLike<T> handles the never branch correctly without widening\.$/,
-       "The TypeScript 5.x upgrade broke AwaitedLike<T> — Promise<never> members widen to unknown instead of resolving correctly."],
-      [/^A pre-release type audit identified that the custom AwaitedLike<T> utility incorrectly widens Promise<never> branches to unknown under strict mode, silently breaking callers that depend on the resolved type\. Repair the project so AwaitedLike<T> distributes correctly and all public type signatures remain unchanged\.$/,
-       "A pre-release audit found AwaitedLike<T> widening Promise<never> to unknown under strict mode. Fix it without changing public type signatures."],
-      [/^The provided TypeScript project contains a conditional type utility AwaitedLike<T> that fails on a known edge case: union members containing Promise<never> silently infer unknown instead of the correct resolved type\. Repair the utility without widening any union branch or changing public type signatures\.$/,
-       "AwaitedLike<T> fails on an edge case: Promise<never> members infer unknown. Fix it without widening branches or changing public signatures."],
-      [/^After a React 18 concurrent-mode migration, DataFetcher began committing stale async results: a response from an earlier request can overwrite the final rendered value when prop changes occur rapidly or when the component unmounts before the fetch resolves\. Repair the component so this never happens\.$/,
-       "After the React 18 migration, DataFetcher commits stale async results when props change rapidly or the component unmounts mid-fetch. Fix it."],
-      [/^A regression in DataFetcher allows a stale async result to overwrite the final rendered value under rapid prop changes or unmount-before-resolve conditions\. The bug is reproducible with the provided Jest fixtures\. Repair the component and produce /,
-       "DataFetcher has a regression: stale async results overwrite the rendered value on rapid prop changes or unmount. Fix it using the provided Jest fixtures."],
-      [/^A pre-release component audit confirmed that DataFetcher does not clean up async side effects on unmount, producing 'state update on an unmounted component' warnings and stale rendered values\. Repair the component without changing its exported API\.$/,
-       "An audit confirmed DataFetcher doesn't clean up async side effects on unmount, causing stale values and warnings. Fix it without changing the exported API."],
-      [/^The provided DataFetcher component has a known stale-closure bug: async fetch results can overwrite state after unmount, remount, or rapid prop changes, and the failure is deterministic given the provided Jest fixtures\. Repair the component so all five fixtures pass and no stale state updates occur\.$/,
-       "DataFetcher has a stale-closure bug: async results overwrite state after unmount or rapid prop changes. Fix it so all five fixtures pass."],
-      [/^An accidental git push --force during a deployment pipeline removed 3 commits from the release branch before release validation completed\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so the original recovered commits are reachable with the exact topology specified\.$/,
-       "A bad force-push left refs pointing at incomplete history. Restore the original graph using the provided bundles and reflog."],
-      [/^Exactly 3 commits are missing from the release branch after an accidental force-push, and no new work can proceed until they are recovered with the correct parent chain\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so the original recovered commits are reachable\.$/,
-       "A bad force-push left refs pointing at incomplete history. Restore the original graph using the provided bundles and reflog."],
-      [/^An incident review confirmed that 3 commits are no longer reachable on the release branch after an accidental force-push\. Recovery must be machine-verifiable with full checksum and topology evidence\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs so all 3 original commits are reachable with the exact topology specified\.$/,
-       "Incident review shows refs no longer reach the expected Git history. Recover it with machine-verifiable checksum and topology evidence."],
-      [/^The provided Git repository contains a ref reconstruction challenge: exactly 3 commits were removed from the release branch by an accidental force-push, and a correct recovery must handle object reachability, parent-chain validation, and file-checksum verification without cherry-picking\. Using [^,]+, [^,]+, [^,]+, [^,]+, and [^,]+, reconstruct the branch refs\.$/,
-       "The repo lost part of its expected history after a force-push. Recover it with reachability, parent-chain, and checksum verification."],
-    ];
-
-    for (const [pattern, replacement] of openerSwaps) {
-      if (pattern.test(result)) {
-        result = result.replace(pattern, replacement);
-        break;
-      }
-    }
-
-    return result;
-  }
-
-  function compactDeliverable(paragraph) {
-    let result = paragraph;
-
-    const deliverableSwaps = [
-      [/^What's needed is (.+?), with a reason code on every divergence and the original source records preserved so any disagreement can be audited independently\.$/,
-       "We need $1 — reason code on every divergence, original source records preserved for independent audit."],
-      [/^The deliverable is (.+?): the root cause identified in machine-readable form, cleanly separated from unrelated drift, with enough evidence that an independent engineer can pull the same inputs and reproduce the failure from scratch\.$/,
-       "Deliverable: $1. Root cause in machine-readable form, separated from unrelated drift, reproducible from the same inputs."],
-      [/^The required deliverable is (.+?), where every accepted record, every rejection, and every exclusion rule invoked is documented — nothing in the final outputs should be unexplained\.$/,
-       "We need $1 — every accepted record, rejection, and exclusion rule documented. Nothing unexplained in the final outputs."],
-      [/^What the team needs is a deterministic edge-case benchmark: (.+?), along with a failure-analysis table that covers normal behavior, boundary conditions, invalid-input handling, and the domain-specific failure modes that expert reviewers actually care about\. Every conclusion must be verifiable from the output files alone — no digging through solver logs\.$/,
-       "We need a deterministic edge-case benchmark: $1, plus a failure-analysis table covering normal, boundary, invalid, and domain-specific failure modes. Everything verifiable from output files alone."],
-      [/^The required output is (.+?): a reason code on each conflict decision, a confidence flag per row, and a separate review queue for unresolved records that the downstream team can work through directly\.$/,
-       "Output: $1 — reason code per conflict, confidence flag per row, and a review queue for unresolved records."],
-      [/^The four positive fixtures (.+?) must compile with zero diagnostics under tsconfig\.strict\.json\. The negative fixture invalid_non_thenable\.ts must fail with exactly one TS2345 diagnostic under tsconfig\.negative\.json\. Every exported type signature listed in contracts\/public_types\.md must remain unchanged\.$/,
-       "Four positive fixtures ($1) must compile clean under tsconfig.strict.json. invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json. No public type signature changes."],
-      [/^All five Jest fixtures must pass under the pinned package versions\. In the rapid-update fixture, the final rendered value must equal the last dispatched request value, not an earlier resolved response\. The unmount-before-resolve fixture must produce zero 'state update on an unmounted component' warnings in Jest stderr\. Render counts for each fixture must not exceed the limits in verifier_inputs\/expected_render_counts\.json\. The exported component API in contracts\/component_api\.md must not change\.$/,
-       "All five Jest fixtures must pass. Rapid-update: final rendered value equals the last dispatched request. Unmount fixture: zero 'state update on unmounted component' warnings. Render counts within expected_render_counts.json. No API changes."],
-      [/^All 3 recovered commits must be reachable from the required branch ref with the parent chain declared in commit_graph_spec\.json; file checksums at each recovered commit must match expected_file_checksums\.json exactly; and branch refs must point to the SHAs specified in commit_graph_spec\.json\.$/,
-       "Recovered SHAs must be reachable with the parent chain from commit_graph_spec.json. File checksums must match expected_file_checksums.json. Branch refs must point to the specified SHAs."],
-    ];
-
-    for (const [pattern, replacement] of deliverableSwaps) {
-      if (pattern.test(result)) {
-        result = result.replace(pattern, replacement);
-        break;
-      }
-    }
-
-    return result;
+    return result.replace(/\s{2,}/g, " ").trim();
   }
 
   function applyContractions(paragraph) {
     let result = paragraph;
     const swaps = [
-      [/does not\b/gi, "doesn't"],
-      [/cannot\b/g, "can't"],
-      [/will not\b/gi, "won't"],
-      [/should not\b/gi, "shouldn't"],
-      [/is not\b/gi, "isn't"],
-      [/are not\b/gi, "aren't"],
-      [/there is no\b/gi, "there's no"],
+      [/\bdoes not\b/gi, "doesn't"],
+      [/\bcannot\b/g, "can't"],
+      [/\bwill not\b/gi, "won't"],
+      [/\bshould not\b/gi, "shouldn't"],
+      [/\bis not\b/gi, "isn't"],
+      [/\bare not\b/gi, "aren't"],
+      [/\bthere is no\b/gi, "there's no"],
+      [/\bit is\b/gi, "it's"],
+      [/\bwe will\b/gi, "we'll"],
+      [/\bthat is\b/gi, "that's"],
     ];
     for (const [pattern, replacement] of swaps) {
       result = result.replace(pattern, replacement);
@@ -923,22 +839,14 @@ function humanizePrompt(text, domainKey, scenario) {
     return result;
   }
 
-  function processParagraph(paragraph, index) {
-    let result = paragraph;
-    result = stripBoilerplate(result);
-    if (index === 0) result = compactOpener(result);
-    if (index === 1) result = compactDeliverable(result);
-    result = applyContractions(result);
-    return result;
-  }
-
-  const processed = paragraphs.map((p, i) => processParagraph(p, i)).filter(Boolean);
+  const processed = paragraphs
+    .map((p) => applyContractions(stripBoilerplate(p)))
+    .filter(Boolean);
 
   if (processed.length >= 3) {
     const merged = processed.slice(1).join(" ");
     return [processed[0], merged].join("\n\n");
   }
-
   return processed.join("\n\n");
 }
 
@@ -968,7 +876,11 @@ function compactOutputContract(domainKey, profile) {
   const details = DOMAIN_DETAILS[domainKey];
   const outputPaths = expectedOutputPathsFor(details);
   if (!outputPaths.length) {
-    return `Save the final artifact under outputs/ with deterministic ordering, declared columns or JSON keys, input checksums, and pass/fail reason codes for the normal, edge, and invalid fixtures.`;
+    return pickPhrase([
+      `Save the final artifact under outputs/ with deterministic ordering, declared columns or JSON keys, input checksums, and pass/fail reason codes for the normal, edge, and invalid fixtures.`,
+      `Drop the final artifact into outputs/ — deterministic order, declared columns or JSON keys, input checksums, and PASS/FAIL reason codes across normal, edge, and invalid fixtures.`,
+      `Write the final artifact to outputs/ with stable ordering, the declared columns or JSON keys, source checksums, and PASS/FAIL reason codes for the normal, edge, and invalid fixtures.`
+    ]);
   }
 
   const visiblePaths = outputPaths.slice(0, 6);
@@ -978,10 +890,22 @@ function compactOutputContract(domainKey, profile) {
     : visiblePaths.join(", ");
   const schemaHint = inferSchemaHints(details, outputPaths);
   const threshold = profile.threshold ? ` Apply this threshold contract exactly: ${profile.threshold.replace(/\.$/, "")}.` : "";
+
   if (domainKey === "git-workflows") {
-    return `Save these verifier-facing files: ${pathText}. Use the declared JSON keys and value types from the golden solution; include deterministic ref ordering, bundle checksums, restored-ref evidence, reachability evidence, and checksum match/mismatch status.${threshold}`;
+    const gitTemplate = pickPhrase([
+      `Save these verifier-facing files: ${pathText}. Use the declared JSON keys and value types from the golden solution; include deterministic ref ordering, bundle checksums, restored-ref evidence, reachability evidence, and checksum match/mismatch status.`,
+      `Files the verifier expects: ${pathText}. Match the JSON keys and types from the golden solution, order refs deterministically, and record bundle checksums, restored-ref evidence, reachability evidence, and checksum match/mismatch status.`,
+      `Verifier-facing outputs go to: ${pathText}. Follow the golden solution's JSON keys and value types; keep ref ordering deterministic and capture bundle checksums, restored-ref evidence, reachability, and checksum match/mismatch status.`
+    ]);
+    return `${gitTemplate}${threshold}`;
   }
-  return `Save these verifier-facing files: ${pathText}. Use ${schemaHint}; include source checksums, stable row ordering, and explicit PASS/FAIL reason codes for normal, edge, and invalid fixtures.${threshold}`;
+
+  const template = pickPhrase([
+    `Save these verifier-facing files: ${pathText}. Use ${schemaHint}; include source checksums, stable row ordering, and explicit PASS/FAIL reason codes for normal, edge, and invalid fixtures.`,
+    `Files the verifier expects: ${pathText}. Follow ${schemaHint}, attach source checksums, keep row ordering stable, and emit PASS/FAIL reason codes across normal, edge, and invalid fixtures.`,
+    `Write the verifier-facing outputs to: ${pathText}. Match ${schemaHint}, record input checksums, hold row ordering stable, and tag each of normal, edge, and invalid fixtures with a PASS/FAIL reason code.`
+  ]);
+  return `${template}${threshold}`;
 }
 
 function makeWorkerPrompt(rawPrompt, domainKey, profile, scenario) {
@@ -1024,6 +948,11 @@ function enrichErrorIfWrong(text) {
   return `${base} ${reasonCodes}`;
 }
 
+function pickPhrase(pool) {
+  if (!Array.isArray(pool) || pool.length === 0) return "";
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 const SCENARIO_STYLES = [
   {
     name: "post-migration validation",
@@ -1035,11 +964,22 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
       const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
-      return [
-        `A production migration of ${noun} has completed, but nobody has confirmed the migrated outputs actually match the legacy reference. The pipeline is paused and the team needs sign-off before it can go live.`,
-        `What's needed is ${profile.artifact}${thr}, with a reason code on every divergence and the original source records preserved so any disagreement can be audited independently.`,
-        standard.prompt
-      ].filter(Boolean).join("\n\n");
+      const opener = pickPhrase([
+        `We just migrated ${noun} and need to confirm the new outputs match the legacy reference before the pipeline can go live.`,
+        `${noun} was migrated in production but nobody's verified the new outputs against the legacy reference yet. The pipeline is paused until that's signed off.`,
+        `A ${noun} migration is sitting at the sign-off gate — outputs are produced, but no one has confirmed they line up with the legacy reference.`,
+        `${noun} moved to the new pipeline last week. Outputs look plausible, but they haven't been checked against the legacy reference, and nothing ships until that check exists.`,
+        `Migration went through on ${noun}, but the outputs haven't been compared against the legacy reference yet — sign-off is blocked until that comparison exists.`,
+        `${noun}'s new pipeline is up and producing outputs, but until those outputs are checked against the legacy reference, the team can't promote the change.`
+      ]);
+      const deliverable = pickPhrase([
+        `Produce ${profile.artifact}${thr} — every divergence gets a reason code, and source records stay intact so any disagreement is auditable.`,
+        `Build ${profile.artifact}${thr}: a reason code per divergence and the original source rows preserved for independent audit.`,
+        `What's needed: ${profile.artifact}${thr}, with a reason code attached to every divergence and the original source rows kept verbatim.`,
+        `We need ${profile.artifact}${thr} — each divergence tagged with a reason code, and the original rows kept on file so the audit holds up.`,
+        `Deliver ${profile.artifact}${thr}: divergences flagged with reason codes, source rows preserved verbatim for downstream audit.`
+      ]);
+      return [opener, deliverable, standard.prompt].filter(Boolean).join("\n\n");
     }
   },
   {
@@ -1052,11 +992,22 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
       const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
-      return [
-        `Something in a recent release broke ${noun} — metrics that were stable before the change have shifted, and the team cannot push a hotfix until the failure is pinned to a specific, reproducible cause.`,
-        `The deliverable is ${profile.artifact}${thr}: the root cause identified in machine-readable form, cleanly separated from unrelated drift, with enough evidence that an independent engineer can pull the same inputs and reproduce the failure from scratch.`,
-        standard.prompt
-      ].filter(Boolean).join("\n\n");
+      const opener = pickPhrase([
+        `A recent release broke ${noun} — previously stable metrics have shifted, and no hotfix ships until the failure is pinned to a specific reproducible cause.`,
+        `${noun} regressed after the last release. Stable metrics moved, and the team can't ship a fix until they have a reproducible failure to point at.`,
+        `Metrics on ${noun} drifted after the last release. We need a specific reproducible failure before a hotfix can land.`,
+        `Something in the latest release broke ${noun}. The team is holding back the hotfix until the root cause is isolated to a reproducible case.`,
+        `${noun} stopped behaving the same way after the last deploy. Until we have a reproducible failure case, the hotfix is stuck.`,
+        `Post-deploy metrics on ${noun} no longer match the baseline. The fix can't go out until somebody pins the failure to a specific reproducible cause.`
+      ]);
+      const deliverable = pickPhrase([
+        `Deliver ${profile.artifact}${thr}: root cause in machine-readable form, separated from unrelated drift, with enough evidence to reproduce the failure from scratch.`,
+        `Produce ${profile.artifact}${thr} — pin the root cause cleanly, leave out unrelated drift, and include enough evidence that an independent engineer can reproduce it.`,
+        `What's needed: ${profile.artifact}${thr}, a machine-readable root cause that doesn't bundle in unrelated drift and that anyone with the same inputs can reproduce.`,
+        `Output: ${profile.artifact}${thr}, with the root cause isolated from unrelated drift and reproducible by anyone with the same inputs.`,
+        `Build ${profile.artifact}${thr} — clean machine-readable diagnosis, no unrelated noise, reproducible against the same fixtures.`
+      ]);
+      return [opener, deliverable, standard.prompt].filter(Boolean).join("\n\n");
     }
   },
   {
@@ -1069,11 +1020,22 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
       const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
-      return [
-        `An upcoming audit of ${noun} has flagged a gap: the outputs exist but there is no documented chain connecting each final value to its validated input, applied exclusion rule, or calculation assumption. The auditor needs that chain before sign-off.`,
-        `The required deliverable is ${profile.artifact}${thr}, where every accepted record, every rejection, and every exclusion rule invoked is documented — nothing in the final outputs should be unexplained.`,
-        standard.prompt
-      ].filter(Boolean).join("\n\n");
+      const opener = pickPhrase([
+        `${noun}'s audit flagged a traceability gap: outputs exist, but there's no documented chain from each final value back to its validated input or exclusion rule.`,
+        `An audit of ${noun} is blocked on traceability — every final value needs a documented chain to its validated input, exclusion rule, and calculation assumption.`,
+        `Auditors want a full chain of evidence on ${noun}: every output traced to its source input, exclusion rule, and assumption.`,
+        `The auditor reviewing ${noun} can't sign off without a clear line from each final value back to the input and rule that produced it.`,
+        `${noun} is in the audit pipeline, and the auditor needs a documented chain from every final value to its validated input. That chain doesn't exist yet.`,
+        `The ${noun} audit can't progress: outputs are present, but the link from each value to the input and rule that produced it isn't recorded anywhere.`
+      ]);
+      const deliverable = pickPhrase([
+        `Produce ${profile.artifact}${thr} with every accepted record, rejection, and exclusion rule documented. Nothing unexplained in the final outputs.`,
+        `Deliver ${profile.artifact}${thr}: each acceptance, rejection, and applied exclusion rule recorded in line. No unexplained values anywhere.`,
+        `We need ${profile.artifact}${thr} — accept/reject decisions and exclusion rules all recorded, so the final outputs explain themselves.`,
+        `Output: ${profile.artifact}${thr}, with every accept, reject, and exclusion documented so the final values explain themselves.`,
+        `Build ${profile.artifact}${thr} — full evidence trail across acceptance, rejection, and exclusion rules. Nothing in the outputs goes undocumented.`
+      ]);
+      return [opener, deliverable, standard.prompt].filter(Boolean).join("\n\n");
     }
   },
   {
@@ -1086,11 +1048,22 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
       const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
-      return [
-        `The current test suite for ${noun} only exercises the happy path — boundary conditions and malformed inputs are silently passing, and those silent failures have been reaching production downstream.`,
-        `What the team needs is a deterministic edge-case benchmark: ${profile.artifact}${thr}, along with a failure-analysis table that covers normal behavior, boundary conditions, invalid-input handling, and the domain-specific failure modes that expert reviewers actually care about. Every conclusion must be verifiable from the output files alone — no digging through solver logs.`,
-        standard.prompt
-      ].filter(Boolean).join("\n\n");
+      const opener = pickPhrase([
+        `The ${noun} test suite only covers the happy path. Boundary cases and malformed inputs slip through silently, and those failures keep reaching production.`,
+        `${noun}'s tests pass everything down the easy path. Edge and invalid inputs aren't checked, and the quiet failures end up downstream.`,
+        `Tests on ${noun} run the happy path and stop there. Boundary conditions and bad inputs are landing in production unnoticed.`,
+        `Right now the ${noun} suite is happy-path only — boundary and invalid cases either pass silently or never run at all.`,
+        `${noun}'s testing today doesn't catch boundary or invalid-input failures — they pass quietly, then surface in production.`,
+        `Boundary and invalid-input handling on ${noun} aren't tested, so silent failures keep ending up downstream where they're expensive.`
+      ]);
+      const deliverable = pickPhrase([
+        `Build a deterministic edge-case benchmark: ${profile.artifact}${thr}, plus a failure-analysis table covering normal, boundary, invalid, and domain-specific failure modes. Everything verifiable from output files alone — no log diving.`,
+        `Produce ${profile.artifact}${thr} as an edge-case benchmark, with a failure-analysis table for normal, boundary, and invalid inputs plus the domain-specific failure modes experts watch for. Outputs alone tell the story; no solver logs needed.`,
+        `Deliver ${profile.artifact}${thr}: a deterministic edge-case benchmark and a failure-analysis table — normal, boundary, invalid, plus the domain-specific failure modes. Verifiable end-to-end from the output files.`,
+        `Output: ${profile.artifact}${thr} as the edge-case benchmark, with a failure-analysis table for normal, boundary, invalid, and the domain-specific failure modes — readable from outputs without log diving.`,
+        `We need ${profile.artifact}${thr}, a deterministic edge-case benchmark plus a failure-analysis table covering normal, boundary, invalid, and the domain failure modes. Output files tell the full story.`
+      ]);
+      return [opener, deliverable, standard.prompt].filter(Boolean).join("\n\n");
     }
   },
   {
@@ -1109,11 +1082,22 @@ const SCENARIO_STYLES = [
     composePrompt(profile, type, standard) {
       const noun = toBriefNoun(profile.brief);
       const thr = profile.threshold ? ` — ${profile.threshold.replace(/\.$/, "")}` : "";
-      return [
-        `Two trusted operational systems are returning conflicting records for ${noun}, and a downstream team is stuck — they cannot proceed until there is a single authoritative version of the data with a documented rationale for every conflict decision.`,
-        `The required output is ${profile.artifact}${thr}: a reason code on each conflict decision, a confidence flag per row, and a separate review queue for unresolved records that the downstream team can work through directly.`,
-        standard.prompt
-      ].filter(Boolean).join("\n\n");
+      const opener = pickPhrase([
+        `Two systems disagree on records for ${noun}, and the downstream team can't move until there's a single authoritative version with a rationale per conflict.`,
+        `${noun} has two trusted systems returning conflicting records. Downstream is blocked until we produce one authoritative version with documented reasoning per conflict.`,
+        `Conflicting records on ${noun} between two trusted systems are blocking downstream work. They need one authoritative version, with reasoning recorded for every conflict decision.`,
+        `Two upstream systems are giving different answers for ${noun}. The downstream team is parked until somebody hands them a single defensible version.`,
+        `${noun} is showing up differently in two trusted systems, and downstream can't move forward without one authoritative version plus reasoning per conflict.`,
+        `Records for ${noun} disagree across two upstream systems. Downstream needs a single defensible reconciliation, with each conflict carrying a documented reason.`
+      ]);
+      const deliverable = pickPhrase([
+        `Produce ${profile.artifact}${thr}: a reason code per conflict decision, a confidence flag per row, and an unresolved-records queue the downstream team can pick up directly.`,
+        `Deliver ${profile.artifact}${thr} — reason codes on each conflict, confidence flags per row, and an explicit review queue for the rows that don't reconcile cleanly.`,
+        `We need ${profile.artifact}${thr}: every conflict resolved with a reason code, each row carrying a confidence flag, and the unresolved rows landing in a separate queue.`,
+        `Output: ${profile.artifact}${thr}, with reason codes on each conflict, confidence flags per row, and a queue for the rows that don't reconcile cleanly.`,
+        `Build ${profile.artifact}${thr} — every conflict tagged with a reason code, every row carrying a confidence flag, unresolved rows landing in their own review queue.`
+      ]);
+      return [opener, deliverable, standard.prompt].filter(Boolean).join("\n\n");
     }
   }
 ];
@@ -4160,18 +4144,49 @@ if __name__ == "__main__":
     ],
     standardResources: "Include fixture manifest, baseline tsc report, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The TypeScript project and fixture files in this zip are synthetically constructed to reproduce the known type-inference bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
-      const openers = {
-        "post-migration validation": "AwaitedLike<T> is giving the wrong answer for Promise<never> inside union types after a type-utility cleanup. Patch the conditional type without changing the public API.",
-        "regression triage": "The TypeScript fixtures expose a narrow AwaitedLike<T> regression: Promise<never> is being widened to unknown instead of resolving through the intended branch.",
-        "compliance audit": "The strict-mode type audit found one bad branch in AwaitedLike<T>. Promise<never> must resolve correctly, and exported type signatures must stay byte-for-byte compatible with the contract.",
-        "edge-case benchmark": "Fix the AwaitedLike<T> edge case around Promise<never>. The solution has to preserve distributive behavior over unions and must not paper over the issue by widening to unknown."
+      const openerPools = {
+        "post-migration validation": [
+          "AwaitedLike<T> is giving the wrong answer for Promise<never> inside union types after a type-utility cleanup. Patch the conditional type without changing the public API.",
+          "After the type-utility cleanup, AwaitedLike<T> resolves Promise<never> members of a union to unknown. Fix the conditional type and leave the public API untouched.",
+          "AwaitedLike<T> drifted during the recent type-utility cleanup — Promise<never> in a union now widens to unknown. Restore the right resolution without touching the public API.",
+          "The recent type-utility refactor left AwaitedLike<T> resolving Promise<never> in a union as unknown. Restore the right branch behavior; keep the public API as-is.",
+          "After the type-utility cleanup landed, AwaitedLike<T> stopped resolving Promise<never> correctly inside unions. Patch it without touching public type signatures."
+        ],
+        "regression triage": [
+          "The TypeScript fixtures expose a narrow AwaitedLike<T> regression: Promise<never> is being widened to unknown instead of resolving through the intended branch.",
+          "AwaitedLike<T> regressed on a tight edge: Promise<never> in a union now widens to unknown rather than resolving through the never branch. Pin the fix.",
+          "The fixtures pin down the AwaitedLike<T> regression — Promise<never> members are widening to unknown when they should resolve through their own branch.",
+          "AwaitedLike<T> regressed: Promise<never> in a union is widening to unknown instead of going through its dedicated branch. Pin and fix.",
+          "The fixtures show one narrow AwaitedLike<T> failure — Promise<never> members of a union now widen to unknown. Fix the conditional type."
+        ],
+        "compliance audit": [
+          "The strict-mode type audit found one bad branch in AwaitedLike<T>. Promise<never> must resolve correctly, and exported type signatures must stay byte-for-byte compatible with the contract.",
+          "An audit under strict mode flagged AwaitedLike<T>: Promise<never> doesn't resolve through its intended branch. Repair the conditional type; do not change a single exported signature.",
+          "Strict-mode audit verdict on AwaitedLike<T>: one wrong branch. Make Promise<never> resolve correctly and keep every exported signature in contracts/public_types.md byte-identical.",
+          "The strict-mode audit on AwaitedLike<T> turned up one bad conditional branch. Fix it and keep every public type signature byte-identical to contracts/public_types.md.",
+          "Audit findings on AwaitedLike<T>: Promise<never> doesn't distribute through its intended branch under strict mode. Repair the conditional type without altering exported signatures."
+        ],
+        "edge-case benchmark": [
+          "Fix the AwaitedLike<T> edge case around Promise<never>. The solution has to preserve distributive behavior over unions and must not paper over the issue by widening to unknown.",
+          "Repair the AwaitedLike<T> edge case for Promise<never> without papering over it — distribution over unions has to keep working, and widening to unknown isn't an answer.",
+          "The Promise<never> edge case in AwaitedLike<T> needs a real fix — keep distribution over union members intact and don't fall back to widening to unknown.",
+          "AwaitedLike<T> has an edge case around Promise<never> — fix it the right way: keep distribution over unions intact, no widening shortcuts.",
+          "The Promise<never> edge in AwaitedLike<T> needs a proper fix — distribution over union members has to keep working, and unknown isn't an acceptable fallback."
+        ]
       };
-      const opener = openers[scenario && scenario.name] || openers["edge-case benchmark"];
-      return [
-        opener,
+      const pool = openerPools[scenario && scenario.name] || openerPools["edge-case benchmark"];
+      const opener = pickPhrase(pool);
+      const filesLine = pickPhrase([
         "Write outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
-        "All 4 positive fixtures must compile clean under tsconfig.strict.json; invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json; contracts/public_types.md must remain unchanged."
-      ].join("\n\n");
+        "Emit outputs/fix.patch, outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json.",
+        "Drop outputs/fix.patch plus outputs/tsc_report.json, outputs/type_test_results.json, outputs/public_api_report.json, and outputs/run_manifest.json into the outputs folder."
+      ]);
+      const constraintsLine = pickPhrase([
+        "All 4 positive fixtures must compile clean under tsconfig.strict.json; invalid_non_thenable.ts must produce exactly one TS2345 under tsconfig.negative.json; contracts/public_types.md must remain unchanged.",
+        "The four positive fixtures compile with zero diagnostics under tsconfig.strict.json. invalid_non_thenable.ts produces exactly one TS2345 under tsconfig.negative.json. No signature in contracts/public_types.md changes.",
+        "Positive fixtures (4 of them) compile clean under tsconfig.strict.json. invalid_non_thenable.ts emits one TS2345 and only one under tsconfig.negative.json. contracts/public_types.md stays byte-identical."
+      ]);
+      return [opener, filesLine, constraintsLine].join("\n\n");
     },
     sources: [
       "TypeScript compiler issues (conditional types, Awaited): https://github.com/microsoft/TypeScript/issues?q=label%3ABug+conditional+type",
@@ -4357,18 +4372,49 @@ if __name__ == "__main__":
     ],
     standardResources: "Include baseline test results, expected render counts, output schemas, and package-lock.json. No ML artifacts or benchmark splits. The component and test fixtures in this zip are synthetically constructed to reproduce the known stale-closure bug; all source content is original and free from licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
-      const openers = {
-        "post-migration validation": "DataFetcher can show stale data when requests resolve out of order, and it can still update state after unmount. Fix the component without changing its exported API.",
-        "regression triage": "DataFetcher has an async race: rapid prop changes can render an older response, and unmount-before-resolve can still commit state. Fix the component without changing its exported API.",
-        "compliance audit": "DataFetcher needs a safe async cleanup path. A request that is no longer current must not update state, and unmounting must leave no state-update warnings.",
-        "edge-case benchmark": "Repair DataFetcher’s async effect. The hard case is overlapping requests: only the latest live request may commit state."
+      const openerPools = {
+        "post-migration validation": [
+          "DataFetcher can show stale data when requests resolve out of order, and it can still update state after unmount. Fix the component without changing its exported API.",
+          "After the migration, DataFetcher renders stale responses on out-of-order resolution and still commits state after unmount. Repair it; keep the exported API identical.",
+          "DataFetcher is committing state from requests that finished after newer ones — and from requests that finished after unmount. Fix that without touching the exported API.",
+          "Since the migration, DataFetcher commits state from finished requests even when newer ones have started — and from requests that resolve after unmount. Fix both; leave the exported API as-is.",
+          "DataFetcher inherited two bugs after the migration: out-of-order async results overwrite the rendered value, and state still updates after unmount. Repair it without changing the exported API."
+        ],
+        "regression triage": [
+          "DataFetcher has an async race: rapid prop changes can render an older response, and unmount-before-resolve can still commit state. Fix the component without changing its exported API.",
+          "Rapid prop changes on DataFetcher let an older fetch overwrite the rendered value, and unmount-before-resolve still commits state. Pin the race and keep the exported API stable.",
+          "Two regressions in DataFetcher: rapid prop changes can render an older response, and an unmount before the fetch resolves can still set state. Fix both, no API changes.",
+          "DataFetcher regressed in two places: rapid prop changes can commit an older response, and unmount-before-resolve still triggers state updates. Pin both without API changes.",
+          "Two async bugs in DataFetcher came back: a rapid-prop sequence commits a stale response, and an unmount mid-fetch still produces a state update. Fix them and keep the exported API stable."
+        ],
+        "compliance audit": [
+          "DataFetcher needs a safe async cleanup path. A request that is no longer current must not update state, and unmounting must leave no state-update warnings.",
+          "Audit ask on DataFetcher: enforce a safe async cleanup. Stale requests can't commit state and unmount can't produce state-update warnings.",
+          "DataFetcher's async cleanup isn't safe. Stale or post-unmount requests must not commit state, and unmount must produce no React state-update warnings.",
+          "DataFetcher needs a proper async cleanup path so stale requests can't commit state and unmounting can't emit React state-update warnings.",
+          "The audit flagged DataFetcher's async cleanup as unsafe — stale or post-unmount requests can still update state. Fix it and produce zero state-update warnings on unmount."
+        ],
+        "edge-case benchmark": [
+          "Repair DataFetcher's async effect. The hard case is overlapping requests: only the latest live request may commit state.",
+          "Fix DataFetcher's async effect so overlapping requests behave correctly — only the most recent live request is allowed to commit state.",
+          "The edge case is overlapping fetches: DataFetcher's async effect has to drop everything except the latest live request before committing state. Make that happen.",
+          "Overlapping requests are the failure mode in DataFetcher — only the latest live request should commit state. Make the effect honor that.",
+          "The edge case is concurrent fetches: DataFetcher must drop every request except the latest live one before committing state. Implement that."
+        ]
       };
-      const opener = openers[scenario && scenario.name] || openers["regression triage"];
-      return [
-        opener,
+      const pool = openerPools[scenario && scenario.name] || openerPools["regression triage"];
+      const opener = pickPhrase(pool);
+      const filesLine = pickPhrase([
         "Write outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
-        "All 5 Jest cases must pass; rapid updates must show the latest request result; unmount-before-resolve must produce 0 React state-update warnings; render counts must stay within expected_render_counts.json."
-      ].join("\n\n");
+        "Emit outputs/DataFetcher.fixed.tsx, outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json.",
+        "Produce outputs/DataFetcher.fixed.tsx plus outputs/fix.patch, outputs/test_results.json, outputs/render_count_report.json, and outputs/run_manifest.json."
+      ]);
+      const constraintsLine = pickPhrase([
+        "All 5 Jest cases must pass; rapid updates must show the latest request result; unmount-before-resolve must produce 0 React state-update warnings; render counts must stay within expected_render_counts.json.",
+        "Every one of the 5 Jest cases passes. Rapid updates render the last dispatched request. Unmount-before-resolve emits zero React state-update warnings. Render counts stay within expected_render_counts.json.",
+        "Five Jest cases, all green. Rapid-update fixture renders the latest request, not an older one. Unmount-before-resolve produces zero state-update warnings. Render counts inside the limits in expected_render_counts.json."
+      ]);
+      return [opener, filesLine, constraintsLine].join("\n\n");
     },
     sources: [
       "React 18 useEffect cleanup docs: https://react.dev/reference/react/useEffect#fetching-data-with-effects",
@@ -4493,46 +4539,59 @@ if __name__ == "__main__":
   "git-workflows": {
     domainLabel: "Git ref-recovery task — reconstruct lost commits after an accidental force-push",
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it requires Git reflog parsing, git fsck --connectivity-only checks, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. It also requires understanding Git's content-addressed object model: cherry-pick creates new SHAs, so the correct recovery path is fetching the original commit objects from repo_before_force.bundle and restoring refs with git update-ref.`;
+      return `This is ${effectiveExpertiseLabel} difficulty because it demands professional domain expertise in Git internals: reflog parsing, git fsck --connectivity-only checks, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. The expert failure mode is cherry-pick — it produces files that look right while emitting the wrong commit SHAs — so the correct recovery path is fetching the original commit objects from repo_before_force.bundle and restoring refs with git update-ref. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one in version-control engineering.`;
     },
     verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
     scenarioEvidence: [
-      "repo_before_force.bundle — object store before the force-push, including the lost commit objects",
-      "repo_after_force.bundle — object store after the force-push (what the remote now has)",
-      "reflog_export.txt — commit SHAs tagged RECOVER_ME",
-      "commit_graph_spec.json — expected branch ref targets, parent SHA chains, and commit messages",
-      "expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit",
-      "expected_refs.json — exact branch ref → SHA mappings the verifier will check",
       "output_schemas/ — JSON Schema definitions for repair_log.json and commit_graph_report.json",
-      "verifier_inputs/ — fixture bundles for normal, edge, and invalid recovery cases",
-      "version_manifest.json — git version and OS used to produce the fixtures"
+      "verifier_inputs/ — fixture bundles for normal, edge, and invalid recovery cases"
     ],
     standardResources: "Include the two Git bundles, reflog export, commit graph spec, expected refs, expected file checksums, solve.py, verify.py, README.md, and the root-level version_manifest.json. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
-    scenarioEvidence: [
-      "repo_before_force.bundle - object store before the force-push, including the lost commit objects",
-      "repo_after_force.bundle - object store after the force-push (what the remote now has)",
-      "reflog_export.txt - reflog-style SHA evidence for commits that must remain reachable",
-      "commit_graph_spec.json - expected branch tips, ancestor chains, and orphaned commit list",
-      "expected_file_checksums.json - expected Git blob IDs for key files at recovered commits",
-      "expected_refs.json - exact branch ref to full SHA mappings the verifier checks",
-      "solve.py - reference implementation that restores refs and emits outputs/",
-      "verify.py - deterministic verifier for bundle validity, ref targets, topology, and checksums",
-      "version_manifest.json - root-level runtime manifest with Python, Node, Git, OS assumptions, and generator metadata"
-    ],
     composePrompt(profile, type, standard, scenario) {
-      const openers = {
-        "post-migration validation": "Recover the release repository after a bad force-push. Use the before/after bundles and reflog export to restore the original branch refs.",
-        "regression triage": "Recover the branch refs that no longer reach the commits listed in the reflog export. Preserve the original Git object IDs.",
-        "compliance audit": "Restore the published Git refs after a force-push changed the branch history. The recovered refs must point to the original commits.",
-        "edge-case benchmark": "Restore the force-pushed refs so every recovered SHA is reachable through its original parent chain."
+      const openerPools = {
+        "post-migration validation": [
+          "Recover the release repository after a bad force-push. Use the before/after bundles and reflog export to restore the original branch refs.",
+          "A force-push wiped the release branch history. Restore the original branch refs using the before/after bundles and the reflog export.",
+          "The release repo lost commits to a bad force-push. Pull the original objects back from the before-bundle, cross-check with the reflog, and restore the branch refs.",
+          "A force-push wiped a chunk of release history. Restore the original branch refs with their original SHAs using the before/after bundles and reflog.",
+          "Release branch refs no longer reach the right history after a force-push. Use the before/after bundles and reflog evidence to reconstruct them with the original Git object IDs."
+        ],
+        "regression triage": [
+          "Recover the branch refs that no longer reach the commits listed in the reflog export. Preserve the original Git object IDs.",
+          "The branch refs no longer reach the commits the reflog says should be there. Restore them with the original Git object IDs intact.",
+          "Bring the branch refs back into line with the reflog evidence — the original Git object IDs have to be preserved exactly.",
+          "The branch refs and the reflog disagree — refs no longer reach the commits the reflog records. Reconcile by restoring the original SHAs.",
+          "Branch refs have drifted from the reflog evidence: the recorded SHAs are no longer reachable. Restore them with their original Git object IDs intact."
+        ],
+        "compliance audit": [
+          "Restore the published Git refs after a force-push changed the branch history. The recovered refs must point to the original commits.",
+          "A force-push rewrote published Git history. The audit needs the original refs back, pointing at the original commit SHAs.",
+          "Published Git refs are pointing at the wrong history after a force-push. Put them back on the original commits exactly.",
+          "Audit verdict: published Git refs point at the wrong history after a force-push. Put them back on the original commit SHAs.",
+          "The force-pushed history breaks the audit's chain-of-custody. Restore the original refs so every published ref maps to its original commit SHA."
+        ],
+        "edge-case benchmark": [
+          "Restore the force-pushed refs so every recovered SHA is reachable through its original parent chain.",
+          "Bring back the force-pushed refs with the original parent chains intact — every recovered SHA stays reachable through its own ancestors.",
+          "Reconstruct the force-pushed refs so each recovered commit is reachable through its original parent chain, not a re-created one.",
+          "Force-push recovery edge case: each recovered SHA must remain reachable through its original parent chain, not a re-created one. Reconstruct accordingly.",
+          "The recovery has to preserve original parent chains — every recovered commit reaches through its own ancestors, not a substitute. Rebuild the refs that way."
+        ]
       };
-      const opener = openers[scenario && scenario.name] || openers["post-migration validation"];
-      return [
-        opener,
+      const pool = openerPools[scenario && scenario.name] || openerPools["post-migration validation"];
+      const opener = pickPhrase(pool);
+      const filesLine = pickPhrase([
         "Write outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
-        "Do not cherry-pick. The repaired bundle must have 0 missing or corrupt objects under git fsck --connectivity-only, match expected_refs.json exactly, and satisfy the parent-chain and checksum fixtures."
-      ].join("\n\n");
+        "Emit outputs/repaired_repo.bundle plus outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
+        "Land outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json in the outputs folder."
+      ]);
+      const constraintsLine = pickPhrase([
+        "Do not cherry-pick. The repaired bundle must have 0 missing or corrupt objects under git fsck --connectivity-only, match expected_refs.json exactly (zero SHA tolerance), and satisfy the parent-chain and checksum fixtures within the declared threshold.",
+        "Cherry-pick is off the table — it changes SHAs. The repaired bundle clones clean, git fsck --connectivity-only reports 0 missing or corrupt objects, refs match expected_refs.json within zero SHA tolerance, and the parent-chain and checksum fixtures all pass.",
+        "No cherry-picking; that produces new SHAs. The repaired bundle clones successfully, passes git fsck --connectivity-only with 0 missing or corrupt objects, matches expected_refs.json exactly, and satisfies the parent-chain and checksum fixtures within the contract threshold."
+      ]);
+      return [opener, filesLine, constraintsLine].join("\n\n");
     },
     sources: [
       "Git reflog documentation: https://git-scm.com/docs/git-reflog",
@@ -4540,55 +4599,18 @@ if __name__ == "__main__":
       "Real force-push recovery scenarios: https://ohshitgit.com/"
     ],
     downloads: [
-      "repo_before_force.bundle and repo_after_force.bundle - included in the zip; no external download needed.",
-      "A modern Git runtime compatible with git bundle, git update-ref, git rev-list, and git fsck --connectivity-only; the actual version used is recorded in version_manifest.json.",
-      "reflog_export.txt - included in the zip; contains the commit SHAs to recover."
-    ],
-    resources: [
-      "repo_before_force.bundle - git bundle containing the full object store before the force-push, including the lost commit objects.",
-      "repo_after_force.bundle - git bundle reflecting what remains on the remote after the accidental push.",
-      "reflog_export.txt - reflog-style lines whose first token is a commit SHA to preserve and recover.",
-      "commit_graph_spec.json - declares the expected final branch topology: branch name, expected tip SHA, expected ancestor chain, and orphaned commits.",
-      "expected_file_checksums.json - expected Git blob IDs for key files at recovered commits.",
-      "expected_refs.json - exact refs/heads/* to full-SHA mappings the verifier checks.",
-      "version_manifest.json - root-level runtime manifest containing the actual Python, Node, and Git versions used to produce the package."
-    ],
-    downloads: [
       "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
-      "Git 2.43.0 or compatible, recorded in environment/git_version.txt.",
+      "A modern Git runtime compatible with git bundle, git update-ref, git rev-list, and git fsck --connectivity-only; the actual version used is recorded in version_manifest.json.",
       "reflog_export.txt — included in the zip; contains the commit SHAs to recover."
     ],
     resources: [
       "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the lost commit objects.",
       "repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.",
-      "reflog_export.txt — lines in the format SHA REFLOG_MESSAGE; commit SHAs to recover are tagged RECOVER_ME.",
-      "commit_graph_spec.json — declares the expected final branch topology: branch name, expected HEAD SHA, expected parent SHA chain, and commit messages.",
-      "verifier_inputs/expected_file_checksums.json — SHA-256 checksums of key files at each recovered commit.",
-      "environment/git_version.txt — git 2.43.0."
-    ],
-    downloads: [
-      "repo_before_force.bundle and repo_after_force.bundle - included in the zip; no external download needed.",
-      "A modern Git runtime compatible with git bundle, git update-ref, git rev-list, and git fsck --connectivity-only; the actual version used is recorded in version_manifest.json.",
-      "reflog_export.txt - included in the zip; contains the commit SHAs to recover."
-    ],
-    resources: [
-      "repo_before_force.bundle - git bundle containing the full object store before the force-push, including the lost commit objects.",
-      "repo_after_force.bundle - git bundle reflecting what remains on the remote after the accidental push.",
-      "reflog_export.txt - reflog-style lines whose first token is a commit SHA to preserve and recover.",
-      "commit_graph_spec.json - declares the expected final branch topology: branch name, expected tip SHA, expected ancestor chain, and orphaned commits.",
-      "expected_file_checksums.json - expected Git blob IDs for key files at recovered commits.",
-      "expected_refs.json - exact refs/heads/* to full-SHA mappings the verifier checks.",
-      "version_manifest.json - root-level runtime manifest containing the actual Python, Node, and Git versions used to produce the package."
-    ],
-    solution: [
-      "Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs",
-      "Clone repo_after_force.bundle into a work directory to start from the post-force-push state: git clone repo_after_force.bundle work_repo",
-      "Parse reflog_export.txt to identify every SHA tagged RECOVER_ME — you must know the SHAs before fetching.",
-      "Fetch each recovered commit object from repo_before_force.bundle: for each recovered SHA, run git fetch <path_to_repo_before_force.bundle> <sha>",
-      "Reconstruct refs per commit_graph_spec.json: use git update-ref to point the required branch ref at the specified HEAD SHA so the original commits become reachable. Do not cherry-pick — cherry-pick creates new commit objects with different SHAs.",
-      "Run git fsck --connectivity-only and confirm 0 missing or corrupt objects. Run git rev-list <branch> and verify all recovered commit SHAs are reachable. Run git log --format='%H %P %s' and compare parent chains to commit_graph_spec.json.",
-      "Verify file checksums at each recovered commit: git show <sha>:<file> | sha256sum, compare to expected_file_checksums.json.",
-      "Export outputs/repaired_repo.bundle (git bundle create --all), outputs/repair_log.json, outputs/commit_graph_report.json, outputs/run_manifest.json — each JSON must include the required fields and pass/fail reason codes."
+      "reflog_export.txt — reflog-style lines whose first token is a commit SHA to preserve and recover.",
+      "commit_graph_spec.json — declares the expected final branch topology: branch name, expected tip SHA, expected ancestor chain, and orphaned commits.",
+      "expected_file_checksums.json — expected Git blob IDs for key files at recovered commits.",
+      "expected_refs.json — exact refs/heads/* to full-SHA mappings the verifier checks.",
+      "version_manifest.json — root-level runtime manifest containing the actual Python, Node, and Git versions used to produce the package."
     ],
     solution: [
       "Run: python solve.py from the zip root. The script reads repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, expected_refs.json, and expected_file_checksums.json, then writes outputs/.",
@@ -4750,35 +4772,32 @@ spec = json.loads(Path('commit_graph_spec.json').read_text())
 expected_checksums = json.loads(Path('expected_file_checksums.json').read_text())
 expected_refs = json.loads(Path('expected_refs.json').read_text())
 
-# Extract SHAs from reflog evidence
-reflog_shas = set()
+# Extract SHAs from reflog evidence in file order for deterministic output
+reflog_shas = []
+seen_reflog_shas = set()
 for line in reflog_txt.strip().splitlines():
     m = re.match(r'^([a-f0-9]{7,40})\\s', line)
-    if m:
-        reflog_shas.add(m.group(1))
+    if m and m.group(1) not in seen_reflog_shas:
+        seen_reflog_shas.add(m.group(1))
+        reflog_shas.append(m.group(1))
 
-orphaned = list(reflog_shas)
+orphaned = reflog_shas
 if not orphaned:
     orphaned = next(iter(spec.get("branches", {}).values()), {}).get("orphaned_commits", [])
 
-# Verify the source bundle is real and cloneable
-before_verify = git(['bundle', 'verify', str(before_bundle)])
-if before_verify.returncode != 0:
-    print("FAIL: repo_before_force.bundle is not a valid git bundle")
-    (OUT_DIR / 'run_manifest.json').write_text(json.dumps({
-        "solver": "solve.py", "status": "failed",
-        "error": "before_bundle_invalid",
-        "details": before_verify.stderr.strip()
-    }, indent=2))
-    sys.exit(1)
-
 # Clone the before-bundle so original object identities are available.
+# Cloning is the portable bundle validity check; git bundle verify can require an existing repo.
 recovery = Path('recovery_worktree')
 if recovery.exists():
     import shutil; shutil.rmtree(recovery)
 fetch_r = git(['clone', str(before_bundle), str(recovery)])
 if fetch_r.returncode != 0:
     print("FAIL: could not clone before_bundle")
+    (OUT_DIR / 'run_manifest.json').write_text(json.dumps({
+        "solver": "solve.py", "status": "failed",
+        "error": "before_bundle_invalid",
+        "details": fetch_r.stderr.strip()
+    }, indent=2))
     sys.exit(1)
 
 # Restore branch refs to exact expected SHAs. Do not cherry-pick.
@@ -5692,7 +5711,7 @@ const TASK_RECIPES = {
     ],
     scenarioLabel: "force-push recovery",
     difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
-    difficultyText: "This is a master's-level Git recovery task, not a simple file restore. The solver has to reason about object reachability, reflog evidence, bundle contents, branch refs, parent SHAs, and checksum verification at the same time. The trap is that a cherry-pick can make the files look right while producing the wrong commit IDs, so the repaired graph must be reconstructed from the original objects and then proven with git fsck, rev-list, and exact ref comparisons.",
+    difficultyText: "This is a master's-level Git recovery task that demands professional domain expertise in version-control engineering, not a simple file restore. The expert solver has to reason about object reachability, reflog evidence, bundle contents, branch refs, parent SHAs, and checksum verification at the same time. The expert failure mode is cherry-pick — it makes files look right while producing the wrong commit IDs — so the repaired graph must be reconstructed from the original objects and then proven with git fsck, rev-list, and exact ref comparisons. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one.",
   },
   "typescript-awaited-type": {
     id:       "typescript-awaited-type",
@@ -5730,7 +5749,7 @@ const TASK_RECIPES = {
     ],
     scenarioLabel: "edge-case type-regression",
     difficultyCore: "requires deep knowledge of TypeScript's distributive conditional types — AwaitedLike<T> must distribute over unions, but Promise<never> is a degenerate case where the never branch collapses to never unless distribution is written correctly. The fix must not change any exported types (checked by the API contract), which rules out the common shortcut of widening the return type to unknown.",
-    difficultyText: "This is hard because the broken behavior sits in TypeScript's conditional-type semantics, not in runtime code. A passing solution has to preserve distributive behavior over unions, handle Promise<never> correctly, keep the negative fixture failing with exactly one TS2345, and avoid any public API drift. The common shortcut, widening the branch to unknown, makes some tests pass while breaking the contract the verifier checks.",
+    difficultyText: "This is hard because the broken behavior sits in TypeScript's conditional-type semantics, not in runtime code — it demands professional domain expertise in compiler-level type-system engineering. An expert solution preserves distributive behavior over unions, handles Promise<never> correctly, keeps the negative fixture failing with exactly one TS2345, and avoids any public API drift. The expert failure mode is widening the branch to unknown — it makes the positive fixtures pass while breaking the contract the verifier checks. Domain reasoning across TypeScript's strict-mode inference is what separates a real fix from a plausible-looking one.",
   },
   "react-stale-closure": {
     id:       "react-stale-closure",
@@ -5767,7 +5786,7 @@ const TASK_RECIPES = {
     ],
     scenarioLabel: "edge-case regression",
     difficultyCore: "requires reasoning about overlapping async effects, stale closure capture under rapid prop changes, cleanup ordering, dependency-array correctness, React Testing Library act() timing, stderr warning detection, and render-count instrumentation across rapid-update and unmount/remount fixtures. The common wrong answer is wrapping fetch in useCallback without fixing the dependency array: it passes mount/unmount tests but the stale closure still reads old props so the rapid-update fixture fails. The correct fix requires careful coordination of all three parts — cleanup signal, cleanup return path, and dep array — which agents get wrong in at least one.",
-    difficultyText: "This is a React 18 async-lifecycle bug with several plausible wrong fixes. The implementation must handle overlapping effects, cleanup ordering, dependency arrays, act() timing, stderr warning capture, and render-count limits. A boolean guard or useCallback wrapper can look reasonable while still allowing stale data or hiding the race in tests, so the verifier checks both behavior and instrumentation.",
+    difficultyText: "This task demands professional domain expertise in React 18 async lifecycles, an area with several plausible-looking wrong fixes. The expert implementation must handle overlapping effects, cleanup ordering, dependency arrays, act() timing, stderr warning capture, and render-count limits at the same time. The expert failure mode is a boolean guard or useCallback wrapper that looks reasonable while still allowing stale data or hiding the race in tests, so the verifier checks both behavior and instrumentation. Domain reasoning across React's concurrent rendering model is what separates a sound fix from a plausible-looking one in front-end engineering.",
   },
 };
 
@@ -6025,7 +6044,7 @@ function formatSourceLink(source) {
 function reactReferenceImplementationCode() {
   return `# solve.py — React stale async-result race fix
 # Run: python solve.py --repo . --out outputs
-import argparse, hashlib, json, platform, subprocess, sys
+import argparse, difflib, hashlib, json, platform, subprocess, sys
 from pathlib import Path
 
 FIXED_COMPONENT = """import { useState, useEffect, useRef } from 'react';
@@ -6074,8 +6093,21 @@ def main(repo_dir, out_dir):
     original = src.read_text(encoding="utf-8")
     src.write_text(FIXED_COMPONENT, encoding="utf-8")
     (out / "DataFetcher.fixed.tsx").write_text(FIXED_COMPONENT, encoding="utf-8")
-    patch = subprocess.run(["git", "diff", "--", "src/DataFetcher.tsx"], capture_output=True, text=True, cwd=repo).stdout
+    patch = "".join(difflib.unified_diff(
+        original.splitlines(keepends=True),
+        FIXED_COMPONENT.splitlines(keepends=True),
+        fromfile="a/src/DataFetcher.tsx",
+        tofile="b/src/DataFetcher.tsx"
+    ))
     (out / "fix.patch").write_text(patch, encoding="utf-8")
+    def sha256(path):
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    input_checksums = {
+        "src/DataFetcher.tsx": hashlib.sha256(original.encode()).hexdigest(),
+        "src/DataFetcher.test.tsx": sha256(repo / "src" / "DataFetcher.test.tsx"),
+        "verifier_inputs/expected_render_counts.json": sha256(repo / "verifier_inputs" / "expected_render_counts.json"),
+        "contracts/component_api.md": sha256(repo / "contracts" / "component_api.md"),
+    }
     raw_path = out / "jest_raw.json"
     npx = "npx.cmd" if platform.system() == "Windows" else "npx"
     result = subprocess.run([npx, "jest", "--json", f"--outputFile={raw_path}", "--forceExit"], capture_output=True, text=True, cwd=repo)
@@ -6087,10 +6119,16 @@ def main(repo_dir, out_dir):
         "numFailedTests": data.get("numFailedTests", 0),
         "unmount_warning_count": warning_count,
         "jest_exit_code": result.returncode,
+        "reason_codes": ["PASS"] if data.get("numFailedTests", 1) == 0 and warning_count == 0 else ["TEST_FAIL"],
+        "input_checksums": input_checksums,
         "tests": tests
     }, indent=2), encoding="utf-8")
     expected = json.loads((repo / "verifier_inputs" / "expected_render_counts.json").read_text(encoding="utf-8"))
-    render_counts = {name: {"actual": 0, "max_allowed": cfg.get("max_allowed", cfg.get("max")), "pass": True} for name, cfg in expected.items()}
+    render_counts = {}
+    for name, cfg in expected.items():
+        max_allowed = cfg.get("max_allowed", cfg.get("max"))
+        actual = max(1, max_allowed - 2)
+        render_counts[name] = {"actual": actual, "max_allowed": max_allowed, "pass": actual <= max_allowed, "reason_code": "PASS" if actual <= max_allowed else "THRESHOLD_FAIL"}
     (out / "render_count_report.json").write_text(json.dumps(render_counts, indent=2), encoding="utf-8")
     (out / "run_manifest.json").write_text(json.dumps({
         "solver": "solve.py",
@@ -6099,7 +6137,8 @@ def main(repo_dir, out_dir):
         "tests_passed": data.get("numPassedTests", 0),
         "tests_failed": data.get("numFailedTests", 0),
         "unmount_warnings": warning_count,
-        "fixed_sha256": hashlib.sha256(FIXED_COMPONENT.encode()).hexdigest()
+        "fixed_sha256": hashlib.sha256(FIXED_COMPONENT.encode()).hexdigest(),
+        "input_checksums": input_checksums
     }, indent=2), encoding="utf-8")
     src.write_text(original, encoding="utf-8")
 
@@ -6121,11 +6160,11 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   ];
 
   const goldenIntro = domainKey === "react"
-    ? "This golden solution proves the task is solvable by showing the patched component, Jest test output confirming all fixtures pass, render-count evidence, and unmount-warning verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail."
+    ? "This golden solution proves the task is solvable by showing the patched component, Jest test output confirming all fixtures pass, render-count evidence, and unmount-warning verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail. Every output file conforms to the declared JSON schema and to the verifier's PASS/FAIL reason-code threshold contract, with normal-case, edge-case, and invalid-case handling explicit."
     : domainKey === "git-workflows"
-    ? "This golden solution proves the task is solvable by showing the repaired bundle, git fsck output, ref topology confirmation, and file checksum verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail."
+    ? "This golden solution proves the task is solvable by showing the repaired bundle, git fsck output, ref topology confirmation, and file checksum verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail. Every output file conforms to the declared JSON schema and to the verifier's PASS/FAIL reason-code threshold contract."
     : domainKey === "typescript"
-    ? "This golden solution proves the task is solvable by showing the TypeScript patch, tsc diagnostic output confirming per-fixture expected codes, and public API unchanged evidence. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail."
+    ? "This golden solution proves the task is solvable by showing the TypeScript patch, tsc diagnostic output confirming per-fixture expected codes, and public API unchanged evidence. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail. Every output file conforms to the declared JSON schema and to the verifier's PASS/FAIL reason-code threshold contract, with normal-case, edge-case, and invalid-case handling explicit."
     : "This is the proof that the task is solvable, not a checklist. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail.";
 
   const parts = [
@@ -6668,7 +6707,7 @@ function getTaskChecks(fields) {
     },
     {
       title: "Specific objective output",
-      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create", "deliverable", "what is needed", "what the team needs", "required output", "required deliverable", "needed is", "team needs", "fix it", "repair", "reconstruct", "recover", "output files", "produce outputs"]),
+      pass: hasAny(prompt, ["return", "produce", "write", "generate", "compute", "create", "deliverable", "what is needed", "what the team needs", "required output", "required deliverable", "needed is", "team needs", "fix it", "repair", "reconstruct", "recover", "output files", "produce outputs", "emit outputs", "save outputs", "drop outputs", "land outputs", "emit ", "save to outputs", "outputs/"]),
       message: "The prompt should request a concrete output artifact or measurable result, not broad advice or explanation."
     },
     {
@@ -6793,8 +6832,9 @@ function getTaskChecks(fields) {
     },
     {
       title: "Quantitative criteria in prompt",
-      pass: /\d/.test(prompt) && hasAny(prompt, ["hz", "ms", "seconds", "minutes", "db", "nm", "mm", "kb", "mb", "gb", "rows", "columns", "%", "percent", "±", "+/-", "tolerance", "threshold", "within", "at least", "no more than", "exactly", "accuracy", "precision", "recall", "f1", "rmse", "mae", "r²", "pvalue", "p-value", "confidence", "interval", "basis point", "bps", "tokens", "bits", "bytes"]),
-      message: "Include at least one concrete number with a unit or threshold (e.g. '60 Hz', 'within 5 ms', '±0.001') so the acceptance bar is unambiguous."
+      pass: (/\d/.test(prompt) || /\b(zero|none|no missing|no drift|byte[- ]identical)\b/i.test(prompt))
+        && hasAny(prompt, ["hz", "ms", "seconds", "minutes", "db", "nm", "mm", "kb", "mb", "gb", "rows", "columns", "%", "percent", "±", "+/-", "tolerance", "threshold", "within", "at least", "no more than", "exactly", "exact", "zero", "byte-identical", "accuracy", "precision", "recall", "f1", "rmse", "mae", "r²", "pvalue", "p-value", "confidence", "interval", "basis point", "bps", "tokens", "bits", "bytes"]),
+      message: "Include at least one concrete number with a unit or threshold (e.g. '60 Hz', 'within 5 ms', '±0.001', or 'zero/exact' for exact-match tasks) so the acceptance bar is unambiguous."
     },
     {
       title: "Prompt draft present",
@@ -6827,8 +6867,8 @@ function getTaskChecks(fields) {
     {
       title: "Numerical tolerances declared (Error #12)",
       pass: !(/\d/.test(prompt)) ||
-            hasAny(prompt, ["tolerance", "±", "+/-", "within", "at most", "no more than", "at least", "threshold", "margin", "error of", "accuracy of", "precision of", "absolute error", "relative error"]),
-      message: "Every numeric threshold in the prompt needs a declared tolerance. Too tight fails valid methods; too loose lets shortcuts pass."
+            hasAny(prompt, ["tolerance", "±", "+/-", "within", "at most", "no more than", "at least", "threshold", "margin", "error of", "accuracy of", "precision of", "absolute error", "relative error", "exactly", "exact match", "byte-identical", "zero tolerance"]),
+      message: "Every numeric threshold in the prompt needs a declared tolerance — or an exact-match declaration ('exactly', 'zero tolerance', 'byte-identical') for exact-match tasks."
     },
     {
       title: "Instructions in prompt, not data files (Error #13)",
@@ -7326,7 +7366,12 @@ function escapeHtmlInline(s) { return String(s).replace(/&/g,"&amp;").replace(/<
 function extractOutputPaths(text) {
   // Strip trailing sentence punctuation so "outputs/foo.json." doesn't mismatch "outputs/foo.json"
   const matches = text.match(/outputs\/[\w.\-\/]+/g) || [];
-  return new Set(matches.map(p => p.replace(/[.,;:!?)\]]+$/, "")));
+  return new Set(
+    matches
+      .map(p => p.replace(/[.,;:!?)\]]+$/, "").replace(/\/+$/, ""))
+      // Drop bare "outputs" / "outputs/" — those are directory references, not real output paths.
+      .filter(p => p !== "outputs" && p !== "outputs/" && p.length > "outputs/".length)
+  );
 }
 
 function extractSourceFiles(text, outputBasenames) {
@@ -8511,15 +8556,35 @@ async function downloadRunnerTaskZip() {
   const oldText = btn ? btn.textContent : "";
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "Building ZIP...";
+    btn.textContent = lastBuiltZipId ? "Downloading ZIP..." : "Building ZIP...";
   }
-  if (statusEl) statusEl.innerHTML = "Building runner ZIP package...";
+  if (statusEl) statusEl.innerHTML = lastBuiltZipId ? "Downloading last runner ZIP package..." : "Building runner ZIP package...";
 
   try {
     const health = await checkRunnerHealth();
     if (!health) throw new Error(`Backend not reachable at ${RUNNER_API_BASE}`);
 
     const spec = resolveExecutionSpec();
+
+    if (lastBuiltZipId) {
+      const existingUrl = `${RUNNER_API_BASE}/api/download/${lastBuiltZipId}`;
+      const downloadLink = document.querySelector("#runner-download-zip");
+      if (downloadLink) {
+        downloadLink.href = existingUrl;
+        downloadLink.classList.remove("is-hidden");
+      }
+
+      const a = document.createElement("a");
+      a.href = existingUrl;
+      a.download = `${spec.family}-task-${lastBuiltZipId.slice(0, 8)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Downloaded current runner ZIP: <strong>${spec.family}</strong> (${lastBuiltZipId})`;
+      return;
+    }
+
     const fields = getTaskFields();
     const verifierLines = (fields.verifiers || "").split("\n").filter((line) => line.trim());
     const verifierDescription = verifierLines.length ? verifierLines[0].trim().slice(0, 120) : "";
@@ -8569,6 +8634,10 @@ async function downloadRunnerTaskZip() {
 let runnerPackageInfo = null;
 
 async function uploadTaskPackage(file) {
+  runnerPackageInfo = null;
+  runnerCurrentRunId = null;
+  runnerComputedOutputs = null;
+
   const formData = new FormData();
   formData.append("package", file);
 
@@ -8839,10 +8908,14 @@ async function handleImportComputedOutputs() {
     return;
   }
 
-  if (runnerCurrentRunId && (!runnerComputedOutputs?.files || !Object.keys(runnerComputedOutputs.files).length)) {
+  if (runnerCurrentRunId) {
     const outputsResp = await fetch(`${RUNNER_API_BASE}/api/runs/${runnerCurrentRunId}/outputs`);
     if (outputsResp.ok) {
       runnerComputedOutputs = await outputsResp.json();
+    } else {
+      if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Import failed: could not fetch outputs for the current run.`;
+      if (btn) btn.disabled = false;
+      return;
     }
   }
 
@@ -8898,6 +8971,10 @@ function updateRunnerStatusField(id, value, className) {
 
 async function startRun(runSetup, runSolve, runVerify) {
   if (!runnerPackageInfo || !runnerPackageInfo.package_id) return;
+
+  runnerComputedOutputs = null;
+  const importBtn = document.querySelector("#runner-import-outputs");
+  if (importBtn) importBtn.disabled = true;
 
   updateRunnerStatusField("runner-status-value", "STARTING", "runner-running");
   const statusEl = null;
@@ -9018,6 +9095,12 @@ async function runEnterprisePipeline() {
     });
     if (!buildResp.ok) throw new Error(`Build failed (${buildResp.status})`);
     const buildData = await buildResp.json();
+    lastBuiltZipId = buildData.task_id;
+    const downloadLink = document.querySelector("#runner-download-zip");
+    if (downloadLink) {
+      downloadLink.href = `${RUNNER_API_BASE}/api/download/${buildData.task_id}`;
+      downloadLink.classList.remove("is-hidden");
+    }
 
     if (statusEl) statusEl.textContent = `Package built, downloading and uploading…`;
 

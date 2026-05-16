@@ -13,3 +13,4 @@ Thumbs.db
 backend/node_modules/
 backend/workspaces/
 backend/generated_packages/
+backend/*.log

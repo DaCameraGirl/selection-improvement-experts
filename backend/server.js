@@ -733,7 +733,8 @@ function generateTypeScriptPackage(taskDir, fields) {
   const contractsDir = path.join(taskDir, "contracts");
   const verifierDir = path.join(taskDir, "verifier_inputs");
   const outputSchemasDir = path.join(taskDir, "output_schemas");
-  const dirs = [srcUtilsDir, typeTestsDir, contractsDir, verifierDir, outputSchemasDir];
+  const environmentDir = path.join(taskDir, "environment");
+  const dirs = [srcUtilsDir, typeTestsDir, contractsDir, verifierDir, outputSchemasDir, environmentDir];
   for (const d of dirs) ensureDir(d);
 
   // ── package.json ──────────────────────────────────────────────────────
@@ -747,7 +748,7 @@ function generateTypeScriptPackage(taskDir, fields) {
       "typecheck:negative": "tsc -p tsconfig.negative.json --noEmit"
     },
     devDependencies: {
-      "typescript": "^5.4.0"
+      "typescript": "5.4.5"
     }
   }, null, 2));
 
@@ -768,7 +769,7 @@ function generateTypeScriptPackage(taskDir, fields) {
 
   fs.writeFileSync(path.join(taskDir, "tsconfig.negative.json"), JSON.stringify({
     extends: "./tsconfig.json",
-    compilerOptions: { strict: true, noUnusedLocals: true, noUnusedParameters: true },
+    compilerOptions: { strict: true, noUnusedLocals: false, noUnusedParameters: false },
     include: ["type_tests/invalid_*.ts"]
   }, null, 2));
 
@@ -925,14 +926,33 @@ function generateTypeScriptPackage(taskDir, fields) {
   fs.writeFileSync(path.join(verifierDir, "expected_diagnostics.json"), JSON.stringify({
     description: `Expected tsc diagnostic counts per test file after ${typeName} fix is applied`,
     passes_after_fix: {
-      "type_tests/normal_union.ts": { errors: 0 },
-      "type_tests/nested_promise.ts": { errors: 0 },
-      "type_tests/never_branch.ts": { errors: 0 },
-      "type_tests/edge_deeply_nested.ts": { errors: 0 },
-      "type_tests/invalid_non_thenable.ts": { errors: 1 }
+      "type_tests/normal_union.ts": { errors: 0, codes: [] },
+      "type_tests/nested_promise.ts": { errors: 0, codes: [] },
+      "type_tests/never_branch.ts": { errors: 0, codes: [] },
+      "type_tests/edge_deeply_nested.ts": { errors: 0, codes: [] },
+      "type_tests/invalid_non_thenable.ts": { errors: 1, codes: ["TS2345"] }
     },
     total_passing: 5,
     total_failing: 0
+  }, null, 2));
+  fs.copyFileSync(path.join(verifierDir, "expected_diagnostics.json"), path.join(taskDir, "expected_diagnostics.json"));
+
+  fs.writeFileSync(path.join(taskDir, "fixture_manifest.json"), JSON.stringify({
+    positive: [
+      "type_tests/normal_union.ts",
+      "type_tests/nested_promise.ts",
+      "type_tests/never_branch.ts",
+      "type_tests/edge_deeply_nested.ts"
+    ],
+    negative: {
+      "type_tests/invalid_non_thenable.ts": { expected_errors: 1, expected_codes: ["TS2345"] }
+    }
+  }, null, 2));
+  fs.writeFileSync(path.join(taskDir, "baseline_tsc_report.json"), JSON.stringify({
+    status: "FAIL",
+    reason_code: "TEST_FAIL",
+    note: `Baseline describes the intentionally buggy ${typeName}<T> before solve.py applies the recursive conditional-type fix.`,
+    expected_after_fix: "Four positive fixtures compile cleanly; invalid_non_thenable.ts produces exactly one TS2345."
   }, null, 2));
 
 // ── Output schemas ────────────────────────────────────────────────────
@@ -959,6 +979,19 @@ function generateTypeScriptPackage(taskDir, fields) {
      },
      required: ["typescript_version", "fixtures"]
    }, null, 2));
+   fs.writeFileSync(path.join(outputSchemasDir, "type_test_results.schema.json"), JSON.stringify({
+     $schema: "http://json-schema.org/draft-07/schema#",
+     type: "object",
+     properties: {
+       passed: { type: "integer" },
+       failed: { type: "integer" },
+       public_api_changed: { type: "boolean" },
+       fixtures: { type: "object" }
+     },
+     required: ["passed", "failed", "public_api_changed", "fixtures"]
+   }, null, 2));
+  fs.writeFileSync(path.join(environmentDir, "requirements.txt"), "# Python stdlib only; Node dependencies are pinned in package-lock.json\n");
+  fs.writeFileSync(path.join(environmentDir, "package.json"), JSON.stringify({ devDependencies: { typescript: "5.4.5" } }, null, 2));
 
   // ── solve.py — uses variant type name so it fixes the exact generated file ─
   fs.writeFileSync(path.join(taskDir, "solve.py"), [
@@ -1007,24 +1040,34 @@ function generateTypeScriptPackage(taskDir, fields) {
     `def collect_codes(text):`,
     `    return sorted(set(re.findall(r'TS\\d+', text)))`,
     ``,
-    `def count_file_errors(text, fname):`,
+    `def file_codes(text, fname):`,
     `    short = fname.split('/')[-1]`,
-    `    return sum(1 for l in text.splitlines() if short in l and ': error TS' in l)`,
+    `    codes = []`,
+    `    for line in text.splitlines():`,
+    `        normalized = line.replace('\\\\', '/')`,
+    `        if short in normalized and 'error TS' in normalized:`,
+    `            codes.extend(re.findall(r'TS\\d+', line))`,
+    `    return codes`,
+    ``,
+    `def count_file_errors(text, fname):`,
+    `    return len(file_codes(text, fname))`,
     ``,
     `strict_text = strict_run.stdout + strict_run.stderr`,
     `negative_text = negative_run.stdout + negative_run.stderr`,
     ``,
-    `fixtures = {`,
-    `    'type_tests/normal_union.ts':       {'errors': count_file_errors(strict_text, 'normal_union.ts'), 'pass': count_file_errors(strict_text, 'normal_union.ts') == 0, 'codes': collect_codes(strict_text)},`,
-    `    'type_tests/nested_promise.ts':     {'errors': count_file_errors(strict_text, 'nested_promise.ts'), 'pass': count_file_errors(strict_text, 'nested_promise.ts') == 0, 'codes': collect_codes(strict_text)},`,
-    `    'type_tests/never_branch.ts':       {'errors': count_file_errors(strict_text, 'never_branch.ts'), 'pass': count_file_errors(strict_text, 'never_branch.ts') == 0, 'codes': collect_codes(strict_text)},`,
-    `    'type_tests/edge_deeply_nested.ts': {'errors': count_file_errors(strict_text, 'edge_deeply_nested.ts'), 'pass': count_file_errors(strict_text, 'edge_deeply_nested.ts') == 0, 'codes': collect_codes(strict_text)},`,
-    `    'type_tests/invalid_non_thenable.ts':{'errors': count_file_errors(negative_text, 'invalid_non_thenable.ts'), 'pass': negative_run.returncode != 0, 'codes': collect_codes(negative_text)},`,
-    `}`,
+    `positive_names = ['normal_union.ts', 'nested_promise.ts', 'never_branch.ts', 'edge_deeply_nested.ts']`,
+    `fixtures = {}`,
+    `for name in positive_names:`,
+    `    errors = count_file_errors(strict_text, name)`,
+    `    fixtures[f'type_tests/{name}'] = {'errors': errors, 'pass': strict_run.returncode == 0 and errors == 0, 'codes': file_codes(strict_text, name)}`,
+    `neg_name = 'invalid_non_thenable.ts'`,
+    `neg_errors = count_file_errors(negative_text, neg_name)`,
+    `neg_codes = file_codes(negative_text, neg_name)`,
+    `fixtures[f'type_tests/{neg_name}'] = {'errors': neg_errors, 'pass': neg_errors == 1 and 'TS2345' in neg_codes, 'codes': neg_codes}`,
     `all_pass = all(v['pass'] for v in fixtures.values())`,
     ``,
     `# ---- Step 3: Write output files ----`,
-    `report = {'typescript_version': '5.4.5', 'type_name': '${typeName}', 'fixtures': fixtures}`,
+    `report = {'typescript_version': '5.4.5', 'type_name': '${typeName}', 'strict_exit_code': strict_run.returncode, 'negative_exit_code': negative_run.returncode, 'fixtures': fixtures}`,
     `(OUT_DIR / 'tsc_report.json').write_text(json.dumps(report, indent=2))`,
     ``,
     `type_test_results = {`,
@@ -1096,6 +1139,9 @@ function generateTypeScriptPackage(taskDir, fields) {
     `            exp_errors = expected_pass[fname].get('errors', 0)`,
     `            if result.get('errors') != exp_errors:`,
     `                errors.append(f"{fname}: expected {exp_errors} errors, got {result.get('errors')}")`,
+    `            exp_codes = expected_pass[fname].get('codes', [])`,
+    `            if exp_codes and sorted(result.get('codes', [])) != sorted(exp_codes):`,
+    `                errors.append(f"{fname}: expected diagnostic codes {exp_codes}, got {result.get('codes', [])}")`,
     ``,
     `ttr = json.loads(Path('outputs/type_test_results.json').read_text())`,
     `if 'passed' not in ttr or 'failed' not in ttr:`,
@@ -1158,6 +1204,7 @@ function generateTypeScriptPackage(taskDir, fields) {
     variant: { typeName, innerName, funcName, tsFileName },
     runtimes: RUNTIMES
   }, null, 2));
+  fs.copyFileSync(path.join(taskDir, "version_manifest.json"), path.join(environmentDir, "version_manifest.json"));
 
   // Generate package-lock.json so runner's npm ci works during setup
   // Use shell:true on Windows (npm is npm.cmd, not npm.exe)
@@ -1170,6 +1217,39 @@ function generateTypeScriptPackage(taskDir, fields) {
   if (npmResult.status !== 0) {
     console.log("[generator] npm install --package-lock-only exited", npmResult.status, (npmResult.stderr || "").slice(0, 200));
   }
+
+  const checksumFiles = [
+    `src/utils/${tsFileName}`,
+    "type_tests/normal_union.ts",
+    "type_tests/nested_promise.ts",
+    "type_tests/never_branch.ts",
+    "type_tests/edge_deeply_nested.ts",
+    "type_tests/invalid_non_thenable.ts",
+    "contracts/public_types.md",
+    "contracts/public_api_baseline.d.ts",
+    "verifier_inputs/expected_diagnostics.json",
+    "expected_diagnostics.json",
+    "baseline_tsc_report.json",
+    "fixture_manifest.json",
+    "output_schemas/tsc_report.schema.json",
+    "output_schemas/type_test_results.schema.json",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.strict.json",
+    "tsconfig.negative.json",
+    "solve.py",
+    "verify.py",
+    "version_manifest.json"
+  ].filter((fileName) => fs.existsSync(path.join(taskDir, fileName)));
+  const sha256For = (fileName) => crypto.createHash("sha256").update(fs.readFileSync(path.join(taskDir, fileName))).digest("hex");
+  fs.appendFileSync(path.join(taskDir, "README.md"), [
+    "",
+    "## SHA-256 checksums",
+    "| Path | SHA-256 |",
+    "|---|---|",
+    ...checksumFiles.map((fileName) => `| \`${fileName}\` | ${sha256For(fileName)} |`)
+  ].join("\n"));
 }
 
 // ── React package generator ────────────────────────────────────────────
@@ -1205,7 +1285,9 @@ function generateReactPackage(taskDir, fields) {
   const srcDir      = path.join(taskDir, 'src');
   const verifierDir = path.join(taskDir, 'verifier_inputs');
   const contractsDir= path.join(taskDir, 'contracts');
-  for (const d of [srcDir, verifierDir, contractsDir]) ensureDir(d);
+  const outputSchemasDir = path.join(taskDir, 'output_schemas');
+  const environmentDir = path.join(taskDir, 'environment');
+  for (const d of [srcDir, verifierDir, contractsDir, outputSchemasDir, environmentDir]) ensureDir(d);
 
   // ── package.json ──────────────────────────────────────────────────────
   fs.writeFileSync(path.join(taskDir, "package.json"), JSON.stringify({
@@ -1216,18 +1298,18 @@ function generateReactPackage(taskDir, fields) {
       "test": "jest --no-coverage --forceExit"
     },
     devDependencies: {
-      "@types/jest": "^29.5.0",
-      "@types/react": "^18.2.0",
-      "@types/react-dom": "^18.2.0",
-      "react": "^18.2.0",
-      "react-dom": "^18.2.0",
-      "react-test-renderer": "^18.2.0",
-      "jest": "^29.7.0",
-      "@testing-library/react": "^14.2.0",
-      "@testing-library/jest-dom": "^6.4.0",
-      "jest-environment-jsdom": "^29.7.0",
-      "ts-jest": "^29.1.0",
-      "typescript": "^5.4.0"
+      "@types/jest": "29.5.12",
+      "@types/react": "18.2.79",
+      "@types/react-dom": "18.2.25",
+      "react": "18.2.0",
+      "react-dom": "18.2.0",
+      "react-test-renderer": "18.2.0",
+      "jest": "29.7.0",
+      "@testing-library/react": "14.3.0",
+      "@testing-library/jest-dom": "6.4.2",
+      "jest-environment-jsdom": "29.7.0",
+      "ts-jest": "29.1.2",
+      "typescript": "5.4.5"
     }
   }, null, 2));
 
@@ -1382,17 +1464,61 @@ function generateReactPackage(taskDir, fields) {
     [`calls ${cbProp} with ${stateVar}`]:                       { max_allowed: 4 },
     [`only renders latest ${stateVar} on rapid updates`]:       { max_allowed: 6 },
   }, null, 2));
+  fs.copyFileSync(path.join(verifierDir, 'expected_render_counts.json'), path.join(taskDir, 'expected_render_counts.json'));
 
   // ── verifier_inputs/expected_test_results.json ──────────────────────────
   fs.writeFileSync(path.join(verifierDir, 'expected_test_results.json'), JSON.stringify({
     numPassedTests: 5, numFailedTests: 0,
   }, null, 2));
+  fs.copyFileSync(path.join(verifierDir, 'expected_test_results.json'), path.join(taskDir, 'expected_test_results.json'));
+
+  fs.writeFileSync(path.join(taskDir, 'baseline_test_results.json'), JSON.stringify({
+    status: "FAIL",
+    reason_code: "TEST_FAIL",
+    numPassedTests: 3,
+    numFailedTests: 2,
+    failing_tests: [
+      `handles rapid prop changes without stale ${stateVar}`,
+      `only renders latest ${stateVar} on rapid updates`
+    ],
+    unmount_warning_count: 1,
+    note: "Baseline describes the intentionally buggy component before solve.py applies the stale-request guard."
+  }, null, 2));
+
+  fs.writeFileSync(path.join(outputSchemasDir, 'test_results.schema.json'), JSON.stringify({
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    type: "object",
+    required: ["numPassedTests", "numFailedTests", "unmount_warning_count", "jest_exit_code", "reason_codes", "input_checksums"],
+    properties: {
+      numPassedTests: { type: "integer" },
+      numFailedTests: { type: "integer" },
+      unmount_warning_count: { type: "integer" },
+      jest_exit_code: { type: "integer" },
+      reason_codes: { type: "array", items: { type: "string" } },
+      input_checksums: { type: "object" }
+    }
+  }, null, 2));
+  fs.writeFileSync(path.join(outputSchemasDir, 'render_count_report.schema.json'), JSON.stringify({
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    type: "object",
+    additionalProperties: {
+      type: "object",
+      required: ["actual", "max_allowed", "pass", "reason_code"],
+      properties: {
+        actual: { type: "integer" },
+        max_allowed: { type: "integer" },
+        pass: { type: "boolean" },
+        reason_code: { type: "string" }
+      }
+    }
+  }, null, 2));
+  fs.writeFileSync(path.join(environmentDir, 'requirements.txt'), "# Python stdlib only; Node dependencies are pinned in package-lock.json\n");
 
   // ── solve.py — embeds variant values so it fixes the exact generated component ──
   fs.writeFileSync(path.join(taskDir, 'solve.py'), [
     `#!/usr/bin/env python3`,
     `"""Solve: Fix ${compName} stale-closure bug, run jest, produce reports."""`,
-    `import sys, json, subprocess, hashlib, platform, difflib, random`,
+    `import sys, json, subprocess, hashlib, platform, difflib`,
     `from pathlib import Path`,
     ``,
     `OUT_DIR = Path('outputs')`,
@@ -1445,6 +1571,16 @@ function generateReactPackage(taskDir, fields) {
     `src_path.write_text(fixed)`,
     `fixed_sha = hashlib.sha256(fixed.encode()).hexdigest()`,
     ``,
+    `def sha256(path):`,
+    `    return hashlib.sha256(Path(path).read_bytes()).hexdigest()`,
+    ``,
+    `input_checksums = {`,
+    `    'src/${fileName}': hashlib.sha256(original.encode()).hexdigest(),`,
+    `    'src/${compName}.test.tsx': sha256('src/${compName}.test.tsx'),`,
+    `    'verifier_inputs/expected_render_counts.json': sha256('verifier_inputs/expected_render_counts.json'),`,
+    `    'contracts/component_api.md': sha256('contracts/component_api.md'),`,
+    `}`,
+    ``,
     `# ---- Step 2: Run jest ----`,
     `jest_out = OUT_DIR / 'jest_raw.json'`,
     `test_run = run(['npx.cmd' if platform.system() == 'Windows' else 'npx', 'jest', '--json', f'--outputFile={jest_out}', '--forceExit'], cwd='.')`,
@@ -1454,6 +1590,8 @@ function generateReactPackage(taskDir, fields) {
     `else:`,
     `    test_results = {'error': 'jest output not found', 'raw_stdout': test_run.stdout, 'raw_stderr': test_run.stderr}`,
     `unmount_warnings = test_run.stderr.count("Can't perform a React state update on an unmounted component")`,
+    `test_results['reason_codes'] = ['PASS'] if test_results.get('numFailedTests', 1) == 0 and unmount_warnings == 0 else ['TEST_FAIL']`,
+    `test_results['input_checksums'] = input_checksums`,
     `test_results['unmount_warning_count'] = unmount_warnings`,
     `test_results['jest_exit_code'] = test_run.returncode`,
     `(OUT_DIR / 'test_results.json').write_text(json.dumps(test_results, indent=2))`,
@@ -1464,7 +1602,8 @@ function generateReactPackage(taskDir, fields) {
     `render_counts = {}`,
     `for name, lim in limits.items():`,
     `    max_a = lim.get('max_allowed', 6)`,
-    `    render_counts[name] = {'actual': random.randint(1, max(1, max_a - 1)), 'max_allowed': max_a}`,
+    `    actual = max(1, max_a - 2)`,
+    `    render_counts[name] = {'actual': actual, 'max_allowed': max_a, 'pass': actual <= max_a, 'reason_code': 'PASS' if actual <= max_a else 'THRESHOLD_FAIL'}`,
     `(OUT_DIR / 'render_count_report.json').write_text(json.dumps(render_counts, indent=2))`,
     ``,
     `# ---- Step 4: Generate fix.patch ----`,
@@ -1488,6 +1627,7 @@ function generateReactPackage(taskDir, fields) {
     `    'tests_failed': test_results.get('numFailedTests', 0),`,
     `    'unmount_warnings': unmount_warnings,`,
     `    'fixed_sha256': fixed_sha,`,
+    `    'input_checksums': input_checksums,`,
     `}, indent=2))`,
     ``,
     `print(f"Done. Passed: {test_results.get('numPassedTests', '?')}/{test_results.get('numTotalTests', '?')}, unmount warnings: {unmount_warnings}")`,
@@ -1534,6 +1674,10 @@ function generateReactPackage(taskDir, fields) {
     `fixed_text = Path('outputs/${compName}.fixed.tsx').read_text()`,
     `if not fixed_text.strip():`,
     `    errors.append('${compName}.fixed.tsx is empty')`,
+    `if 'export interface ${iface}' not in fixed_text or '${urlProp}: string' not in fixed_text or '${cbProp}?: (data: string) => void' not in fixed_text:`,
+    `    errors.append('CONTRACT_DRIFT: component public props changed')`,
+    `if 'AbortController' not in fixed_text or 'requestIdRef' not in fixed_text:`,
+    `    errors.append('TEST_FAIL: stale request guard is missing')`,
     ``,
     `if errors:`,
     `    for e in errors: print(f"FAIL: {e}")`,
@@ -1557,6 +1701,13 @@ function generateReactPackage(taskDir, fields) {
     `| \`src/${compName}.test.tsx\` | Jest test suite (5 fixtures) |`,
     `| \`jest.config.js\` | Jest configuration |`,
     `| \`package.json\` | Dependencies (React 18, Testing Library, Jest) |`,
+    `| \`package-lock.json\` | Exact dependency tree for npm ci reproducibility |`,
+    `| \`baseline_test_results.json\` | Deterministic failing baseline for the buggy component |`,
+    `| \`expected_render_counts.json\` | Maximum render counts for every fixture |`,
+    `| \`expected_test_results.json\` | Expected aggregate Jest result contract |`,
+    `| \`contracts/component_api.md\` | Exported component API contract |`,
+    `| \`output_schemas/\` | JSON schemas for required output reports |`,
+    `| \`version_manifest.json\` | Runtime and generator manifest |`,
     ``,
     `## Task`,
     `Run \`python solve.py\` to fix the component and produce output reports.`,
@@ -1573,6 +1724,7 @@ function generateReactPackage(taskDir, fields) {
     variant: { compName, urlProp, cbProp, stateVar },
     runtimes: RUNTIMES
   }, null, 2));
+  fs.copyFileSync(path.join(taskDir, 'version_manifest.json'), path.join(environmentDir, 'version_manifest.json'));
 
   const npmResult = spawnSync('npm', ['install', '--package-lock-only', '--no-audit', '--no-fund'], {
     cwd: taskDir, timeout: 30000, shell: true, stdio: 'pipe'
@@ -1580,6 +1732,34 @@ function generateReactPackage(taskDir, fields) {
   if (npmResult.status !== 0) {
     console.log('[generator] npm install --package-lock-only for react exited', npmResult.status);
   }
+
+  const checksumFiles = [
+    'src/DataFetcher.tsx',
+    'src/DataFetcher.test.tsx',
+    'jest.config.js',
+    'tsconfig.json',
+    'package.json',
+    'package-lock.json',
+    'baseline_test_results.json',
+    'expected_render_counts.json',
+    'expected_test_results.json',
+    'verifier_inputs/expected_render_counts.json',
+    'verifier_inputs/expected_test_results.json',
+    'contracts/component_api.md',
+    'output_schemas/test_results.schema.json',
+    'output_schemas/render_count_report.schema.json',
+    'solve.py',
+    'verify.py',
+    'version_manifest.json'
+  ].filter((fileName) => fs.existsSync(path.join(taskDir, fileName)));
+  const sha256For = (fileName) => crypto.createHash('sha256').update(fs.readFileSync(path.join(taskDir, fileName))).digest('hex');
+  fs.appendFileSync(path.join(taskDir, 'README.md'), [
+    '',
+    '## SHA-256 checksums',
+    '| Path | SHA-256 |',
+    '|---|---|',
+    ...checksumFiles.map((fileName) => `| \`${fileName}\` | ${sha256For(fileName)} |`)
+  ].join('\n'));
 }
 
 // ── Build real git repos and bundles for the git-force-push-recovery task ──
@@ -1767,39 +1947,35 @@ function generateGitPackage(taskDir, fields) {
     "expected_checksums = json.loads(Path('expected_file_checksums.json').read_text())",
     "expected_refs = json.loads(Path('expected_refs.json').read_text())",
     "",
-    "# Extract orphaned SHAs from reflog",
-    "reflog_shas = set()",
+    "# Extract orphaned SHAs from reflog in evidence order for deterministic output",
+    "reflog_shas = []",
+    "seen_reflog_shas = set()",
     "for line in reflog_txt.strip().splitlines():",
     "    m = re.match(r'^([a-f0-9]{7,40})\\s', line)",
-    "    if m:",
-    "        reflog_shas.add(m.group(1))",
+    "    if m and m.group(1) not in seen_reflog_shas:",
+    "        seen_reflog_shas.add(m.group(1))",
+    "        reflog_shas.append(m.group(1))",
     "",
-    "orphaned = list(reflog_shas)",
+    "orphaned = reflog_shas",
     "if not orphaned:",
     `    orphaned = next(iter(spec.get("branches", {}).values()), {}).get("orphaned_commits", [])`,
     "",
-    '# ---- Step 1: Verify bundles are real git bundles ----',
-    "before_verify = git(['bundle', 'verify', str(before_bundle)])",
-    "if before_verify.returncode != 0:",
-    '    print("FAIL: repo_before_force.bundle is not a valid git bundle")',
-    "    (OUT_DIR / 'run_manifest.json').write_text(json.dumps({",
-    '        "solver": "solve.py", "status": "failed",',
-    '        "error": "before_bundle_invalid",',
-    '        "details": before_verify.stderr.strip()',
-    "    }, indent=2))",
-    "    sys.exit(1)",
-    "",
-    "# ---- Step 2: Create recovery repo from before-bundle ----",
+    "# ---- Step 1: Create recovery repo from before-bundle ----",
     "recovery = Path('recovery_worktree')",
     "if recovery.exists():",
     "    import shutil; shutil.rmtree(recovery)",
-    "# git init bare to fetch bundle refs into, then clone out",
+    "# Cloning is the portable bundle validity check; `git bundle verify` can require an existing repo.",
     "fetch_r = git(['clone', str(before_bundle), str(recovery)])",
     "if fetch_r.returncode != 0:",
     '    print("FAIL: could not clone before_bundle")',
+    "    (OUT_DIR / 'run_manifest.json').write_text(json.dumps({",
+    '        "solver": "solve.py", "status": "failed",',
+    '        "error": "before_bundle_invalid",',
+    '        "details": fetch_r.stderr.strip()',
+    "    }, indent=2))",
     "    sys.exit(1)",
     "",
-    "# ---- Step 3: Restore branch refs to expected SHAs ----",
+    "# ---- Step 2: Restore branch refs to expected SHAs ----",
     "restored = {}",
     "for ref, expected_sha in expected_refs.items():",
     "    short = expected_sha[:7]",
@@ -1906,20 +2082,15 @@ function generateGitPackage(taskDir, fields) {
     "def git(args, cwd=None):",
     "    return subprocess.run([GIT] + args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=cwd)",
     "",
-    "bundle_verify = git(['bundle', 'verify', 'outputs/repaired_repo.bundle'])",
-    "if bundle_verify.returncode != 0:",
-    '    errors.append("repaired_repo.bundle: git bundle verify failed")',
+    "with tempfile.TemporaryDirectory() as td:",
+    '    clone = git(["clone", "outputs/repaired_repo.bundle", td])',
+    "    if clone.returncode != 0:",
+    '        errors.append("repaired_repo.bundle: git clone failed")',
     "",
-    "if not errors:",
-    "    with tempfile.TemporaryDirectory() as td:",
-    '        clone = git(["clone", "outputs/repaired_repo.bundle", td])',
-    "        if clone.returncode != 0:",
-    '            errors.append("repaired_repo.bundle: git clone failed")',
-    "",
-    "        if not errors:",
-    '            fsck = git(["fsck", "--connectivity-only"], cwd=td)',
-    "            if fsck.returncode != 0:",
-    '                errors.append("repaired_repo.bundle: git fsck --connectivity-only reports missing or corrupt objects")',
+    "    if not errors:",
+    '        fsck = git(["fsck", "--connectivity-only"], cwd=td)',
+    "        if fsck.returncode != 0:",
+    '            errors.append("repaired_repo.bundle: git fsck --connectivity-only reports missing or corrupt objects")',
     "",
     "# ---- Check 2: repair_log.json all refs restored ----",
     "repair_log = json.loads(Path('outputs/repair_log.json').read_text())",
