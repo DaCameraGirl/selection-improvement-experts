@@ -3,6 +3,7 @@ data/
 *.pdf
 *.local.json
 selection-improvement-experts-data.json
+outputs/
 
 # OS/editor noise
 .DS_Store
