@@ -36,7 +36,7 @@ button,
 .file-button {
   min-height: 40px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: #fff;
   color: var(--ink);
   padding: 0 14px;
@@ -46,22 +46,52 @@ button,
   justify-content: center;
   gap: 8px;
   white-space: nowrap;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 
 button:hover,
 .file-button:hover {
   border-color: #aab3b2;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(26, 16, 53, 0.11);
+}
+
+button:active,
+.file-button:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .primary {
-  border-color: var(--accent);
-  background: var(--accent);
+  position: relative;
+  overflow: hidden;
+  border-color: #7c3aed;
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 52%, #f59e0b 100%);
   color: #fff;
+  box-shadow: 0 10px 22px rgba(147, 51, 234, 0.22);
 }
 
 .primary:hover {
-  border-color: var(--accent-dark);
-  background: var(--accent-dark);
+  border-color: #6d28d9;
+  background: linear-gradient(135deg, #6d28d9 0%, #c026d3 48%, #ea580c 100%);
+  box-shadow: 0 12px 26px rgba(219, 39, 119, 0.26);
+}
+
+.primary::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto -40% -70%;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.58), transparent);
+  transform: skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.primary:hover::after,
+.primary.wf-next::after,
+.primary.wf-running::after {
+  animation: sparkle-sweep 1.8s ease-in-out infinite;
 }
 
 .danger {
@@ -386,6 +416,7 @@ form {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .version-pill {
@@ -1095,6 +1126,109 @@ legend {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.button-link {
+  --link-accent: #7c3aed;
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--link-accent) 38%, #ffffff);
+  border-radius: 8px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--link-accent) 12%, #ffffff), #ffffff);
+  color: #1a1035;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 18px rgba(26, 16, 53, 0.09);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.button-link:hover {
+  border-color: var(--link-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(26, 16, 53, 0.14);
+}
+
+.button-link::before {
+  content: "\2726";
+  margin-right: 7px;
+  color: var(--link-accent);
+}
+
+#runner-download-task-kit {
+  --link-accent: #0d9488;
+}
+
+#runner-download-golden-kit {
+  --link-accent: #d97706;
+}
+
+@keyframes sparkle-sweep {
+  0% { left: -70%; opacity: 0; }
+  20% { opacity: 0.88; }
+  55%, 100% { left: 130%; opacity: 0; }
+}
+
+@keyframes wf-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.48), 0 10px 22px rgba(147, 51, 234, 0.22);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(147, 51, 234, 0), 0 13px 28px rgba(219, 39, 119, 0.24);
+    transform: scale(1.025);
+  }
+}
+
+@keyframes wf-blink {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0), 0 10px 22px rgba(147, 51, 234, 0.2);
+    outline: 2px solid transparent;
+    outline-offset: 1px;
+  }
+  50% {
+    box-shadow: 0 0 18px 4px rgba(245, 158, 11, 0.42), 0 14px 30px rgba(219, 39, 119, 0.24);
+    outline: 2px solid rgba(245, 158, 11, 0.85);
+    outline-offset: 2px;
+  }
+}
+
+.wf-step.wf-running,
+.wf-step.wf-next {
+  position: relative;
+  z-index: 1;
+}
+
+.wf-step.wf-running {
+  animation: wf-pulse 1.15s ease-in-out infinite;
+}
+
+.wf-step.wf-next {
+  animation: wf-blink 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary:hover::after,
+  .primary.wf-next::after,
+  .primary.wf-running::after,
+  .wf-step.wf-running,
+  .wf-step.wf-next {
+    animation: none;
+  }
+
+  .wf-step.wf-next {
+    outline: 2px solid rgba(245, 158, 11, 0.85);
+    outline-offset: 2px;
+  }
+
+  .wf-step.wf-running {
+    box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.35);
+  }
 }
 
 .runner-status-grid {

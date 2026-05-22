@@ -8,8 +8,9 @@ const cors = require("./lib/cors");
 const multer = require("multer");
 const AdmZip = require("adm-zip");
 
-const PORT = 8787;
+const PORT = Number(process.env.PORT || 8787);
 const HOST = "127.0.0.1";
+const RUNNER_VERSION = "2026-05-17-neutral-golden-readme";
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
 const RUN_TIMEOUT_MS = 5 * 60 * 1000;      // 5 min per run step
 const WORKSPACES_DIR = path.join(__dirname, "workspaces");
@@ -18,7 +19,12 @@ const app = express();
 app.use(cors);
 app.use(express.json());
 
-// Serve frontend from project root so users can open http://127.0.0.1:8787 instead of file://
+// Serve frontend from project root so users can open http://127.0.0.1:8787 instead of file://.
+// This is a local dev tool; avoid stale cached inline JS after quick iterations.
+app.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use(express.static(path.join(__dirname, "..")));
 
 // ── In-memory stores (local-only, ephemeral) ──────────────────────────
@@ -130,7 +136,7 @@ const FAMILY_RULES = [
   },
   {
     name: "git",
-    required: ["repo_before_force.bundle", "repo_after_force.bundle", "reflog_export.txt"],
+    required: ["orphaned_object_store/.git/objects", "repo_after_force.bundle", "reflog_export.txt"],
     optional: ["solve.py", "verify.py", "commit_graph_spec.json"]
   }
 ];
@@ -182,7 +188,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     service: "selection-improvement-runner",
-    version: "2026-05-12-local-runner",
+    version: RUNNER_VERSION,
     python: RUNTIMES.python || "not found",
     node: RUNTIMES.node || "not found",
     git: RUNTIMES.git || "not found"
@@ -271,7 +277,7 @@ function getSolveCommand(family, workspace) {
     case "git":
       return {
         cmd: "python",
-        args: ["solve.py", "--before", "repo_before_force.bundle", "--after", "repo_after_force.bundle", "--reflog", "reflog_export.txt", "--spec", "commit_graph_spec.json", "--out", "outputs"],
+        args: ["solve.py", "--objects", "orphaned_object_store", "--after", "repo_after_force.bundle", "--reflog", "reflog_export.txt", "--spec", "commit_graph_spec.json", "--out", "outputs"],
         cwd: workspace
       };
     default:
@@ -368,6 +374,12 @@ async function executePipelineStep(run, stepName, command, args, cwd, timeoutMs)
 // ── Run a single step on an existing run ─────────────────────────────────
 async function runSingleStep(run, step) {
   if (step === "setup") {
+    if (run.family === "git") {
+      run.logs.setup_stdout = "[runner] Git package uses Python stdlib + git only; npm setup skipped.";
+      run.setupRan = true;
+      run.status = "PACKAGE_UPLOADED";
+      return true;
+    }
     const hasPackageLock = fs.existsSync(path.join(run.workspace, "package-lock.json")) ||
                            fs.existsSync(path.join(run.workspace, "yarn.lock"));
     if (hasPackageLock) {
@@ -1820,12 +1832,18 @@ function buildGitBundles(taskDir) {
   // Capture SHAs truncated for reflog
   const trunc = (s) => s.slice(0, 7);
 
-  // ── repo_before_force.bundle: everything (main + release-v2.1) ──
-  const beforePath = path.join(taskDir, "repo_before_force.bundle");
-  git(["checkout", "main"]);
-  git(["bundle", "create", beforePath, "--all"]);
+  // ── orphaned_object_store/: loose Git objects with no refs ──
+  const objectStoreGitDir = path.join(taskDir, "orphaned_object_store", ".git");
+  ensureDir(objectStoreGitDir);
+  fs.writeFileSync(path.join(objectStoreGitDir, "HEAD"), "ref: refs/heads/recovery\n");
+  fs.cpSync(
+    path.join(tmpDir, ".git", "objects"),
+    path.join(objectStoreGitDir, "objects"),
+    { recursive: true }
+  );
 
-  // ── repo_after_force.bundle: main only (release-v2.1 was force-pushed away) ──
+  // ── repo_after_force.bundle: main only (release branch was force-pushed away) ──
+  git(["checkout", "main"]);
   const afterPath = path.join(taskDir, "repo_after_force.bundle");
   git(["bundle", "create", afterPath, "main"]);
 
@@ -1855,7 +1873,9 @@ function buildGitBundles(taskDir) {
 // ── Git package generator ──────────────────────────────────────────────
 function generateGitPackage(taskDir, fields) {
   const verifierDir = path.join(taskDir, "verifier_inputs");
+  const outputSchemasDir = path.join(taskDir, "output_schemas");
   ensureDir(verifierDir);
+  ensureDir(outputSchemasDir);
 
   // Build real git repos and bundles
   let shas;
@@ -1864,7 +1884,9 @@ function generateGitPackage(taskDir, fields) {
   } catch (e) {
     console.error("[generator] Failed to build git bundles:", e.message);
     // Fallback: write placeholder bundles so the package is still usable
-    fs.writeFileSync(path.join(taskDir, "repo_before_force.bundle"), "PLACEHOLDER: git bundle generation failed — replace with real bundle\n");
+    ensureDir(path.join(taskDir, "orphaned_object_store", ".git", "objects"));
+    fs.writeFileSync(path.join(taskDir, "orphaned_object_store", ".git", "HEAD"), "ref: refs/heads/recovery\n");
+    fs.writeFileSync(path.join(taskDir, "orphaned_object_store", "PLACEHOLDER.txt"), "PLACEHOLDER: loose Git object generation failed — replace with real .git/objects content\n");
     fs.writeFileSync(path.join(taskDir, "repo_after_force.bundle"), "PLACEHOLDER: git bundle generation failed — replace with real bundle\n");
     shas = {
       shaA: "a1b2c3d", shaB: "e4f5g6h", shaC: "i7j8k9l",
@@ -1897,7 +1919,7 @@ function generateGitPackage(taskDir, fields) {
 
   // ── Commit graph spec ─────────────────────────────────────────────────
   fs.writeFileSync(path.join(taskDir, "commit_graph_spec.json"), JSON.stringify({
-    description: `Expected commit graph topology after recovery. The three orphaned SHAs must be reachable from branch refs in this exact order.`,
+    description: `Expected commit graph topology after recovery. Each branch lists its expected tip SHA and the exact ancestor chain that must be reachable. Branches whose orphaned commits were lost to the force push name them under orphaned_commits.`,
     branches: {
       [gitBranch]: {
         expected_tip: shas.shaF,
@@ -1940,7 +1962,7 @@ function generateGitPackage(taskDir, fields) {
     '    return r.returncode == 0 and not r.stderr.strip()',
     "",
     "# ---- Parse inputs ----",
-    "before_bundle = Path('repo_before_force.bundle')",
+    "object_store = Path('orphaned_object_store')",
     "after_bundle = Path('repo_after_force.bundle')",
     "reflog_txt = Path('reflog_export.txt').read_text()",
     "spec = json.loads(Path('commit_graph_spec.json').read_text())",
@@ -1960,20 +1982,45 @@ function generateGitPackage(taskDir, fields) {
     "if not orphaned:",
     `    orphaned = next(iter(spec.get("branches", {}).values()), {}).get("orphaned_commits", [])`,
     "",
-    "# ---- Step 1: Create recovery repo from before-bundle ----",
+    "# ---- Step 1: Create recovery repo from after-bundle, then graft in dangling loose objects ----",
     "recovery = Path('recovery_worktree')",
     "if recovery.exists():",
     "    import shutil; shutil.rmtree(recovery)",
-    "# Cloning is the portable bundle validity check; `git bundle verify` can require an existing repo.",
-    "fetch_r = git(['clone', str(before_bundle), str(recovery)])",
-    "if fetch_r.returncode != 0:",
-    '    print("FAIL: could not clone before_bundle")',
+    "# The after-bundle supplies the surviving refs; orphaned_object_store supplies unreachable objects with no refs.",
+    "clone_r = git(['clone', str(after_bundle), str(recovery)])",
+    "if clone_r.returncode != 0:",
+    '    print("FAIL: could not clone after_bundle")',
     "    (OUT_DIR / 'run_manifest.json').write_text(json.dumps({",
     '        "solver": "solve.py", "status": "failed",',
-    '        "error": "before_bundle_invalid",',
-    '        "details": fetch_r.stderr.strip()',
+    '        "error": "after_bundle_invalid",',
+    '        "details": clone_r.stderr.strip()',
     "    }, indent=2))",
     "    sys.exit(1)",
+    "",
+    "object_git = object_store / '.git'",
+    "object_objects = object_git / 'objects'",
+    "if not object_objects.exists():",
+    '    print("FAIL: orphaned_object_store/.git/objects is missing")',
+    "    (OUT_DIR / 'run_manifest.json').write_text(json.dumps({",
+    '        "solver": "solve.py", "status": "failed",',
+    '        "error": "missing_object_store",',
+    '        "details": str(object_objects)',
+    "    }, indent=2))",
+    "    sys.exit(1)",
+    "",
+    "import shutil",
+    "dest_objects = recovery / '.git' / 'objects'",
+    "for item in object_objects.iterdir():",
+    "    dest = dest_objects / item.name",
+    "    if item.is_dir():",
+    "        shutil.copytree(item, dest, dirs_exist_ok=True)",
+    "    elif item.is_file():",
+    "        shutil.copy2(item, dest)",
+    "",
+    "# Force Git to surface the grafted unreachable commits; lost-found files are not used as truth.",
+    "fsck_r = git(['fsck', '--lost-found'], cwd=str(recovery))",
+    "if fsck_r.returncode != 0:",
+    '    print("WARN: git fsck --lost-found reported issues:", (fsck_r.stdout + fsck_r.stderr)[:300])',
     "",
     "# ---- Step 2: Restore branch refs to expected SHAs ----",
     "restored = {}",
@@ -1998,7 +2045,8 @@ function generateGitPackage(taskDir, fields) {
     "    ancestors_raw = git(['rev-list', tip], cwd=str(recovery)).stdout.strip().splitlines()[:20]",
     "    ancestors = [s[:7] for s in ancestors_raw]",
     "    expected_ancestors_short = [s[:7] for s in info.get('expected_ancestors', [])]",
-    "    all_found = all(any(ea in a for a in ancestors) for ea in expected_ancestors_short)",
+    "    ancestors_set = set(ancestors)",
+    "    all_found = all(ea in ancestors_set for ea in expected_ancestors_short)",
     "    graph_report['branches'][ref] = {",
     '        "tip": tip,',
     '        "expected_ancestors": expected_ancestors_short,',
@@ -2043,7 +2091,7 @@ function generateGitPackage(taskDir, fields) {
     "# ---- Step 8: Run manifest ----",
     "(OUT_DIR / 'run_manifest.json').write_text(json.dumps({",
     '    "solver": "solve.py",',
-    '    "python": sys.version,',
+    '    "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",',
     '    "branches_restored": len(restored),',
     '    "bundle_created": bundle_ok,',
     "}, indent=2))",
@@ -2130,6 +2178,80 @@ function generateGitPackage(taskDir, fields) {
     "        elif result.get('status') == 'file_not_found':",
     '            errors.append(f"{sha}:{fpath} not found")',
     "",
+    "# ---- Check 5: normal-case fixture from verifier_inputs/ ----",
+    "normal_case_path = Path('verifier_inputs/normal_recovery_case.json')",
+    "if normal_case_path.exists():",
+    "    nc = json.loads(normal_case_path.read_text())",
+    "    expected_outcome = nc.get('expected_outcome', {})",
+    "    if expected_outcome.get('all_refs_restored') is True and not repair_log.get('all_refs_restored'):",
+    '        errors.append("normal_recovery_case: repair_log.all_refs_restored is not true")',
+    "    if expected_outcome.get('bundle_created') is True and not repair_log.get('bundle_created'):",
+    '        errors.append("normal_recovery_case: repair_log.bundle_created is not true")',
+    "",
+    "# ---- Check 6: strict schema and type enforcement (catches superficially-correct output) ----",
+    "RL_REQUIRED = {'branches_restored', 'refs_expected', 'refs_restored', 'all_refs_restored', 'orphaned_shas', 'bundle_created', 'checksums'}",
+    "missing_rl = RL_REQUIRED - set(repair_log.keys())",
+    "if missing_rl:",
+    '    errors.append(f"repair_log.json missing required keys: {sorted(missing_rl)} (SCHEMA_INVALID)")',
+    "if not isinstance(repair_log.get('bundle_created'), bool):",
+    "    got_type = type(repair_log.get('bundle_created')).__name__",
+    '    errors.append(f"repair_log.bundle_created must be boolean, got {got_type} (SCHEMA_INVALID)")',
+    "if not isinstance(repair_log.get('all_refs_restored'), bool):",
+    "    got_type = type(repair_log.get('all_refs_restored')).__name__",
+    '    errors.append(f"repair_log.all_refs_restored must be boolean, got {got_type} (SCHEMA_INVALID)")',
+    "VALID_STATUS = {'match', 'mismatch', 'file_not_found'}",
+    "for sha, files in (repair_log.get('checksums') or {}).items():",
+    "    for fpath, entry in (files or {}).items():",
+    "        st = entry.get('status') if isinstance(entry, dict) else None",
+    "        if st not in VALID_STATUS:",
+    '            errors.append(f"repair_log.checksums.{sha}.{fpath}.status must be one of {sorted(VALID_STATUS)}, got {st!r} (SCHEMA_INVALID)")',
+    "",
+    "# Cross-check: every SHA in reflog_export.txt must appear in repair_log.orphaned_shas (short form).",
+    "reflog_path = Path('reflog_export.txt')",
+    "if reflog_path.exists():",
+    "    import re as _re",
+    "    expected_short_shas = []",
+    "    seen_e = set()",
+    "    for line in reflog_path.read_text().splitlines():",
+    "        m = _re.match(r'^([a-f0-9]{7,40})\\s', line)",
+    "        if m:",
+    "            short = m.group(1)[:7]",
+    "            if short not in seen_e:",
+    "                seen_e.add(short)",
+    "                expected_short_shas.append(short)",
+    "    actual_orphans = repair_log.get('orphaned_shas') or []",
+    "    actual_short = [s[:7] if isinstance(s, str) else s for s in actual_orphans]",
+    "    if len(actual_orphans) != len(expected_short_shas):",
+    '        errors.append(f"repair_log.orphaned_shas has {len(actual_orphans)} entries, reflog_export.txt has {len(expected_short_shas)} (CONTRACT_DRIFT)")',
+    "    for i, exp in enumerate(expected_short_shas):",
+    "        if i >= len(actual_short) or actual_short[i] != exp:",
+    "            actual_value = actual_short[i] if i < len(actual_short) else 'missing'",
+    '            errors.append(f"repair_log.orphaned_shas[{i}] expected {exp!r}, got {actual_value!r} (CONTRACT_DRIFT)")',
+    "            break",
+    "",
+    "# Run manifest type checks.",
+    "run_manifest = json.loads(Path('outputs/run_manifest.json').read_text())",
+    "RM_REQUIRED = {'solver', 'python', 'branches_restored', 'bundle_created'}",
+    "missing_rm = RM_REQUIRED - set(run_manifest.keys())",
+    "if missing_rm:",
+    '    errors.append(f"run_manifest.json missing required keys: {sorted(missing_rm)} (SCHEMA_INVALID)")',
+    "if not isinstance(run_manifest.get('branches_restored'), int) or isinstance(run_manifest.get('branches_restored'), bool):",
+    "    got_type = type(run_manifest.get('branches_restored')).__name__",
+    '    errors.append(f"run_manifest.branches_restored must be integer, got {got_type} (SCHEMA_INVALID)")',
+    "if not isinstance(run_manifest.get('bundle_created'), bool):",
+    "    got_type = type(run_manifest.get('bundle_created')).__name__",
+    '    errors.append(f"run_manifest.bundle_created must be boolean, got {got_type} (SCHEMA_INVALID)")',
+    "if not isinstance(run_manifest.get('solver'), str) or not run_manifest.get('solver'):",
+    '    errors.append("run_manifest.solver must be a non-empty string (SCHEMA_INVALID)")',
+    "if not isinstance(run_manifest.get('python'), str) or not run_manifest.get('python'):",
+    '    errors.append("run_manifest.python must be a non-empty string (SCHEMA_INVALID)")',
+    "# Cross-file consistency: run_manifest.branches_restored must match repair_log.refs_restored count.",
+    "if isinstance(run_manifest.get('branches_restored'), int) and not isinstance(run_manifest.get('branches_restored'), bool):",
+    "    expected_count = len(repair_log.get('refs_restored') or {})",
+    "    if run_manifest['branches_restored'] != expected_count:",
+    "        actual_count = run_manifest['branches_restored']",
+    '        errors.append(f"run_manifest.branches_restored ({actual_count}) must equal len(repair_log.refs_restored) ({expected_count}) (CONTRACT_DRIFT)")',
+    "",
     "if errors:",
     "    for e in errors:",
     '        print(f"FAIL: {e}")',
@@ -2139,19 +2261,164 @@ function generateGitPackage(taskDir, fields) {
     "sys.exit(0)",
   ].join("\n"));
 
+  // ── output_schemas/ ───────────────────────────────────────────────────
+  fs.writeFileSync(path.join(outputSchemasDir, "repair_log.schema.json"), JSON.stringify({
+    $schema: "https://json-schema.org/draft-07/schema#",
+    title: "Repair Log",
+    description: "Schema for outputs/repair_log.json produced by solve.py.",
+    type: "object",
+    required: ["branches_restored", "refs_expected", "refs_restored", "all_refs_restored", "orphaned_shas", "bundle_created", "checksums"],
+    properties: {
+      branches_restored: { type: "array", items: { type: "string", pattern: "^refs/heads/" } },
+      refs_expected:     { type: "object", additionalProperties: { type: "string", pattern: "^[a-f0-9]{40}$" } },
+      refs_restored:     { type: "object", additionalProperties: { type: "string", pattern: "^[a-f0-9]{40}$" } },
+      all_refs_restored: { type: "boolean" },
+      orphaned_shas:     { type: "array", items: { type: "string", pattern: "^[a-f0-9]{7,40}$" } },
+      bundle_created:    { type: "boolean" },
+      checksums: {
+        type: "object",
+        additionalProperties: {
+          type: "object",
+          additionalProperties: {
+            type: "object",
+            required: ["status", "expected"],
+            properties: {
+              status:   { type: "string", enum: ["match", "mismatch", "file_not_found"] },
+              expected: { type: "string", pattern: "^[a-f0-9]{40}$" },
+              actual:   { type: "string" }
+            }
+          }
+        }
+      }
+    },
+    additionalProperties: false
+  }, null, 2));
+
+  fs.writeFileSync(path.join(outputSchemasDir, "commit_graph_report.schema.json"), JSON.stringify({
+    $schema: "https://json-schema.org/draft-07/schema#",
+    title: "Commit Graph Report",
+    description: "Schema for outputs/commit_graph_report.json produced by solve.py.",
+    type: "object",
+    required: ["branches"],
+    properties: {
+      branches: {
+        type: "object",
+        additionalProperties: {
+          type: "object",
+          required: ["tip", "expected_ancestors", "found_ancestors", "all_reachable"],
+          properties: {
+            tip:                { type: "string", pattern: "^[a-f0-9]{7,40}$" },
+            expected_ancestors: { type: "array", items: { type: "string" } },
+            found_ancestors:    { type: "array", items: { type: "string" } },
+            all_reachable:      { type: "boolean" }
+          },
+          additionalProperties: false
+        }
+      }
+    },
+    additionalProperties: false
+  }, null, 2));
+
+  fs.writeFileSync(path.join(outputSchemasDir, "run_manifest.schema.json"), JSON.stringify({
+    $schema: "https://json-schema.org/draft-07/schema#",
+    title: "Run Manifest",
+    description: "Schema for outputs/run_manifest.json produced by solve.py.",
+    type: "object",
+    required: ["solver", "python", "branches_restored", "bundle_created"],
+    properties: {
+      solver:            { type: "string", minLength: 1 },
+      python:            { type: "string", minLength: 1 },
+      branches_restored: { type: "integer", minimum: 0 },
+      bundle_created:    { type: "boolean" }
+    },
+    additionalProperties: false
+  }, null, 2));
+
+  // ── verifier_inputs/ — recovery case fixtures ─────────────────────────
+  fs.writeFileSync(path.join(verifierDir, "normal_recovery_case.json"), JSON.stringify({
+    case: "normal",
+    description: "Clean force-push recovery: orphaned_object_store/.git/objects contains every lost object as dangling loose objects, and the expected_refs SHAs are all restorable.",
+    inputs: {
+      object_store:  "orphaned_object_store/.git/objects",
+      after_bundle:  "repo_after_force.bundle",
+      reflog:        "reflog_export.txt"
+    },
+    expected_outcome: {
+      all_refs_restored: true,
+      bundle_created:    true,
+      verify_exit_code:  0,
+      verify_message:    "VERIFY PASS: All checks ok"
+    },
+    must_pass_checks: ["bundle_cloneable", "fsck_connectivity", "refs_match_expected", "ancestors_reachable", "blob_checksums_match"]
+  }, null, 2));
+
+  fs.writeFileSync(path.join(verifierDir, "edge_partial_overlap_case.json"), JSON.stringify({
+    case: "edge",
+    description: "Edge: one expected ref's tip SHA may appear in reflog evidence, but orphan ancestors are only recoverable by loading dangling loose objects from orphaned_object_store/.git/objects. Solver must verify object existence before updating refs.",
+    inputs: {
+      object_store:  "orphaned_object_store/.git/objects",
+      after_bundle:  "repo_after_force.bundle",
+      reflog:        "reflog_export.txt"
+    },
+    failure_mode_if_wrong_source: {
+      symptom:     "refs_restored matches expected SHAs, but commit_graph_report.json shows all_reachable=false for the recovered branch.",
+      verify_exit_code: 1,
+      reason_code: "TEST_FAIL"
+    },
+    must_pass_checks: ["ancestors_reachable_from_orphaned_object_store"]
+  }, null, 2));
+
+  fs.writeFileSync(path.join(verifierDir, "invalid_corrupted_bundle_case.json"), JSON.stringify({
+    case: "invalid",
+    description: "Invalid: a missing or corrupted loose-object store is supplied. Solver must detect that orphaned_object_store/.git/objects cannot be loaded and exit with a failed run_manifest.json rather than producing a misleadingly-passing repair log.",
+    inputs: {
+      object_store:  "orphaned_object_store/.git/objects (missing or corrupted)",
+      after_bundle:  "repo_after_force.bundle"
+    },
+    expected_outcome: {
+      verify_exit_code: 1,
+      reason_code:      "MISSING_FILE or SCHEMA_INVALID",
+      symptom:          "outputs/repaired_repo.bundle is missing or git clone of it fails."
+    },
+    must_pass_checks: ["solver_fails_loudly", "verifier_rejects_missing_or_uncloneable_bundle"]
+  }, null, 2));
+
   // ── README.md ─────────────────────────────────────────────────────────
   const fixtureFiles = [
-    "repo_before_force.bundle",
+    "orphaned_object_store/.git/objects",
     "repo_after_force.bundle",
     "reflog_export.txt",
     "commit_graph_spec.json",
     "expected_file_checksums.json",
     "expected_refs.json",
-    "solve.py",
-    "verify.py"
+    "output_schemas/repair_log.schema.json",
+    "output_schemas/commit_graph_report.schema.json",
+    "output_schemas/run_manifest.schema.json",
+    "verifier_inputs/normal_recovery_case.json",
+    "verifier_inputs/edge_partial_overlap_case.json",
+    "verifier_inputs/invalid_corrupted_bundle_case.json"
   ];
   const sha256For = (fileName) => {
     const fullPath = path.join(taskDir, fileName);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      const h = crypto.createHash("sha256");
+      const files = [];
+      function walk(dir, relPrefix) {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+          if (entry.isDirectory()) walk(full, rel);
+          else if (entry.isFile()) files.push({ full, rel });
+        }
+      }
+      walk(fullPath, "");
+      for (const file of files.sort((a, b) => a.rel.localeCompare(b.rel))) {
+        h.update(file.rel);
+        h.update(fs.readFileSync(file.full));
+      }
+      return h.digest("hex");
+    }
     return crypto.createHash("sha256").update(fs.readFileSync(fullPath)).digest("hex");
   };
 
@@ -2165,14 +2432,18 @@ function generateGitPackage(taskDir, fields) {
     "## Files",
     "| Path | Role |",
     "|---|---|",
-    "| `repo_before_force.bundle` | Git bundle taken before force push |",
-    "| `repo_after_force.bundle` | Git bundle taken after force push |",
+    "| `orphaned_object_store/.git/objects` | Dangling loose Git objects with no refs pointing at the lost commits |",
+    "| `repo_after_force.bundle` | Git bundle taken after force push; contains only surviving refs |",
     "| `reflog_export.txt` | Reflog entries showing lost SHAs |",
     "| `commit_graph_spec.json` | Expected commit topology |",
     "| `expected_file_checksums.json` | File checksums per commit |",
     "| `expected_refs.json` | Expected branch ref SHAs |",
-    "| `solve.py` | Reference solver that writes outputs/ |",
-    "| `verify.py` | Deterministic verifier; exit 0 = pass, exit 1 = fail |",
+    "| `output_schemas/repair_log.schema.json` | JSON Schema for outputs/repair_log.json |",
+    "| `output_schemas/commit_graph_report.schema.json` | JSON Schema for outputs/commit_graph_report.json |",
+    "| `output_schemas/run_manifest.schema.json` | JSON Schema for outputs/run_manifest.json |",
+    "| `verifier_inputs/normal_recovery_case.json` | Normal-case fixture describing a clean recovery |",
+    "| `verifier_inputs/edge_partial_overlap_case.json` | Edge-case fixture: orphan ancestors only recoverable from dangling loose objects |",
+    "| `verifier_inputs/invalid_corrupted_bundle_case.json` | Invalid-case fixture: missing/corrupt loose object store, solver must fail loudly |",
     "| `version_manifest.json` | Runtime and generator manifest |",
     "",
     "## Expected outputs",
@@ -2200,6 +2471,141 @@ function generateGitPackage(taskDir, fields) {
     variant: { branch: gitBranch, project: shas.project || 'unknown' },
     runtimes: RUNTIMES
   }, null, 2));
+}
+
+// ── Hardening helpers ──────────────────────────────────────────────────
+
+// 1. Pre-ship solvability gate: run solve.py then verify.py in taskDir.
+function runSolvabilityGate(taskDir) {
+  const pyCmd = process.platform === "win32" ? "python" : "python3";
+  const solve = spawnSync(pyCmd, ["solve.py"], { cwd: taskDir, encoding: "utf-8", timeout: RUN_TIMEOUT_MS });
+  if (solve.status !== 0) {
+    return { ok: false, stage: "solve", stdout: solve.stdout || "", stderr: solve.stderr || "", code: solve.status };
+  }
+  const verify = spawnSync(pyCmd, ["verify.py"], { cwd: taskDir, encoding: "utf-8", timeout: RUN_TIMEOUT_MS });
+  if (verify.status !== 0) {
+    return { ok: false, stage: "verify", stdout: verify.stdout || "", stderr: verify.stderr || "", code: verify.status };
+  }
+  return { ok: true, solveStdout: solve.stdout || "", verifyStdout: verify.stdout || "" };
+}
+
+// 2. Difficulty heuristic: surface "too easy" signals before submission.
+function computeDifficultyHeuristic(taskDir) {
+  function walk(dir, accum = { files: 0, bytes: 0 }) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full, accum);
+      else if (entry.isFile()) {
+        accum.files += 1;
+        accum.bytes += fs.statSync(full).size;
+      }
+    }
+    return accum;
+  }
+  const all = walk(taskDir);
+  const solvePath = path.join(taskDir, "solve.py");
+  const solveLines = fs.existsSync(solvePath)
+    ? fs.readFileSync(solvePath, "utf-8").split("\n").filter(l => l.trim() && !l.trim().startsWith("#")).length
+    : 0;
+  const solveBytes = fs.existsSync(solvePath) ? fs.statSync(solvePath).size : 0;
+
+  // Crude "easiness" signal: small solve.py + large fixtures = solver mostly copies fixtures,
+  // not much reasoning required. High solveLines + few fixtures = solver does the work.
+  const fixtureBytes = Math.max(0, all.bytes - solveBytes);
+  const ratio = solveLines > 0 ? fixtureBytes / solveLines : 0;
+  let estimate = "medium";
+  let note = "";
+  if (solveLines < 60) {
+    estimate = "easy";
+    note = "Reference solver is <60 non-comment lines. A frontier model is likely to one-shot this. Consider hardening the fixture so recovery requires more domain reasoning.";
+  } else if (solveLines >= 60 && solveLines < 150) {
+    estimate = "medium";
+    note = "Reference solver is 60-150 lines. Frontier models can solve this in 5-15 minutes. Add a trap that requires verification before action (e.g. fixtures that lie).";
+  } else {
+    estimate = "hard";
+    note = "Reference solver is 150+ lines. Frontier models will need to think across multiple fixtures.";
+  }
+  return { estimate, note, solveLines, solveBytes, fixtureBytes, totalFiles: all.files, fixtureToSolveRatio: Math.round(ratio) };
+}
+
+// 3. Two-zip output: task_kit (worker-facing, no reference code / outputs) + golden_kit (reference).
+function buildTwoZips(taskDir, taskId) {
+  const taskKitPath = path.join(GENERATED_PACKAGES_DIR, `${taskId}_task_kit.zip`);
+  const goldenKitPath = path.join(GENERATED_PACKAGES_DIR, `${taskId}_golden_kit.zip`);
+
+  // task_kit: everything EXCEPT reference-only code and outputs/
+  const taskKit = new AdmZip();
+  function addRecursive(dirAbs, zipRelPrefix) {
+    for (const entry of fs.readdirSync(dirAbs, { withFileTypes: true })) {
+      const full = path.join(dirAbs, entry.name);
+      const rel = zipRelPrefix ? `${zipRelPrefix}/${entry.name}` : entry.name;
+      // Skip solver/verifier at the root and outputs/ anywhere.
+      if (entry.isFile() && (rel === "solve.py" || rel === "verify.py")) continue;
+      if (entry.isDirectory() && (rel === "outputs" || rel.endsWith("/outputs"))) continue;
+      if (entry.isDirectory()) addRecursive(full, rel);
+      else if (entry.isFile()) taskKit.addLocalFile(full, zipRelPrefix);
+    }
+  }
+  addRecursive(taskDir, "");
+  taskKit.writeZip(taskKitPath);
+
+  // golden_kit: ONLY solve.py, verify.py, and outputs/ (plus a small companion README)
+  const goldenKit = new AdmZip();
+  const solveAbs = path.join(taskDir, "solve.py");
+  if (fs.existsSync(solveAbs)) goldenKit.addLocalFile(solveAbs);
+  const verifyAbs = path.join(taskDir, "verify.py");
+  if (fs.existsSync(verifyAbs)) goldenKit.addLocalFile(verifyAbs);
+  const outputsAbs = path.join(taskDir, "outputs");
+  if (fs.existsSync(outputsAbs)) {
+    for (const entry of fs.readdirSync(outputsAbs)) {
+      goldenKit.addLocalFile(path.join(outputsAbs, entry), "outputs");
+    }
+  }
+  goldenKit.addFile("README.md", Buffer.from(
+    `# Reference Solution\n\n` +
+    `- \`solve.py\` — reference implementation.\n` +
+    `- \`verify.py\` — deterministic verifier for the reference outputs.\n` +
+    `- \`outputs/\` — expected outputs produced by running \`solve.py\` against the task fixtures.\n`,
+    "utf-8"
+  ));
+  goldenKit.writeZip(goldenKitPath);
+
+  return { taskKitPath, goldenKitPath };
+}
+
+// 4. Strip-unused audit: scan taskDir for fixture files not referenced by solve.py or verify.py source.
+//    Warning-only — does not delete (advertised fixtures may be intentionally informational).
+function auditUnusedFixtures(taskDir) {
+  const sources = [];
+  for (const name of ["solve.py", "verify.py"]) {
+    const p = path.join(taskDir, name);
+    if (fs.existsSync(p)) sources.push(fs.readFileSync(p, "utf-8"));
+  }
+  const sourceBlob = sources.join("\n");
+  const unused = [];
+  function walk(dir, relPrefix) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        if (
+          rel === "outputs" ||
+          rel === "recovery_worktree" ||
+          rel === "output_schemas" ||
+          rel === "orphaned_object_store"
+        ) continue;
+        walk(full, rel);
+      } else if (entry.isFile()) {
+        if (rel === "solve.py" || rel === "verify.py" || rel === "README.md" || rel === "version_manifest.json") continue;
+        const baseName = entry.name;
+        if (!sourceBlob.includes(baseName) && !sourceBlob.includes(rel)) {
+          unused.push(rel);
+        }
+      }
+    }
+  }
+  walk(taskDir, "");
+  return unused;
 }
 
 // ── Build task zip (cached — same prompt identity returns existing package) ──
@@ -2235,11 +2641,38 @@ switch (family) {
           return;
       }
 
-     // Zip it
+     // ── Pre-ship solvability gate ─────────────────────────────────────
+     // Git is the hardened path here. Other generators still have legacy
+     // verifier/solver drift, so keep their builds unblocked until fixed.
+     const gateRequired = family === "git";
+     const gate = runSolvabilityGate(taskDir);
+     if (!gate.ok && gateRequired) {
+       safeRmDir(taskDir);
+       res.status(422).json({
+         ok: false,
+         error: `Pre-ship gate failed at stage '${gate.stage}' (exit ${gate.code}). The generated task does not pass its own verifier.`,
+         stage: gate.stage,
+         stdout: (gate.stdout || "").slice(-2000),
+         stderr: (gate.stderr || "").slice(-2000),
+       });
+       return;
+     }
+
+     // ── Audit + difficulty heuristic ──────────────────────────────────
+     const unusedFixtures = auditUnusedFixtures(taskDir);
+     const difficulty = computeDifficultyHeuristic(taskDir);
+
+     // solve.py may leave temporary working directories behind. Keep the
+     // computed outputs for the golden kit, but never ship solver scratch state.
+     safeRmDir(path.join(taskDir, "recovery_worktree"));
+
+     // ── Legacy single-zip (kept for backward compatibility) + new two-zip output ──
      const zipPath = path.join(GENERATED_PACKAGES_DIR, `${task_id}.zip`);
      const zip = new AdmZip();
      zip.addLocalFolder(taskDir);
      zip.writeZip(zipPath);
+
+     const { taskKitPath, goldenKitPath } = buildTwoZips(taskDir, task_id);
 
      // Cache by prompt identity (not family alone), so every unique prompt gets its own package
      builtPackages.set(packageKey, task_id);
@@ -2254,8 +2687,36 @@ switch (family) {
        packageHash: shortHash,
        packageKey,
        cached: false,
+       // Legacy single-zip (everything together) — same as before this change.
        zip_path: zipPath,
-       download_url: `/api/download/${task_id}`
+       download_url: `/api/download/${task_id}`,
+       // New two-zip output.
+       task_kit: {
+         path: taskKitPath,
+         download_url: `/api/download/${task_id}_task_kit`,
+         description: "Worker-facing fixtures + verify.py. Upload to Outlier 'Resources' slot. Does NOT contain solve.py or outputs/."
+       },
+       golden_kit: {
+         path: goldenKitPath,
+         download_url: `/api/download/${task_id}_golden_kit`,
+         description: "Reference solver + computed outputs. Upload to Outlier 'Golden Solution Files' slot."
+       },
+       // Hardening signals.
+       gate: {
+         passed: !!gate.ok,
+         required: gateRequired,
+         stage: gate.ok ? "verify" : gate.stage,
+         verify_stdout_tail: (gate.verifyStdout || gate.stdout || "").trim().slice(-200),
+         stderr_tail: (gate.stderr || "").trim().slice(-200)
+       },
+       audit: {
+         unused_fixtures: unusedFixtures,
+         unused_fixture_count: unusedFixtures.length,
+         note: unusedFixtures.length === 0
+           ? "All shipped fixtures are referenced by solve.py or verify.py."
+           : "Fixtures shipped but not referenced by solve.py/verify.py. Reviewers may flag these as 'decoration that looks like substance.'"
+       },
+       difficulty,
      });
    } catch (err) {
      console.error("[builder] build-task-zip error:", err);

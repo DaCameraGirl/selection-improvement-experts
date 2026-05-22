@@ -160,6 +160,8 @@
                   <div class="runner-actions">
                     <button id="runner-open-logs" type="button" disabled>Open Logs</button>
                     <button id="runner-download-logs" type="button" disabled>Download Logs</button>
+                    <a id="runner-download-task-kit" class="button-link is-hidden" href="#" download>Download Task Kit</a>
+                    <a id="runner-download-golden-kit" class="button-link is-hidden" href="#" download>Download Golden Kit</a>
                     <button id="runner-refresh" type="button">Refresh Status</button>
                   </div>
                 </section>
@@ -492,7 +494,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-15 runner-zip-portable";
+const APP_VERSION = "2026-05-22 no-solver-in-input-zip";
 
 const state = {
   guides: [],
@@ -869,34 +871,38 @@ function buildTaskPackageLines(fields) {
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     " OUTLIER TBench — SUBMISSION FIELDS",
     `  Generated ${APP_VERSION}  ·  Expertise: ${expertiseLabel(packageEffectiveExpertise)}`,
-    " Paste each section into the matching field in the Outlier form.",
+    " The Outlier form has 3 pages. Each section below is labeled PAGE 1, PAGE 2, or PAGE 3 to match.",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "",
-    "── FIELD: Field / Sub-field ────────────────────────",
+    "════════════════════════════════════════════════════",
+    " PAGE 1 — Initial Submission",
+    "════════════════════════════════════════════════════",
+    "",
+    "── PAGE 1 · Field / Sub-field ──────────────────────",
     packageText(fields.category, "Name the academic/professional field and sub-field, e.g. Biomedical Engineering, Signal Processing"),
     "",
-    "── FIELD: Task title / name ────────────────────────",
+    "── PAGE 1 · Title or name ──────────────────────────",
     packageText(fields.title, "Short task title, e.g. Post-migration ECG beat-detection validation"),
     "",
-    "── FIELD: Prompt ───────────────────────────────────",
+    "── PAGE 1 · Prompt ─────────────────────────────────",
     packageText(fields.prompt, "Write the exact prompt that will be provided to the agent."),
     "",
-    "── FIELD: Short summary / snippet ──────────────────",
+    "── PAGE 1 · Short summary or proposal ──────────────",
     packageText(fields.snippet, "1-2 sentences describing what the prompt asks the agent to do."),
     "",
-    "── FIELD: Error if wrong ───────────────────────────",
+    "── PAGE 1 · Error if wrong ─────────────────────────",
     packageText(fields.errorIfWrong, "What error message or exit code appears if the agent gets it wrong?"),
     "",
-    "── FIELD: Why it's difficult / expertise required ──",
+    "── PAGE 1 · Why this task is difficult / expertise required ──",
     packageText(fields.difficulty, "Explain why this is hard, why common automated approaches may fail, and why it requires domain expertise."),
     "",
-    "── FIELD: Resources / links required ───────────────",
+    "── PAGE 1 · Resources required ─────────────────────",
     packageText(fields.resources, "List every dataset, file, package, public source, version, and setup artifact the agent needs."),
     "",
-    "── FIELD: Golden solution steps ────────────────────",
+    "── PAGE 1 · Golden solution (full first version) ───",
     packageText(fields.solution, "Show where the task is actually solved: authoritative computation, commands, code/scripts, expected outputs, schemas, and failure decisions."),
     "",
-    "── FIELD: Final answer / Expected solution outputs ──",
+    "── PAGE 1 · Final answer / Expected solution outputs ──",
     packageText(buildExpectedFinalAnswer(packageDomainKey), "No expected outputs defined for this domain."),
     "",
     ...(window.__taskExecution?.no_placeholders_in_final_answer ? [] : [
@@ -906,14 +912,48 @@ function buildTaskPackageLines(fields) {
       "Set window.__taskExecution to mark execution complete.",
       ""
     ]),
-    "── FIELD: Verifier description ─────────────────────",
+    "── PAGE 1 · Verifier description (initial) ─────────",
     packageText(fields.verifiers, "Describe deterministic checks that accept correct outputs and reject incorrect outputs."),
     "",
-    "── FIELD: Time estimate (if form asks) ─────────────",
+    "── PAGE 1 · Time estimate ──────────────────────────",
     packageText(fields.time, "Estimate how long a qualified professional would need."),
     "",
-    "── FIELD: Agent difficulty check (if form asks) ────",
+    "── PAGE 1 · Agent difficulty check (if form asks) ──",
     packageText(fields.agentCheck, "Summarize terminal-agent testing only if you performed it."),
+    "",
+    "── PAGE 1 · Author email ───────────────────────────",
+    "Enter your email on the Outlier form. Not generated here.",
+    "",
+    "════════════════════════════════════════════════════",
+    " PAGE 2 — Golden Solution Detail",
+    "════════════════════════════════════════════════════",
+    "",
+    "── PAGE 2 · Golden Solution Steps Description ──────",
+    "Outlier provides an auto-generated draft on this page. Edit it into a granular, step-by-step description",
+    "a non-expert coder can translate into terminal commands. Reuse the Golden Solution from PAGE 1 as your base,",
+    "expand each step with prose + commands, and add a short 'Common failure modes' list at the end.",
+    "",
+    "Form rule: 'Please do not use an LLM for this portion of the task' — make at least 2-3 edits in your own voice.",
+    "",
+    "── PAGE 2 · Solution Summary ───────────────────────",
+    "One short paragraph (3-6 sentences) summarizing the approach and the key insight a coder needs to know",
+    "(e.g. the trap that causes naive implementations to fail). Reuse content from PAGE 1's Golden Solution and",
+    "Difficulty fields as your base.",
+    "",
+    "════════════════════════════════════════════════════",
+    " PAGE 3 — Verifiers Refinement",
+    "════════════════════════════════════════════════════",
+    "",
+    "── PAGE 3 · Final Verifiers list ───────────────────",
+    "Consolidate the Verifier description from PAGE 1 into a numbered list. Each item names the file/check, the",
+    "exact pass condition, and a failure code (MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, THRESHOLD_FAIL,",
+    "CONTRACT_DRIFT, NON_DETERMINISTIC_OUTPUT, STDERR_WARNING). Include one item per output file combining",
+    "presence + parseable JSON + schema, plus a determinism re-run check, plus the exit-code contract.",
+    "",
+    "── PAGE 3 · Verifiers Explanation ──────────────────",
+    "Natural-language paragraph describing what the verifiers do as a pipeline: presence checks first, then",
+    "cloneability + fsck, then cross-checks against fixture files, then schema/value checks, then determinism,",
+    "then exit-code contract. End with: 'every check is a deterministic comparison or a tool/CLI command'.",
     "",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     " INTERNAL REVIEW AIDS — do not submit",
@@ -1121,12 +1161,12 @@ const DOMAIN_DRAFTS = {
   },
   "git-workflows": {
     brief: "Git force-push recovery: get three lost commits back onto the branch",
-    domain: "Git internals using the object model, reflog, bundle files, ref restoration, reachability analysis, and deterministic commit graph validation",
+    domain: "Git internals using the object model, reflog, loose object stores, after-force bundles, ref restoration, reachability analysis, and deterministic commit graph validation",
     artifact: "a repaired git bundle, a repair log JSON, and a commit graph verification report JSON",
     method: "git reflog parsing, git fsck --connectivity-only object integrity checks, ref restoration to make original commit objects reachable, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
     data: "git bundles containing the object store before and after the force-push, a reflog export showing the commit SHAs to recover, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
     failure: "cherry-picking changes into new commits instead of restoring original refs (producing different SHAs than expected), recovering commits in the wrong order breaking the parent chain, leaving recovered commits unreachable from the required branch ref, and failing to verify file contents at each recovered commit match the expected checksums",
-    sourceKit: "repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt (showing the SHAs to recover), commit_graph_spec.json (expected ancestor chains and branch tips), expected_refs.json (exact ref targets), expected_file_checksums.json (Git blob IDs at recovered commits), version_manifest.json (runtime versions)",
+    sourceKit: "orphaned_object_store/.git/objects (dangling loose Git objects with no refs), repo_after_force.bundle, reflog_export.txt (showing the SHAs to recover), commit_graph_spec.json (expected ancestor chains and branch tips), expected_refs.json (exact ref targets), expected_file_checksums.json (Git blob IDs at recovered commits), version_manifest.json (runtime versions)",
     threshold: "git fsck --connectivity-only on the repaired repository must report 0 missing or corrupt objects; every recovered SHA listed in reflog_export.txt must be reachable from the required branch refs with the parent chain declared in commit_graph_spec.json; file checksums at each recovered commit must match expected_file_checksums.json exactly; branch refs must point to the exact SHAs specified."
   },
   "software-engineering": {
@@ -1288,11 +1328,6 @@ const STANDARD_DRAFTS = {
   }
 };
 
-function pickPhrase(pool) {
-  if (!Array.isArray(pool) || pool.length === 0) return "";
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
 function humanizePrompt(text, domainKey, scenario) {
   if (!text || text.length < 50) return text;
 
@@ -1441,6 +1476,11 @@ function enrichErrorIfWrong(text) {
   if (!base) return reasonCodes;
   if (/MISSING_FILE|SCHEMA_INVALID|THRESHOLD_FAIL|TEST_FAIL|CONTRACT_DRIFT/.test(base)) return base;
   return `${base} ${reasonCodes}`;
+}
+
+function pickPhrase(pool) {
+  if (!Array.isArray(pool) || pool.length === 0) return "";
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 const SCENARIO_STYLES = [
@@ -5029,57 +5069,57 @@ if __name__ == "__main__":
   "git-workflows": {
     domainLabel: "Git ref-recovery task — reconstruct lost commits after an accidental force-push",
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it demands professional domain expertise in Git internals: reflog parsing, git fsck --connectivity-only checks, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. The expert failure mode is cherry-pick — it produces files that look right while emitting the wrong commit SHAs — so the correct recovery path is fetching the original commit objects from repo_before_force.bundle and restoring refs with git update-ref. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one in version-control engineering.`;
+      return `This is ${effectiveExpertiseLabel} difficulty because it demands professional domain expertise in Git internals: reflog parsing, git fsck --lost-found, loose object-store handling, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. The expert failure mode is cherry-pick — it produces files that look right while emitting the wrong commit SHAs — so the correct recovery path is loading dangling loose objects from orphaned_object_store/.git/objects and restoring refs with git update-ref. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one in version-control engineering.`;
     },
     verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
     scenarioEvidence: [
-      "output_schemas/ — JSON Schema definitions for repair_log.json and commit_graph_report.json",
-      "verifier_inputs/ — fixture bundles for normal, edge, and invalid recovery cases"
+      "output_schemas/repair_log.schema.json and output_schemas/commit_graph_report.schema.json — JSON Schemas for the two required output reports",
+      "verifier_inputs/normal_recovery_case.json, edge_partial_overlap_case.json, and invalid_corrupted_bundle_case.json — fixture cases describing normal, edge, and invalid recovery scenarios"
     ],
-    standardResources: "Include the two Git bundles, reflog export, commit graph spec, expected refs, expected file checksums, solve.py, verify.py, README.md, and the root-level version_manifest.json. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
+    standardResources: "Include orphaned_object_store/.git/objects, the after-force-push Git bundle, reflog export, commit graph spec, expected refs, expected file checksums, output schemas, verifier input fixtures, README.md, and the root-level version_manifest.json. Do not include a reference implementation, verifier script, precomputed outputs, or answer-bearing files in the worker-facing resource zip. No benchmark splits or ML artifacts. The loose Git objects, repository bundle, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
       const openerPools = {
         "post-migration validation": [
-          "Recover the release repository after a bad force-push. Use the before/after bundles and reflog export to restore the original branch refs.",
-          "A force-push wiped the release branch history. Restore the original branch refs using the before/after bundles and the reflog export.",
-          "The release repo lost commits to a bad force-push. Pull the original objects back from the before-bundle, cross-check with the reflog, and restore the branch refs.",
-          "A force-push wiped a chunk of release history. Restore the original branch refs with their original SHAs using the before/after bundles and reflog.",
-          "Release branch refs no longer reach the right history after a force-push. Use the before/after bundles and reflog evidence to reconstruct them with the original Git object IDs."
+          "Please help me restore the release repo after a bad force push. The after-bundle, dangling loose object store, and reflog export should have what we need to bring back the original branch refs.",
+          "I need help recovering the release branch after a force push wiped a chunk of its history. Can you walk through restoring the original branch refs using the after-bundle, orphaned_object_store/.git/objects, and reflog evidence?",
+          "Help me out — a force push wiped the release branch history. I need to restore the original branch refs from the dangling loose objects and the reflog export.",
+          "Please walk me through recovering the release repo after a bad force push. The after-bundle, orphaned object store, and reflog export should be enough to put the original branch refs back where they were.",
+          "The release repo lost commits to a bad force push — please help me load the original objects from orphaned_object_store/.git/objects, cross-check against the reflog, and put the branch refs back."
         ],
         "regression triage": [
-          "Recover the branch refs that no longer reach the commits listed in the reflog export. Preserve the original Git object IDs.",
-          "The branch refs no longer reach the commits the reflog says should be there. Restore them with the original Git object IDs intact.",
-          "Bring the branch refs back into line with the reflog evidence — the original Git object IDs have to be preserved exactly.",
-          "The branch refs and the reflog disagree — refs no longer reach the commits the reflog records. Reconcile by restoring the original SHAs.",
-          "Branch refs have drifted from the reflog evidence: the recorded SHAs are no longer reachable. Restore them with their original Git object IDs intact."
+          "Please help me recover the branch refs that no longer reach the commits listed in the reflog export. The original Git object IDs need to be preserved.",
+          "I need help reconciling the branch refs and the reflog — refs no longer reach the commits the reflog says should be there. Can you restore the original SHAs?",
+          "Help me out — the branch refs and the reflog disagree, and the recorded SHAs aren't reachable anymore. Please restore them with the original Git object IDs intact.",
+          "Please bring the branch refs back into line with the reflog evidence. The original Git object IDs have to stay exactly as recorded.",
+          "I'm trying to fix branch refs that have drifted from the reflog evidence — the recorded SHAs are no longer reachable. Help me restore them with their original Git object IDs."
         ],
         "compliance audit": [
-          "Restore the published Git refs after a force-push changed the branch history. The recovered refs must point to the original commits.",
-          "A force-push rewrote published Git history. The audit needs the original refs back, pointing at the original commit SHAs.",
-          "Published Git refs are pointing at the wrong history after a force-push. Put them back on the original commits exactly.",
-          "Audit verdict: published Git refs point at the wrong history after a force-push. Put them back on the original commit SHAs.",
-          "The force-pushed history breaks the audit's chain-of-custody. Restore the original refs so every published ref maps to its original commit SHA."
+          "Please help me restore the published Git refs after a force push changed the branch history. Match expected_refs.json exactly and make sure there are no missing or corrupt objects so we keep confidence in the audit trail.",
+          "I need help bringing the original refs back — a force push rewrote published Git history and the audit needs every original commit SHA back where it was.",
+          "Help me out: published Git refs are pointing at the wrong history after a force push. They need to go back on the original commits exactly so the audit can clear.",
+          "Please walk me through putting published Git refs back on their original commit SHAs after a force push. The audit verdict won't pass until every published ref maps to its original commit.",
+          "The force-pushed history breaks the audit's chain of custody. Please help me restore the original refs so every published ref maps to its original commit SHA."
         ],
         "edge-case benchmark": [
-          "Restore the force-pushed refs so every recovered SHA is reachable through its original parent chain.",
-          "Bring back the force-pushed refs with the original parent chains intact — every recovered SHA stays reachable through its own ancestors.",
-          "Reconstruct the force-pushed refs so each recovered commit is reachable through its original parent chain, not a re-created one.",
-          "Force-push recovery edge case: each recovered SHA must remain reachable through its original parent chain, not a re-created one. Reconstruct accordingly.",
-          "The recovery has to preserve original parent chains — every recovered commit reaches through its own ancestors, not a substitute. Rebuild the refs that way."
+          "Please help me restore the force-pushed refs so every recovered SHA stays reachable through its original parent chain.",
+          "I need help bringing back force-pushed refs with the original parent chains intact — every recovered SHA has to remain reachable through its own ancestors.",
+          "Help me reconstruct the force-pushed refs so each recovered commit is reachable through its original parent chain, not a re-created one.",
+          "Please walk me through this force-push recovery edge case — each recovered SHA needs to stay reachable through its original parent chain, not a re-created one.",
+          "I need to preserve the original parent chains in this recovery — every recovered commit should reach through its own ancestors, not a substitute. Help me rebuild the refs that way."
         ]
       };
       const pool = openerPools[scenario && scenario.name] || openerPools["post-migration validation"];
       const opener = pickPhrase(pool);
       const filesLine = pickPhrase([
-        "Write outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
-        "Emit outputs/repaired_repo.bundle plus outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json.",
-        "Land outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json in the outputs folder."
+        "Land outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json in the outputs folder.",
+        "Please put outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json under the outputs folder.",
+        "Write outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json — all under the outputs folder."
       ]);
       const constraintsLine = pickPhrase([
-        "Do not cherry-pick. The repaired bundle must have 0 missing or corrupt objects under git fsck --connectivity-only, match expected_refs.json exactly (zero SHA tolerance), and satisfy the parent-chain and checksum fixtures within the declared threshold.",
-        "Cherry-pick is off the table — it changes SHAs. The repaired bundle clones clean, git fsck --connectivity-only reports 0 missing or corrupt objects, refs match expected_refs.json within zero SHA tolerance, and the parent-chain and checksum fixtures all pass.",
-        "No cherry-picking; that produces new SHAs. The repaired bundle clones successfully, passes git fsck --connectivity-only with 0 missing or corrupt objects, matches expected_refs.json exactly, and satisfies the parent-chain and checksum fixtures within the contract threshold."
+        "Please don't cherry-pick — it changes the commit IDs. Next, ensure the repaired bundle clones successfully, passes git fsck --connectivity-only with 0 missing or corrupt objects, matches expected_refs.json exactly, and satisfies the parent-chain and checksum fixtures.",
+        "Cherry-picking is off the table since it changes SHAs. Match expected_refs.json exactly and make sure there are no missing or corrupt objects so we keep confidence in the recovery. The repaired bundle should clone cleanly, git fsck --connectivity-only needs to report 0 missing or corrupt objects, and the parent-chain and checksum fixtures all need to pass.",
+        "No cherry-picking — that changes the original commit IDs. Next, the repaired bundle has to clone successfully, pass git fsck --connectivity-only with 0 missing or corrupt objects, match expected_refs.json exactly, and satisfy the parent-chain and checksum fixtures."
       ]);
       return [opener, filesLine, constraintsLine].join("\n\n");
     },
@@ -5089,12 +5129,12 @@ if __name__ == "__main__":
       "Real force-push recovery scenarios: https://ohshitgit.com/"
     ],
     downloads: [
-      "repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.",
+      "orphaned_object_store/.git/objects and repo_after_force.bundle — included in the zip; no external download needed.",
       "A modern Git runtime compatible with git bundle, git update-ref, git rev-list, and git fsck --connectivity-only; the actual version used is recorded in version_manifest.json.",
       "reflog_export.txt — included in the zip; contains the commit SHAs to recover."
     ],
     resources: [
-      "repo_before_force.bundle — git bundle containing the full object store before the force-push, including the lost commit objects.",
+      "orphaned_object_store/.git/objects — dangling loose Git objects with no refs pointing at the lost commits.",
       "repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.",
       "reflog_export.txt — reflog-style lines whose first token is a commit SHA to preserve and recover.",
       "commit_graph_spec.json — declares the expected final branch topology: branch name, expected tip SHA, expected ancestor chain, and orphaned commits.",
@@ -5103,8 +5143,8 @@ if __name__ == "__main__":
       "version_manifest.json — root-level runtime manifest containing the actual Python, Node, and Git versions used to produce the package."
     ],
     solution: [
-      "Run: python solve.py from the zip root. The script reads repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, expected_refs.json, and expected_file_checksums.json, then writes outputs/.",
-      "Clone repo_before_force.bundle into a recovery worktree so the original lost objects are available without network access.",
+      "Run: python solve.py from the zip root. The script reads orphaned_object_store/.git/objects, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, expected_refs.json, and expected_file_checksums.json, then writes outputs/.",
+      "Clone repo_after_force.bundle into a recovery worktree, copy in the dangling loose objects from orphaned_object_store/.git/objects, and run git fsck --lost-found to surface unreachable commits.",
       "Parse reflog_export.txt and commit_graph_spec.json to identify the commits that must remain reachable after recovery.",
       "For every ref in expected_refs.json, verify the target commit exists with git cat-file -e, then restore that exact ref with git update-ref. Do not cherry-pick; cherry-pick changes the commit SHAs.",
       "Run git rev-list on each expected branch tip and compare the ancestor list to commit_graph_spec.json.",
@@ -5136,7 +5176,7 @@ if __name__ == "__main__":
       "Required run_manifest.json keys: solver, python, branches_restored, bundle_created."
     ],
     solutionCode: `# solve.py — Git force-push recovery: fetch original commits, restore refs, verify topology
-# Run: python solve.py --before repo_before_force.bundle --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs
+# Run: python solve.py --objects orphaned_object_store --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs
 import sys, json, subprocess, re, argparse, hashlib, shutil
 from pathlib import Path
 
@@ -5151,7 +5191,7 @@ def parse_reflog(reflog_path):
             if sha and len(sha) >= 7: shas.append(sha)
     return shas
 
-def run(before_bundle, after_bundle, reflog_path, spec_path, out_dir):
+def run(object_store, after_bundle, reflog_path, spec_path, out_dir):
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
     work = out / "work_repo"
     if work.exists(): shutil.rmtree(work)
@@ -5162,10 +5202,15 @@ def run(before_bundle, after_bundle, reflog_path, spec_path, out_dir):
     orphaned_shas = parse_reflog(reflog_path)
     spec = json.load(open(spec_path)) if Path(spec_path).exists() else {}
 
-    # Fetch original commit objects from the before-bundle without checking them out
-    before_abs = str(Path(before_bundle).resolve())
-    for sha in orphaned_shas:
-        git(["fetch", before_abs, sha], cwd=work, check=False)
+    # Load dangling loose objects into the recovery repo, then surface them with fsck.
+    object_objects = Path(object_store) / ".git" / "objects"
+    for item in object_objects.iterdir():
+        dest = work / ".git" / "objects" / item.name
+        if item.is_dir():
+            shutil.copytree(item, dest, dirs_exist_ok=True)
+        elif item.is_file():
+            shutil.copy2(item, dest)
+    git(["fsck", "--lost-found"], cwd=work, check=False)
 
     # Restore branch ref to the expected recovered HEAD (preserves original SHAs)
     branches = spec.get("branches", {})
@@ -5227,20 +5272,20 @@ def run(before_bundle, after_bundle, reflog_path, spec_path, out_dir):
         "python": sys.version,
         "recovered": len(recovered),
         "connectivity_ok": connectivity_ok,
-        "before_bundle_sha256": hashlib.sha256(Path(before_bundle).read_bytes()).hexdigest(),
+        "object_store": str(object_store),
         "after_bundle_sha256": hashlib.sha256(Path(after_bundle).read_bytes()).hexdigest()
     }, indent=2))
     print(f"Done. Recovered={len(recovered)}, connectivity_ok={connectivity_ok}")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--before", default="repo_before_force.bundle")
+    ap.add_argument("--objects", default="orphaned_object_store")
     ap.add_argument("--after", default="repo_after_force.bundle")
     ap.add_argument("--reflog", default="reflog_export.txt")
     ap.add_argument("--spec", default="commit_graph_spec.json")
     ap.add_argument("--out", default="outputs")
     args = ap.parse_args()
-    run(args.before, args.after, args.reflog, args.spec, args.out)`
+    run(args.objects, args.after, args.reflog, args.spec, args.out)`
     ,
     solutionCode: `#!/usr/bin/env python3
 """Solve: Recover orphaned commits from git bundle using reflog."""
@@ -5256,7 +5301,8 @@ def git(args, cwd=None):
     return subprocess.run([GIT] + args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=cwd)
 
 # ---- Parse inputs ----
-before_bundle = Path('repo_before_force.bundle')
+object_store = Path('orphaned_object_store')
+after_bundle = Path('repo_after_force.bundle')
 reflog_txt = Path('reflog_export.txt').read_text()
 spec = json.loads(Path('commit_graph_spec.json').read_text())
 expected_checksums = json.loads(Path('expected_file_checksums.json').read_text())
@@ -5275,20 +5321,30 @@ orphaned = reflog_shas
 if not orphaned:
     orphaned = next(iter(spec.get("branches", {}).values()), {}).get("orphaned_commits", [])
 
-# Clone the before-bundle so original object identities are available.
-# Cloning is the portable bundle validity check; git bundle verify can require an existing repo.
+# Clone the after-bundle, then graft dangling loose objects into the recovery repo.
 recovery = Path('recovery_worktree')
 if recovery.exists():
     import shutil; shutil.rmtree(recovery)
-fetch_r = git(['clone', str(before_bundle), str(recovery)])
-if fetch_r.returncode != 0:
-    print("FAIL: could not clone before_bundle")
+clone_r = git(['clone', str(after_bundle), str(recovery)])
+if clone_r.returncode != 0:
+    print("FAIL: could not clone after_bundle")
     (OUT_DIR / 'run_manifest.json').write_text(json.dumps({
         "solver": "solve.py", "status": "failed",
-        "error": "before_bundle_invalid",
-        "details": fetch_r.stderr.strip()
+        "error": "after_bundle_invalid",
+        "details": clone_r.stderr.strip()
     }, indent=2))
     sys.exit(1)
+
+import shutil
+object_objects = object_store / '.git' / 'objects'
+dest_objects = recovery / '.git' / 'objects'
+for item in object_objects.iterdir():
+    dest = dest_objects / item.name
+    if item.is_dir():
+        shutil.copytree(item, dest, dirs_exist_ok=True)
+    elif item.is_file():
+        shutil.copy2(item, dest)
+git(['fsck', '--lost-found'], cwd=str(recovery))
 
 # Restore branch refs to exact expected SHAs. Do not cherry-pick.
 restored = {}
@@ -5493,7 +5549,7 @@ const DOMAIN_CODE = {
     config: "environment/git_version.txt",
     coreTodo: [
       "Clone from after bundle (post-force-push state): subprocess.run(['git', 'clone', 'repo_after_force.bundle', 'work_repo'], check=True)",
-      "Fetch recovered commit objects from before bundle: subprocess.run(['git', 'fetch', str(Path('repo_before_force.bundle').resolve()), sha], cwd='work_repo') for each orphaned SHA",
+      "Copy dangling loose objects from orphaned_object_store/.git/objects into work_repo/.git/objects, then run git fsck --lost-found to surface unreachable commits",
       "Parse reflog_export.txt to extract the commit SHAs tagged for recovery",
       "Restore refs to original commits (not cherry-pick): subprocess.run(['git', 'update-ref', 'refs/heads/TARGET_BRANCH', sha], cwd='work_repo') — this preserves exact SHAs",
       "Verify commit graph: git log --format='%H %P %s' and compare parent SHAs and branch ref targets against commit_graph_spec.json",
@@ -6179,7 +6235,7 @@ const TASK_RECIPES = {
       "outputs/run_manifest.json",
     ],
     inputFiles: [
-      "repo_before_force.bundle",
+      "orphaned_object_store/.git/objects",
       "repo_after_force.bundle",
       "reflog_export.txt",
       "commit_graph_spec.json",
@@ -6187,7 +6243,7 @@ const TASK_RECIPES = {
       "expected_refs.json",
     ],
     title:   "Git force-push recovery: restore refs with exact original topology",
-    snippet: "Recover a force-pushed Git graph by fetching original objects from the before-bundle and restoring branch refs to the exact SHAs in the contract. Produce a verified repaired bundle and machine-readable recovery reports.",
+    snippet: "Recover a force-pushed Git graph by loading dangling loose objects and restoring branch refs to the exact SHAs in the contract. Produce a verified repaired bundle and machine-readable recovery reports.",
     errorIfWrong: "verify.py exits with code 1 — repaired_repo.bundle is missing or invalid, git fsck --connectivity-only reports missing objects, recovered SHAs are not reachable from the required branch refs, or parent chains do not match commit_graph_spec.json.",
     verifierChecks: [
       "repaired_repo.bundle exists and is non-empty",
@@ -6200,8 +6256,8 @@ const TASK_RECIPES = {
       "repair_log.json and commit_graph_report.json are present and valid JSON with required fields",
     ],
     scenarioLabel: "force-push recovery",
-    difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is fetching original commit objects from the before-bundle and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
-    difficultyText: "This is a master's-level Git recovery task that demands professional domain expertise in version-control engineering, not a simple file restore. The expert solver has to reason about object reachability, reflog evidence, bundle contents, branch refs, parent SHAs, and checksum verification at the same time. The expert failure mode is cherry-pick — it makes files look right while producing the wrong commit IDs — so the repaired graph must be reconstructed from the original objects and then proven with git fsck, rev-list, and exact ref comparisons. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one.",
+    difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is loading dangling loose objects from orphaned_object_store/.git/objects and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
+    difficultyText: "This is a master's-level Git recovery task that demands professional domain expertise in version-control engineering, not a simple file restore. The expert solver has to reason about loose-object reachability, reflog evidence, the after-force bundle, branch refs, parent SHAs, and checksum verification at the same time. The expert failure mode is cherry-pick — it makes files look right while producing the wrong commit IDs — so the repaired graph must be reconstructed from the supplied loose objects and then proven with git fsck, rev-list, and exact ref comparisons. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one.",
   },
   "typescript-awaited-type": {
     id:       "typescript-awaited-type",
@@ -6496,7 +6552,7 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
     ...(isGitPackage
       ? [
           "Verifier coverage:",
-          "- verify.py deterministically checks required output files, bundle validity, cloneability, git fsck --connectivity-only, exact ref restoration, expected ancestor reachability, and checksum match status."
+          "- The grader deterministically checks required output files, bundle validity, cloneability, git fsck --connectivity-only, exact ref restoration, expected ancestor reachability, and checksum match status."
         ]
       : [
           "Verifier test cases:",
@@ -7777,7 +7833,7 @@ function validateZipReadiness() {
   const f = getTaskFields();
   const issues = [];
   const isGitWorkflow = f.domainKey === "git-workflows" || /git|bundle|reflog/i.test(`${f.category} ${f.title} ${f.prompt}`);
-  const hasGitResources = /(repo_before_force\.bundle|repo_after_force\.bundle|reflog_export\.txt|commit_graph_spec\.json|expected_file_checksums\.json)/i.test(f.resources || "");
+  const hasGitResources = /(orphaned_object_store|repo_after_force\.bundle|reflog_export\.txt|commit_graph_spec\.json|expected_file_checksums\.json)/i.test(f.resources || "");
   const isSWE = /^(software-engineering|typescript|react|computer-science|databases|compilers|distributed-systems|ml-systems)$/.test(f.domainKey || "");
   const hasSweResources = /(src\/|\.tsx|\.ts|\.py|\.js|\.jsx|package\.json|jest\.config|tsconfig)/i.test(f.resources || "");
   if (!f.prompt || f.prompt.length < 80)
@@ -8644,18 +8700,100 @@ function buildDataReadme(domainKey, details, profile) {
   const sources   = (details && details.sources)    ? details.sources   : [];
   const downloads = (details && details.downloads)  ? details.downloads : [];
   const resources = (details && details.resources)  ? details.resources : [];
-  return ["# data/ — Download Instructions", "", "**Placeholder stubs only. Replace each file with the real download before running solve.py.**", "", "## Public sources", "", ...sources.map((s) => `- ${s}`), "", ...(downloads.length ? ["## Step-by-step downloads", "", ...downloads.map((d, i) => `**${i + 1}.** ${d}`), ""] : []), "## Required files", "", ...resources.map((r) => `- ${r}`), "", `## Exclusion rules\nRecords are excluded if they: ${profile.failure || "fail schema validation or violate domain constraints"}.`, "", "```\npython solve.py\npython verify.py\n```"].join("\n");
+  return ["# data/ — Download Instructions", "", "**Placeholder stubs only. Replace each file with the real download before implementing the task workflow.**", "", "## Public sources", "", ...sources.map((s) => `- ${s}`), "", ...(downloads.length ? ["## Step-by-step downloads", "", ...downloads.map((d, i) => `**${i + 1}.** ${d}`), ""] : []), "## Required files", "", ...resources.map((r) => `- ${r}`), "", `## Exclusion rules\nRecords are excluded if they: ${profile.failure || "fail schema validation or violate domain constraints"}.`].join("\n");
 }
 
 function buildFixturesReadme(domainKey, profile) {
-  return ["# verifier_inputs/ — Fixture Documentation", "", "## correct.json", "A correct solver output — verify.py must **EXIT 0** on this.", "", "## incorrect.json", "A deliberately broken output — verify.py must **EXIT 1** on this.", `Failure reason: ${profile.threshold || "metrics below declared thresholds."}`, "", "## expected_metrics.json", "Numeric thresholds read by verify.py. Update to match final task spec.", "", "## Smoke-test workflow", "1. `python solve.py` — generates outputs/", "2. `python verify.py` — should exit 0", "3. Degrade one output (delete a required column or lower a metric below threshold)", "4. `python verify.py` — must exit 1", "5. Document the failing step in 'Error if wrong' before submitting."].join("\n");
+  return ["# verifier_inputs/ — Fixture Documentation", "", "## correct.json", "A correct-output fixture used by the deterministic grader.", "", "## incorrect.json", "A deliberately broken-output fixture that the grader must reject.", `Failure reason: ${profile.threshold || "metrics below declared thresholds."}`, "", "## expected_metrics.json", "Numeric thresholds used by the grading contract. Update to match final task spec.", "", "## Smoke-test workflow", "1. Generate the required files under outputs/.", "2. Check that the grader accepts the correct fixture and rejects the incorrect fixture.", "3. Degrade one output by deleting a required column or lowering a metric below threshold.", "4. Confirm the degraded output is rejected.", "5. Document the failing step in 'Error if wrong' before submitting."].join("\n");
 }
 
 function buildZipReadme(domainKey, profile, scenario, details, fields) {
   const sources   = (details && details.sources)   ? details.sources   : [];
   const downloads = (details && details.downloads) ? details.downloads : [];
   const resources = (details && details.resources) ? details.resources : [];
-  return [`# Task Package: ${fields.title || profile.brief}`, "", `**Domain:** ${DOMAIN_CATEGORY[domainKey] || profile.domain}`, `**Scenario:** ${scenario.name}`, `**Generated:** ${new Date().toISOString().slice(0, 10)} via Selection Improvement Experts ${APP_VERSION}`, "", "## Quick start", "```", "pip install -r environment/requirements.txt", "# Place real data files in data/ (see data/README_data.md)", "python solve.py", "python verify.py", "```", "", "## Folder structure", "", "| Path | Purpose |", "|------|---------|", "| `solve.py` | Main solver — produces outputs/ |", "| `verify.py` | Deterministic verifier — exit 0 = pass, exit 1 = fail |", "| `config/` | Task-specific thresholds and parameters |", "| `data/` | Input data — see data/README_data.md |", "| `schemas/` | JSON Schema definitions for output validation |", "| `verifier_inputs/` | Correct and incorrect fixture files |", "| `adversarial_tests/` | Schema-break, boundary, and conflict test cases |", "| `huggingface_export/` | HuggingFace-style JSONL dataset export |", "| `outputs/` | Populated by solve.py |", "| `environment/` | requirements.txt and version manifest |", "", "## Threshold contract", "", profile.threshold || "See verifier_inputs/expected_metrics.json for numeric thresholds.", "", "## Data sources", "", ...sources.map((s) => `- ${s}`), "", ...(downloads.length ? ["## Download steps", "", ...downloads.map((d) => `- ${d}`), ""] : []), "## Required input files", "", ...resources.map((r) => `- ${r}`), "", "## Verifier behavior", "", "- **Exit 0** — all required files present, schemas valid, metrics within tolerance", "- **Exit 1** — missing file, schema violation, metric below threshold, or invalid fixture accepted", "", "> The workflow must run without network access after unpacking."].join("\n");
+  const isGitPackage = domainKey === "git-workflows";
+  const quickStart = isGitPackage
+    ? [
+        "## Quick start",
+        "```",
+        "# Implement a recovery workflow that reads the supplied fixtures",
+        "# and writes the required files under outputs/.",
+        "# Reference scripts are intentionally not included here.",
+        "```"
+      ]
+    : [
+        "## Quick start",
+        "```",
+        "pip install -r environment/requirements.txt",
+        "# Place real data files in data/ (see data/README_data.md)",
+        "# Implement the task workflow and write the required outputs.",
+        "```"
+      ];
+  const folderRows = isGitPackage
+    ? [
+        "| `orphaned_object_store/` | Dangling loose Git objects for recovered commits |",
+        "| `repo_after_force.bundle` | Repository bundle after the force push |",
+        "| `output_schemas/` | JSON Schema definitions for required reports |",
+        "| `verifier_inputs/` | Recovery-case fixture descriptions |",
+        "| `outputs/` | Worker-created output artifacts |",
+        "| `version_manifest.json` | Runtime and generator manifest |"
+      ]
+    : [
+        "| `config/` | Task-specific thresholds and parameters |",
+        "| `data/` | Input data - see data/README_data.md |",
+        "| `schemas/` | JSON Schema definitions for output validation |",
+        "| `verifier_inputs/` | Correct and incorrect fixture files |",
+        "| `adversarial_tests/` | Schema-break, boundary, and conflict test cases |",
+        "| `huggingface_export/` | HuggingFace-style JSONL dataset export |",
+        "| `outputs/` | Worker-created output artifacts |",
+        "| `environment/` | requirements.txt and version manifest |"
+      ];
+  const verifierLines = isGitPackage
+    ? [
+        "## Grading behavior",
+        "",
+        "- Required outputs are checked for presence, schema, and consistency.",
+        "- The repaired bundle must clone and pass `git fsck --connectivity-only`.",
+        "- Restored refs must match `expected_refs.json` exactly."
+      ]
+    : [
+        "## Verifier behavior",
+        "",
+        "- **Exit 0** - all required files present, schemas valid, metrics within tolerance",
+        "- **Exit 1** - missing file, schema violation, metric below threshold, or invalid fixture accepted"
+      ];
+  return [
+    `# Task Package: ${fields.title || profile.brief}`,
+    "",
+    `**Domain:** ${DOMAIN_CATEGORY[domainKey] || profile.domain}`,
+    `**Scenario:** ${scenario.name}`,
+    `**Generated:** ${new Date().toISOString().slice(0, 10)} via Selection Improvement Experts ${APP_VERSION}`,
+    "",
+    ...quickStart,
+    "",
+    "## Folder structure",
+    "",
+    "| Path | Purpose |",
+    "|------|---------|",
+    ...folderRows,
+    "",
+    "## Threshold contract",
+    "",
+    profile.threshold || "See verifier_inputs/expected_metrics.json for numeric thresholds.",
+    "",
+    "## Data sources",
+    "",
+    ...sources.map((s) => `- ${s}`),
+    "",
+    ...(downloads.length ? ["## Download steps", "", ...downloads.map((d) => `- ${d}`), ""] : []),
+    "## Required input files",
+    "",
+    ...resources.map((r) => `- ${r}`),
+    "",
+    ...verifierLines,
+    "",
+    "> The workflow must run without network access after unpacking."
+  ].join("\n");
 }
 
 // ── HUGGINGFACE EXPORT ─────────────────────────────────────────────────────
@@ -8750,10 +8888,9 @@ async function buildAndDownloadZip() {
     const zip  = new window.JSZip();
     const root = zip.folder(`task-${slug}`);
 
-    // Core files
+    // Core worker-facing files. Do not include solve.py or verify.py in the
+    // task package; those belong only in the golden/reference attachment.
     root.file("README.md",  buildZipReadme(domainKey, profile, scenario, details, fields));
-    root.file("solve.py",   generateSolvePy(domainKey, profile, scenario));
-    root.file("verify.py",  generateVerifyPy(domainKey, profile));
 
     // environment/
     const reqs = (DOMAIN_REQUIREMENTS[domainKey] || "numpy>=1.24\n").trimEnd();
@@ -8798,7 +8935,7 @@ async function buildAndDownloadZip() {
     // outputs/ placeholder
     const outFolder = root.folder("outputs");
     outFolder.file(".gitkeep", "");
-    outFolder.file("README_outputs.md", "# outputs/\n\nPopulated by solve.py.\n\n```\npython solve.py\npython verify.py\n```\n");
+    outFolder.file("README_outputs.md", "# outputs/\n\nWorker-created output artifacts belong here. The worker-facing task package intentionally does not include reference scripts.\n");
 
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
     const url  = URL.createObjectURL(blob);
@@ -8897,6 +9034,63 @@ function stopRunnerPolling() {
 
 // ── TASK ZIP BUILDER ─────────────────────────────────────────────────
 let lastBuiltZipId = null;
+let lastBuiltZipInfo = null;
+
+function getRunnerDownloadInfo(dataOrTaskId, family = "task") {
+  const taskId = typeof dataOrTaskId === "string" ? dataOrTaskId : dataOrTaskId?.task_id;
+  const base = RUNNER_API_BASE;
+  if (!taskId) return null;
+  const data = typeof dataOrTaskId === "object" && dataOrTaskId ? dataOrTaskId : {};
+  return {
+    taskId,
+    family: data.family || family || "task",
+    legacyUrl: data.download_url ? `${base}${data.download_url}` : `${base}/api/download/${taskId}`,
+    taskKitUrl: data.task_kit?.download_url ? `${base}${data.task_kit.download_url}` : `${base}/api/download/${taskId}_task_kit`,
+    goldenKitUrl: data.golden_kit?.download_url ? `${base}${data.golden_kit.download_url}` : `${base}/api/download/${taskId}_golden_kit`
+  };
+}
+
+function updateRunnerDownloadLinks(info) {
+  if (!info) return;
+  const legacyLink = document.querySelector("#runner-download-zip");
+  const taskLink = document.querySelector("#runner-download-task-kit");
+  const goldenLink = document.querySelector("#runner-download-golden-kit");
+  if (legacyLink) {
+    legacyLink.href = info.legacyUrl;
+    legacyLink.download = `${info.family}-all-in-one-${info.taskId.slice(0, 8)}.zip`;
+    legacyLink.classList.remove("is-hidden");
+  }
+  if (taskLink) {
+    taskLink.href = info.taskKitUrl;
+    taskLink.download = `${info.family}-task-kit-${info.taskId.slice(0, 8)}.zip`;
+    taskLink.textContent = "Download Task Kit";
+    taskLink.classList.remove("is-hidden");
+  }
+  if (goldenLink) {
+    goldenLink.href = info.goldenKitUrl;
+    goldenLink.download = `${info.family}-golden-kit-${info.taskId.slice(0, 8)}.zip`;
+    goldenLink.textContent = "Download Golden Kit";
+    goldenLink.classList.remove("is-hidden");
+  }
+}
+
+function clickDownload(url, filename) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function renderSplitZipLinks(info, uploaded = false) {
+  if (!info) return "";
+  return `<span class="runner-check">✓</span> Package built: <strong>${escapeHtml(info.family)}</strong> (${escapeHtml(info.taskId)})${uploaded ? " — auto-uploaded to Runner" : ""}` +
+    `<div class="runner-actions" style="margin-top:.5rem">` +
+    `<a class="button-link" href="${escapeHtml(info.taskKitUrl)}" download>Download Task Kit</a>` +
+    `<a class="button-link" href="${escapeHtml(info.goldenKitUrl)}" download>Download Golden Kit</a>` +
+    `</div>`;
+}
 
 function normalizeRunnerFamily(value) {
   const key = String(value || "").trim().toLowerCase();
@@ -8975,7 +9169,7 @@ function resolveExecutionSpec() {
 
 async function handleBuildTaskZip() {
   const btn = document.querySelector("#runner-build-zip");
-  const statusEl = document.querySelector("#runner-builder-status");
+  const statusEl = document.querySelector("#runner-pipeline-status") || document.querySelector("#runner-builder-status");
   const downloadLink = document.querySelector("#runner-download-zip");
   if (btn) btn.disabled = true;
   if (statusEl) statusEl.innerHTML = "Building task package...";
@@ -9007,6 +9201,8 @@ try {
     const data = await resp.json();
 
     lastBuiltZipId = data.task_id;
+    lastBuiltZipInfo = getRunnerDownloadInfo(data, data.family);
+    updateRunnerDownloadLinks(lastBuiltZipInfo);
 
     // Auto-download the zip and upload to runner
     let uploaded = false;
@@ -9028,8 +9224,9 @@ try {
     } catch {}
 
     if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Package built: <strong>${data.family}</strong> (${data.task_id})${uploaded ? " — auto-uploaded to Runner" : ""}`;
+    if (statusEl) statusEl.innerHTML = renderSplitZipLinks(lastBuiltZipInfo, uploaded);
     if (downloadLink) {
-      downloadLink.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
+      downloadLink.href = lastBuiltZipInfo.taskKitUrl;
       downloadLink.classList.remove("is-hidden");
     }
   } catch (err) {
@@ -9042,13 +9239,13 @@ try {
 // ── LOCAL RUNNER (Phase 2: upload + detection) ──────────────────────
 async function downloadRunnerTaskZip() {
   const btn = document.querySelector("#build-zip-package");
-  const statusEl = document.querySelector("#runner-builder-status");
+  const statusEl = document.querySelector("#runner-pipeline-status") || document.querySelector("#runner-builder-status");
   const oldText = btn ? btn.textContent : "";
   if (btn) {
     btn.disabled = true;
     btn.textContent = lastBuiltZipId ? "Downloading ZIP..." : "Building ZIP...";
   }
-  if (statusEl) statusEl.innerHTML = lastBuiltZipId ? "Downloading last runner ZIP package..." : "Building runner ZIP package...";
+  if (statusEl) statusEl.innerHTML = lastBuiltZipId ? "Downloading latest split ZIPs..." : "Building runner ZIP package...";
 
   try {
     const health = await checkRunnerHealth();
@@ -9057,21 +9254,19 @@ async function downloadRunnerTaskZip() {
     const spec = resolveExecutionSpec();
 
     if (lastBuiltZipId) {
-      const existingUrl = `${RUNNER_API_BASE}/api/download/${lastBuiltZipId}`;
+      const info = lastBuiltZipInfo || getRunnerDownloadInfo(lastBuiltZipId, spec.family);
+      lastBuiltZipInfo = info;
+      updateRunnerDownloadLinks(info);
       const downloadLink = document.querySelector("#runner-download-zip");
       if (downloadLink) {
-        downloadLink.href = existingUrl;
+        downloadLink.href = info.taskKitUrl;
         downloadLink.classList.remove("is-hidden");
       }
 
-      const a = document.createElement("a");
-      a.href = existingUrl;
-      a.download = `${spec.family}-task-${lastBuiltZipId.slice(0, 8)}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      clickDownload(info.taskKitUrl, `${spec.family}-task-kit-${lastBuiltZipId.slice(0, 8)}.zip`);
+      setTimeout(() => clickDownload(info.goldenKitUrl, `${spec.family}-golden-kit-${lastBuiltZipId.slice(0, 8)}.zip`), 300);
 
-      if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Downloaded current runner ZIP: <strong>${spec.family}</strong> (${lastBuiltZipId})`;
+      if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Downloaded Task Kit and Golden Kit: <strong>${spec.family}</strong> (${lastBuiltZipId})`;
       return;
     }
 
@@ -9094,19 +9289,21 @@ async function downloadRunnerTaskZip() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     lastBuiltZipId = data.task_id;
+    lastBuiltZipInfo = getRunnerDownloadInfo(data, data.family);
+    updateRunnerDownloadLinks(lastBuiltZipInfo);
 
     const downloadLink = document.querySelector("#runner-download-zip");
     if (downloadLink) {
-      downloadLink.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
+      downloadLink.href = lastBuiltZipInfo.taskKitUrl;
       downloadLink.classList.remove("is-hidden");
     }
 
-    const a = document.createElement("a");
-    a.href = `${RUNNER_API_BASE}/api/download/${data.task_id}`;
-    a.download = `${data.family}-task-${data.task_id.slice(0, 8)}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    clickDownload(lastBuiltZipInfo.taskKitUrl, `${data.family}-task-kit-${data.task_id.slice(0, 8)}.zip`);
+    setTimeout(() => clickDownload(lastBuiltZipInfo.goldenKitUrl, `${data.family}-golden-kit-${data.task_id.slice(0, 8)}.zip`), 300);
+
+    // Split downloads are triggered above; keep the legacy all-in-one zip hidden.
+    if (statusEl) statusEl.innerHTML = renderSplitZipLinks(lastBuiltZipInfo, false);
+    setTimeout(() => { if (statusEl) statusEl.innerHTML = renderSplitZipLinks(lastBuiltZipInfo, false); }, 0);
 
     if (statusEl) statusEl.innerHTML = `<span class="runner-check">✓</span> Runner ZIP ready: <strong>${data.family}</strong> (${data.task_id})`;
   } catch (err) {
@@ -9301,6 +9498,24 @@ function buildComputedTaskPackage(domainKey, fields) {
     const endIdx = nextField !== -1 ? faIdx + 1 + nextField : parts.length;
     parts.splice(faIdx, endIdx - faIdx, "── FIELD: Final answer / Expected solution outputs ──", faText, "");
   }
+  if (faIdx === -1) {
+    const modernIdx = parts.findIndex((line) =>
+      line.includes("Final answer / Expected solution outputs") ||
+      (line.includes("Final answer") && line.includes("Expected solution outputs"))
+    );
+    const isSectionHeader = (line) =>
+      line.startsWith("── PAGE ") ||
+      line.startsWith("── FIELD:") ||
+      line.startsWith("â”€â”€ PAGE ") ||
+      line.startsWith("â”€â”€ FIELD:");
+    if (modernIdx !== -1) {
+      const nextField = parts.slice(modernIdx + 1).findIndex(isSectionHeader);
+      const endIdx = nextField !== -1 ? modernIdx + 1 + nextField : parts.length;
+      parts.splice(modernIdx, endIdx - modernIdx, parts[modernIdx], faText, "");
+    } else {
+      parts.push("", "── PAGE 1 · Final answer / Expected solution outputs ──", faText, "");
+    }
+  }
   return parts.join("\n");
 }
 
@@ -9430,6 +9645,7 @@ async function handleImportComputedOutputs() {
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
       updateRunnerStatusField("runner-status-value", err.status || "FINALIZE_FAILED", "runner-cross");
+      if (statusEl) statusEl.innerHTML = `<span class="runner-cross">✗</span> Import failed: ${escapeHtml(err.placeholder_reason || err.error || `HTTP ${resp.status}`)}`;
       return;
     }
     const data = await resp.json();
@@ -9443,6 +9659,8 @@ async function handleImportComputedOutputs() {
       window.__taskExecution.verify_passed = true;
       window.__taskExecution.outputs_exist = true;
       window.__taskExecution.no_placeholders_in_final_answer = true;
+    } else if (statusEl) {
+      statusEl.innerHTML = `<span class="runner-cross">✗</span> Import finished, but finalize returned ${escapeHtml(data.status || "an unknown status")}.`;
     }
   } catch (err) {
     updateRunnerStatusField("runner-status-value", "FINALIZE_ERROR", "runner-cross");
@@ -9484,6 +9702,10 @@ async function startRun(runSetup, runSolve, runVerify) {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     runnerCurrentRunId = data.run_id;
+    const openLogsBtn = document.querySelector("#runner-open-logs");
+    const downloadLogsBtn = document.querySelector("#runner-download-logs");
+    if (openLogsBtn) openLogsBtn.disabled = false;
+    if (downloadLogsBtn) downloadLogsBtn.disabled = false;
     updateRunnerStatusField("runner-status-value", data.status);
     // Poll for completion
     pollRunStatus();
@@ -9527,8 +9749,12 @@ async function pollRunStatus() {
         if (data.status === "OUTPUTS_COLLECTED") {
           document.querySelector("#runner-compute-fa").disabled = false;
         }
-        // Enable import outputs button when COMPUTED_PASS
-        if (data.status === "COMPUTED_PASS") {
+        const openLogsBtn = document.querySelector("#runner-open-logs");
+        const downloadLogsBtn = document.querySelector("#runner-download-logs");
+        if (openLogsBtn) openLogsBtn.disabled = false;
+        if (downloadLogsBtn) downloadLogsBtn.disabled = false;
+        // Enable import outputs button once outputs exist; finalize happens inside import.
+        if (data.status === "OUTPUTS_COLLECTED" || data.status === "COMPUTED_PASS") {
           document.querySelector("#runner-import-outputs").disabled = false;
         }
       }
@@ -9586,9 +9812,11 @@ async function runEnterprisePipeline() {
     if (!buildResp.ok) throw new Error(`Build failed (${buildResp.status})`);
     const buildData = await buildResp.json();
     lastBuiltZipId = buildData.task_id;
+    lastBuiltZipInfo = getRunnerDownloadInfo(buildData, buildData.family || family);
+    updateRunnerDownloadLinks(lastBuiltZipInfo);
     const downloadLink = document.querySelector("#runner-download-zip");
     if (downloadLink) {
-      downloadLink.href = `${RUNNER_API_BASE}/api/download/${buildData.task_id}`;
+      downloadLink.href = lastBuiltZipInfo.taskKitUrl;
       downloadLink.classList.remove("is-hidden");
     }
 
@@ -9798,6 +10026,59 @@ renderReadinessDashboard();
 renderSubmissionAudit();
 renderConsistencyChecker();
 </script>
+  <script>
+    // Workflow step animations: pulse the running step, blink the next-up step.
+    (function initWorkflowAnimations() {
+      const ids = ['fill-starter-template', 'build-task-package', 'runner-run-pipeline', 'runner-import-outputs', 'build-zip-package'];
+      const btns = ids.map(id => document.getElementById(id));
+      if (btns.some(b => !b)) return;
+
+      btns.forEach((b, i) => {
+        b.classList.add('wf-step');
+        b.dataset.wfStep = i + 1;
+      });
+
+      let currentRunning = -1;
+
+      function setNext(idx) {
+        btns.forEach(b => b.classList.remove('wf-next'));
+        if (idx >= 0 && idx < btns.length) btns[idx].classList.add('wf-next');
+      }
+      function startRunning(idx) {
+        btns.forEach(b => { b.classList.remove('wf-running'); b.classList.remove('wf-next'); });
+        if (idx >= 0 && idx < btns.length) btns[idx].classList.add('wf-running');
+        currentRunning = idx;
+      }
+      function finishRunning(idx) {
+        if (idx >= 0 && idx < btns.length) btns[idx].classList.remove('wf-running');
+        currentRunning = -1;
+        setNext(idx + 1);
+      }
+
+      // Initial state: step 1 is waiting for the user.
+      setNext(0);
+
+      btns.forEach((b, i) => {
+        b.addEventListener('click', () => {
+          startRunning(i);
+          // Fallback completion: if the existing handler does not toggle `disabled`,
+          // declare the step done after a short delay so the next one starts blinking.
+          setTimeout(() => {
+            if (currentRunning === i && !b.disabled) finishRunning(i);
+          }, 1800);
+        });
+
+        // Most existing handlers disable the button while working and re-enable it
+        // when done. Treat the disabled→enabled transition as completion.
+        let wasDisabled = b.disabled;
+        new MutationObserver(() => {
+          const isDisabled = b.disabled;
+          if (wasDisabled && !isDisabled && currentRunning === i) finishRunning(i);
+          wasDisabled = isDisabled;
+        }).observe(b, { attributes: true, attributeFilter: ['disabled'] });
+      });
+    })();
+  </script>
   </body>
 </html>
 
