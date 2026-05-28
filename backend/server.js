@@ -1946,7 +1946,7 @@ function generateGitPackage(taskDir, fields) {
   fs.writeFileSync(path.join(taskDir, "solve.py"), [
     "#!/usr/bin/env python3",
     '"""Solve: Recover orphaned commits from git bundle using reflog."""',
-    "import sys, json, subprocess, tempfile, os, re",
+    "import sys, json, subprocess, tempfile, os, re, stat",
     "from pathlib import Path",
     "",
     "OUT_DIR = Path('outputs')",
@@ -1985,7 +1985,14 @@ function generateGitPackage(taskDir, fields) {
     "# ---- Step 1: Create recovery repo from after-bundle, then graft in dangling loose objects ----",
     "recovery = Path('recovery_worktree')",
     "if recovery.exists():",
-    "    import shutil; shutil.rmtree(recovery)",
+    "    import shutil",
+    "    def _rm_readonly(func, path, exc_info):",
+    "        try:",
+    "            os.chmod(path, stat.S_IWRITE)",
+    "            func(path)",
+    "        except Exception:",
+    "            pass",
+    "    shutil.rmtree(recovery, onerror=_rm_readonly)",
     "# The after-bundle supplies the surviving refs; orphaned_object_store supplies unreachable objects with no refs.",
     "clone_r = git(['clone', str(after_bundle), str(recovery)])",
     "if clone_r.returncode != 0:",
@@ -2103,7 +2110,7 @@ function generateGitPackage(taskDir, fields) {
   fs.writeFileSync(path.join(taskDir, "verify.py"), [
     "#!/usr/bin/env python3",
     '"""Verify: Check repaired bundle validity, commit topology, and checksums."""',
-    "import sys, json, subprocess, tempfile, os",
+    "import sys, json, subprocess, tempfile, os, shutil, re, stat",
     "from pathlib import Path",
     "import platform",
     "GIT = 'git.exe' if platform.system() == 'Windows' else 'git'",
@@ -2118,8 +2125,11 @@ function generateGitPackage(taskDir, fields) {
     "]",
     "",
     "for ro in required_outputs:",
-    "    if not Path(ro).exists():",
-    '        errors.append(f"Missing required output: {ro}")',
+    "    p = Path(ro)",
+    "    if not p.exists():",
+    '        errors.append(f"Missing required output: {ro} (MISSING_FILE)")',
+    "    elif p.is_file() and p.stat().st_size == 0:",
+    '        errors.append(f"Required output is empty: {ro} (MISSING_FILE)")',
     "",
     "if errors:",
     "    for e in errors:",
@@ -2129,6 +2139,13 @@ function generateGitPackage(taskDir, fields) {
     "# ---- Check 1: repaired_repo.bundle is valid and cloneable ----",
     "def git(args, cwd=None):",
     "    return subprocess.run([GIT] + args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=cwd)",
+    "",
+    "def load_json(path):",
+    "    try:",
+    "        return json.loads(Path(path).read_text())",
+    "    except Exception as exc:",
+    "        errors.append(f'{path}: invalid JSON: {exc} (SCHEMA_INVALID)')",
+    "        return {}",
     "",
     "with tempfile.TemporaryDirectory() as td:",
     '    clone = git(["clone", "outputs/repaired_repo.bundle", td])',
@@ -2141,10 +2158,10 @@ function generateGitPackage(taskDir, fields) {
     '            errors.append("repaired_repo.bundle: git fsck --connectivity-only reports missing or corrupt objects")',
     "",
     "# ---- Check 2: repair_log.json all refs restored ----",
-    "repair_log = json.loads(Path('outputs/repair_log.json').read_text())",
+    "repair_log = load_json('outputs/repair_log.json')",
     "expected_refs_path = Path('expected_refs.json')",
     "if expected_refs_path.exists():",
-    "    expected_refs = json.loads(expected_refs_path.read_text())",
+    "    expected_refs = load_json(expected_refs_path)",
     "    restored = set(repair_log.get('refs_restored', {}).keys())",
     "    expected = set(expected_refs.keys())",
     "    if restored != expected:",
@@ -2155,10 +2172,10 @@ function generateGitPackage(taskDir, fields) {
     '            errors.append(f"{ref}: expected SHA {sha}, got {actual}")',
     "",
     "# ---- Check 3: commit_graph_report.json topology matches spec ----",
-    "graph_report = json.loads(Path('outputs/commit_graph_report.json').read_text())",
+    "graph_report = load_json('outputs/commit_graph_report.json')",
     "spec_path = Path('commit_graph_spec.json')",
     "if spec_path.exists():",
-    "    spec = json.loads(spec_path.read_text())",
+    "    spec = load_json(spec_path)",
     "    for branch, info in spec.get('branches', {}).items():",
     "        branch_report = graph_report.get('branches', {}).get(branch, {})",
     "        if not branch_report.get('all_reachable'):",
@@ -2177,16 +2194,54 @@ function generateGitPackage(taskDir, fields) {
     "            errors.append(f\"{sha}:{fpath} checksum mismatch (expected {result['expected']}, got {result['actual']})\")",
     "        elif result.get('status') == 'file_not_found':",
     '            errors.append(f"{sha}:{fpath} not found")',
+    "expected_checksums_path = Path('expected_file_checksums.json')",
+    "if expected_checksums_path.exists():",
+    "    expected_checksums = load_json(expected_checksums_path)",
+    "    if not isinstance(checksums, dict):",
+    '        errors.append("repair_log.checksums must be an object keyed by commit SHA (SCHEMA_INVALID)")',
+    "        checksums = {}",
+    "    for sha, files in expected_checksums.items():",
+    "        if not isinstance(files, dict):",
+    '            errors.append(f"expected_file_checksums.json entry for {sha} must be an object (CONTRACT_DRIFT)")',
+    "            continue",
+    "        reported_files = checksums.get(sha)",
+    "        if not isinstance(reported_files, dict):",
+    '            errors.append(f"repair_log.checksums missing required commit {sha} from expected_file_checksums.json (THRESHOLD_FAIL)")',
+    "            continue",
+    "        for fpath, expected_hash in files.items():",
+    "            entry = reported_files.get(fpath)",
+    "            if not isinstance(entry, dict):",
+    '                errors.append(f"repair_log.checksums missing required key {sha}:{fpath} from expected_file_checksums.json (THRESHOLD_FAIL)")',
+    "                continue",
+    "            actual_expected = entry.get('expected')",
+    "            actual = entry.get('actual')",
+    "            status = entry.get('status')",
+    "            if actual_expected != expected_hash:",
+    '                errors.append(f"{sha}:{fpath} expected checksum field {actual_expected!r} does not match contract {expected_hash!r} (THRESHOLD_FAIL)")',
+    "            if status != 'match' or actual != expected_hash:",
+    '                errors.append(f"{sha}:{fpath} must report status=match and actual={expected_hash}, got status={status!r} actual={actual!r} (THRESHOLD_FAIL)")',
     "",
     "# ---- Check 5: normal-case fixture from verifier_inputs/ ----",
     "normal_case_path = Path('verifier_inputs/normal_recovery_case.json')",
     "if normal_case_path.exists():",
-    "    nc = json.loads(normal_case_path.read_text())",
+    "    nc = load_json(normal_case_path)",
     "    expected_outcome = nc.get('expected_outcome', {})",
     "    if expected_outcome.get('all_refs_restored') is True and not repair_log.get('all_refs_restored'):",
     '        errors.append("normal_recovery_case: repair_log.all_refs_restored is not true")',
     "    if expected_outcome.get('bundle_created') is True and not repair_log.get('bundle_created'):",
     '        errors.append("normal_recovery_case: repair_log.bundle_created is not true")',
+    "for fixture_name in ['edge_partial_overlap_case.json', 'invalid_corrupted_bundle_case.json']:",
+    "    fixture_path = Path('verifier_inputs') / fixture_name",
+    "    if not fixture_path.exists():",
+    "        errors.append(f'{fixture_path} missing (CONTRACT_DRIFT)')",
+    "        continue",
+    "    fixture = load_json(fixture_path)",
+    "    if not isinstance(fixture.get('must_pass_checks'), list) or not fixture.get('must_pass_checks'):",
+    "        errors.append(f'{fixture_path}.must_pass_checks must be a non-empty list (SCHEMA_INVALID)')",
+    "    if fixture_name.startswith('edge') and fixture.get('failure_mode_if_wrong_source', {}).get('reason_code') != 'TEST_FAIL':",
+    "        errors.append(f'{fixture_path} must declare TEST_FAIL for wrong-source recovery (CONTRACT_DRIFT)')",
+    "    if fixture_name.startswith('invalid') and fixture.get('expected_outcome', {}).get('verify_exit_code') != 1:",
+    "        errors.append(f'{fixture_path} must declare verify_exit_code=1 for invalid input (CONTRACT_DRIFT)')",
     "",
     "# ---- Check 6: strict schema and type enforcement (catches superficially-correct output) ----",
     "RL_REQUIRED = {'branches_restored', 'refs_expected', 'refs_restored', 'all_refs_restored', 'orphaned_shas', 'bundle_created', 'checksums'}",
@@ -2230,7 +2285,7 @@ function generateGitPackage(taskDir, fields) {
     "            break",
     "",
     "# Run manifest type checks.",
-    "run_manifest = json.loads(Path('outputs/run_manifest.json').read_text())",
+    "run_manifest = load_json('outputs/run_manifest.json')",
     "RM_REQUIRED = {'solver', 'python', 'branches_restored', 'bundle_created'}",
     "missing_rm = RM_REQUIRED - set(run_manifest.keys())",
     "if missing_rm:",
@@ -2251,6 +2306,63 @@ function generateGitPackage(taskDir, fields) {
     "    if run_manifest['branches_restored'] != expected_count:",
     "        actual_count = run_manifest['branches_restored']",
     '        errors.append(f"run_manifest.branches_restored ({actual_count}) must equal len(repair_log.refs_restored) ({expected_count}) (CONTRACT_DRIFT)")',
+    "",
+    "# Bundle refs must match the contract, not just repair_log.json.",
+    "if not errors and expected_refs_path.exists():",
+    "    expected_refs = load_json(expected_refs_path)",
+    "    with tempfile.TemporaryDirectory() as td:",
+    "        mirror = str(Path(td) / 'repo.git')",
+    "        clone = git(['clone', '--mirror', 'outputs/repaired_repo.bundle', mirror])",
+    "        if clone.returncode == 0:",
+    "            for ref, expected_sha in expected_refs.items():",
+    "                rev = git(['rev-parse', '--verify', ref], cwd=mirror)",
+    "                actual = rev.stdout.strip()",
+    "                if rev.returncode != 0 or actual != expected_sha:",
+    "                    errors.append(f'bundle {ref}: expected {expected_sha}, got {actual} (TEST_FAIL)')",
+    "",
+    "# Determinism: if the submitted solver is present, rerun from a clean state and compare outputs.",
+    "def bundle_signature(bundle_path):",
+    "    with tempfile.TemporaryDirectory() as td:",
+    "        mirror = str(Path(td) / 'repo.git')",
+    "        clone = git(['clone', '--mirror', bundle_path, mirror])",
+    "        if clone.returncode != 0:",
+    "            return {'clone_error': clone.stderr.strip()}",
+    "        refs = git(['show-ref', '--heads'], cwd=mirror).stdout.strip().splitlines()",
+    "        ref_map = sorted(line.split()[::-1] for line in refs if line.strip())",
+    "        histories = {}",
+    "        for ref, sha in ref_map:",
+    "            histories[ref] = git(['rev-list', ref], cwd=mirror).stdout.strip().splitlines()",
+    "        fsck = git(['fsck', '--connectivity-only'], cwd=mirror)",
+    "        return {'refs': ref_map, 'histories': histories, 'fsck_code': fsck.returncode, 'fsck_stderr': fsck.stderr.strip()}",
+    "",
+    "def rmtree_force(path):",
+    "    def _rm_readonly(func, item, exc_info):",
+    "        try:",
+    "            os.chmod(item, stat.S_IWRITE)",
+    "            func(item)",
+    "        except Exception:",
+    "            pass",
+    "    shutil.rmtree(path, ignore_errors=False, onerror=_rm_readonly) if Path(path).exists() else None",
+    "",
+    "if not errors and Path('solve.py').exists():",
+    "    json_paths = ['outputs/repair_log.json', 'outputs/commit_graph_report.json', 'outputs/run_manifest.json']",
+    "    before_json = {p: Path(p).read_bytes() for p in json_paths}",
+    "    before_sig = bundle_signature('outputs/repaired_repo.bundle')",
+    "    rmtree_force('outputs')",
+    "    rmtree_force('recovery_worktree')",
+    "    rerun = subprocess.run([sys.executable, 'solve.py'], capture_output=True, text=True, encoding='utf-8', errors='replace')",
+    "    if rerun.returncode != 0:",
+    "        errors.append(f'solve.py rerun exited {rerun.returncode}: {rerun.stderr.strip()} (NON_DETERMINISTIC_OUTPUT)')",
+    "    else:",
+    "        for p, old_bytes in before_json.items():",
+    "            new_path = Path(p)",
+    "            if not new_path.exists():",
+    "                errors.append(f'{p} missing after deterministic rerun (NON_DETERMINISTIC_OUTPUT)')",
+    "            elif new_path.read_bytes() != old_bytes:",
+    "                errors.append(f'{p} changed after deterministic rerun (NON_DETERMINISTIC_OUTPUT)')",
+    "        after_sig = bundle_signature('outputs/repaired_repo.bundle')",
+    "        if after_sig != before_sig:",
+    "            errors.append('repaired_repo.bundle clone signature changed after deterministic rerun (NON_DETERMINISTIC_OUTPUT)')",
     "",
     "if errors:",
     "    for e in errors:",
@@ -2384,6 +2496,17 @@ function generateGitPackage(taskDir, fields) {
   }, null, 2));
 
   // ── README.md ─────────────────────────────────────────────────────────
+  const versionManifest = {
+    generator: "selection-improvement-runner",
+    generator_version: "2026-05-14-unique-variants",
+    generated_at: new Date().toISOString(),
+    domain: "git",
+    language: "Git (any modern version)",
+    variant: { branch: gitBranch, project: shas.project || 'unknown' },
+    runtimes: RUNTIMES
+  };
+  fs.writeFileSync(path.join(taskDir, "version_manifest.json"), JSON.stringify(versionManifest, null, 2));
+
   const fixtureFiles = [
     "orphaned_object_store/.git/objects",
     "repo_after_force.bundle",
@@ -2396,7 +2519,8 @@ function generateGitPackage(taskDir, fields) {
     "output_schemas/run_manifest.schema.json",
     "verifier_inputs/normal_recovery_case.json",
     "verifier_inputs/edge_partial_overlap_case.json",
-    "verifier_inputs/invalid_corrupted_bundle_case.json"
+    "verifier_inputs/invalid_corrupted_bundle_case.json",
+    "version_manifest.json"
   ];
   const sha256For = (fileName) => {
     const fullPath = path.join(taskDir, fileName);
@@ -2462,15 +2586,7 @@ function generateGitPackage(taskDir, fields) {
   ].join("\n"));
 
   // ── version_manifest.json ─────────────────────────────────────────────
-  fs.writeFileSync(path.join(taskDir, "version_manifest.json"), JSON.stringify({
-    generator: "selection-improvement-runner",
-    generator_version: "2026-05-14-unique-variants",
-    generated_at: new Date().toISOString(),
-    domain: "git",
-    language: "Git (any modern version)",
-    variant: { branch: gitBranch, project: shas.project || 'unknown' },
-    runtimes: RUNTIMES
-  }, null, 2));
+  fs.writeFileSync(path.join(taskDir, "version_manifest.json"), JSON.stringify(versionManifest, null, 2));
 }
 
 // ── Hardening helpers ──────────────────────────────────────────────────
@@ -2541,7 +2657,12 @@ function buildTwoZips(taskDir, taskId) {
       const rel = zipRelPrefix ? `${zipRelPrefix}/${entry.name}` : entry.name;
       // Skip solver/verifier at the root and outputs/ anywhere.
       if (entry.isFile() && (rel === "solve.py" || rel === "verify.py")) continue;
-      if (entry.isDirectory() && (rel === "outputs" || rel.endsWith("/outputs"))) continue;
+      if (entry.isDirectory() && (
+        rel === "outputs" ||
+        rel.endsWith("/outputs") ||
+        rel === "recovery_worktree" ||
+        rel.endsWith("/recovery_worktree")
+      )) continue;
       if (entry.isDirectory()) addRecursive(full, rel);
       else if (entry.isFile()) taskKit.addLocalFile(full, zipRelPrefix);
     }
@@ -2669,7 +2790,22 @@ switch (family) {
      // ── Legacy single-zip (kept for backward compatibility) + new two-zip output ──
      const zipPath = path.join(GENERATED_PACKAGES_DIR, `${task_id}.zip`);
      const zip = new AdmZip();
-     zip.addLocalFolder(taskDir);
+     function addWorkerRecursive(dirAbs, zipRelPrefix) {
+       for (const entry of fs.readdirSync(dirAbs, { withFileTypes: true })) {
+         const full = path.join(dirAbs, entry.name);
+         const rel = zipRelPrefix ? `${zipRelPrefix}/${entry.name}` : entry.name;
+         if (entry.isFile() && (rel === "solve.py" || rel === "verify.py")) continue;
+         if (entry.isDirectory() && (
+           rel === "outputs" ||
+           rel.endsWith("/outputs") ||
+           rel === "recovery_worktree" ||
+           rel.endsWith("/recovery_worktree")
+         )) continue;
+         if (entry.isDirectory()) addWorkerRecursive(full, rel);
+         else if (entry.isFile()) zip.addLocalFile(full, zipRelPrefix);
+       }
+     }
+     addWorkerRecursive(taskDir, "");
      zip.writeZip(zipPath);
 
      const { taskKitPath, goldenKitPath } = buildTwoZips(taskDir, task_id);
@@ -2694,7 +2830,7 @@ switch (family) {
        task_kit: {
          path: taskKitPath,
          download_url: `/api/download/${task_id}_task_kit`,
-         description: "Worker-facing fixtures + verify.py. Upload to Outlier 'Resources' slot. Does NOT contain solve.py or outputs/."
+         description: "Worker-facing fixtures only. Upload to Outlier 'Resources' slot. Does NOT contain solve.py, verify.py, outputs/, or scratch worktrees."
        },
        golden_kit: {
          path: goldenKitPath,
