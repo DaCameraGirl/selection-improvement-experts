@@ -41,7 +41,9 @@ npm start
 
 The runner listens on `http://127.0.0.1:8787`. Upload a task ZIP, and the runner detects the task family (React / TypeScript / Git-workflows), runs `solve.py` and `verify.py`, collects computed outputs, and populates the Final Answer field.
 
-Git-workflow package generation uses a hardened contract: worker-facing resource ZIPs exclude `solve.py`, `verify.py`, precomputed `outputs/`, and scratch worktrees. The generated verifier checks the declared JSON schemas, exact ref topology, required checksum fixtures, reflog SHA ordering, manifest consistency, and deterministic reruns.
+Git-workflow package generation uses a hardened contract: worker-facing resource ZIPs exclude `solve.py`, `verify.py`, `recovery_tool.py`, precomputed `outputs/`, and scratch worktrees. The generated verifier checks declared JSON schemas, exact ref topology, required checksum fixtures, reflog SHA ordering, manifest consistency, a real partial-overlap recovery case, corrupted-bundle rejection, and deterministic clean reruns of the submitted recovery tool.
+
+Reviewer feedback and the corresponding Git-task fixes are tracked in [`docs/GIT_FORCE_PUSH_RECOVERY_REVISION_HISTORY.md`](docs/GIT_FORCE_PUSH_RECOVERY_REVISION_HISTORY.md).
 
 ## Vercel Deployment
 

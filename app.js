@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-28 hardened-git-contract";
+const APP_VERSION = "2026-05-31 git-recovery-cases";
 
 const state = {
   guides: [],
@@ -668,14 +668,14 @@ const DOMAIN_DRAFTS = {
     threshold: "All 5 jest test cases must pass; final rendered value in the rapid-update fixture must equal the last dispatched value (not a stale earlier one); render count must not exceed the declared maximum in expected_render_counts.json; zero 'Warning: Can't perform a React state update on an unmounted component' in jest stderr."
   },
   "git-workflows": {
-    brief: "Git force-push recovery: get three lost commits back onto the branch",
+    brief: "Git force-push recovery: restore exact refs and handle partial or corrupted local evidence",
     domain: "Git internals using the object model, reflog, loose object stores, after-force bundles, ref restoration, reachability analysis, and deterministic commit graph validation",
-    artifact: "a repaired git bundle, a repair log JSON, a commit graph verification report JSON, and a run manifest JSON",
+    artifact: "an offline recovery tool, a repaired git bundle, a repair log JSON, a commit graph report JSON, a recovery-case report JSON, and a run manifest JSON",
     method: "git reflog parsing, git fsck --connectivity-only object integrity checks, ref restoration to make original commit objects reachable, git log --graph topology verification, and SHA comparison against a provided expected graph spec",
-    data: "git bundles containing the object store before and after the force-push, a reflog export showing the commit SHAs to recover, a commit graph spec JSON declaring expected parent relationships and exact branch ref targets, and expected file checksums at each recovered commit",
-    failure: "cherry-picking changes into new commits instead of restoring original refs (producing different SHAs than expected), recovering commits in the wrong order breaking the parent chain, leaving recovered commits unreachable from the required branch ref, and failing to verify file contents at each recovered commit match the expected checksums",
-    sourceKit: "orphaned_object_store/.git/objects (dangling loose Git objects with no refs), repo_after_force.bundle, reflog_export.txt (showing the SHAs to recover), commit_graph_spec.json (expected ancestor chains and branch tips), expected_refs.json (exact ref targets), expected_file_checksums.json (Git blob IDs at recovered commits), version_manifest.json (runtime versions)",
-    threshold: "Exact-match contract: git fsck --connectivity-only on the repaired repository must exit 0 with no missing or corrupt objects; every recovered SHA listed in reflog_export.txt must appear in repair_log.orphaned_shas in reflog order and be reachable from the required branch refs with the parent chain declared in commit_graph_spec.json; every required key in expected_file_checksums.json must appear in repair_log.checksums with status=match, expected equal to the fixture value, and actual equal to the same Git blob ID; branch refs must point to the exact full SHAs in expected_refs.json. No numeric tolerance is allowed."
+    data: "an after-force-push bundle, a dangling loose-object store, a reflog export, exact ref and graph contracts, expected Git blob IDs, a valid partial-overlap recovery case, and an invalid corrupted-bundle case",
+    failure: "cherry-picking into new commits instead of restoring original refs, assuming either evidence source is complete, accepting a corrupted bundle, changing reflog order, leaving commits unreachable, or omitting required blob checks",
+    sourceKit: "orphaned_object_store/.git/objects, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, expected_refs.json, expected_file_checksums.json, recovery_cases/partial_overlap/, recovery_cases/corrupted_bundle/, output_schemas/, version_manifest.json",
+    threshold: "Exact-match contract: the primary and partial-overlap repaired repositories must clone and pass git fsck --connectivity-only with no missing or corrupt objects; refs, graph ancestry, reflog first-seen ordering, and every required Git blob ID must match exactly; the corrupted-bundle case must be rejected; clean reruns must be deterministic. No numeric tolerance is allowed."
   },
   "software-engineering": {
     brief: "Triage a real repository regression where a fix may have broken an existing public API contract",
@@ -4577,60 +4577,38 @@ if __name__ == "__main__":
   "git-workflows": {
     domainLabel: "Git ref-recovery task — reconstruct lost commits after an accidental force-push",
     difficultyDraft(effectiveExpertiseLabel, profile) {
-      return `This is ${effectiveExpertiseLabel} difficulty because it demands professional domain expertise in Git internals: reflog parsing, git fsck --lost-found, loose object-store handling, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. The expert failure mode is cherry-pick — it produces files that look right while emitting the wrong commit SHAs — so the correct recovery path is loading dangling loose objects from orphaned_object_store/.git/objects and restoring refs with git update-ref. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one in version-control engineering.`;
+      return `This is ${effectiveExpertiseLabel} difficulty because it demands professional domain expertise in Git internals: reflog parsing, git fsck --lost-found, loose object-store handling, ref restoration, reachability analysis, topology validation, and SHA comparison against a commit graph specification. The expert failure mode is cherry-pick — it produces files that look right while emitting the wrong commit SHAs — so the correct recovery path is loading dangling loose objects from orphaned_object_store/.git/objects and restoring refs with git update-ref. The reusable recovery tool must also restore a partial-overlap case and reject a corrupted-bundle case. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one in version-control engineering.`;
     },
-    verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, and verifier runs are reproducible.",
+    verifierIntro: "A deterministic verifier must confirm the repaired bundle clones successfully, git fsck reports zero missing objects, all recovered commits are reachable with the correct parent chain, file checksums match, the submitted recovery tool restores a partial-overlap case, the tool rejects a corrupted bundle, and clean reruns are reproducible.",
     readmeLine: "Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.",
     scenarioEvidence: [
-      "output_schemas/repair_log.schema.json, output_schemas/commit_graph_report.schema.json, and output_schemas/run_manifest.schema.json — JSON Schemas for the three required JSON output reports",
-      "verifier_inputs/normal_recovery_case.json, edge_partial_overlap_case.json, and invalid_corrupted_bundle_case.json — fixture cases describing normal, edge, and invalid recovery scenarios"
+      "output_schemas/repair_log.schema.json, output_schemas/commit_graph_report.schema.json, output_schemas/run_manifest.schema.json, and output_schemas/recovery_case_report.schema.json — JSON Schemas for the required JSON output reports",
+      "recovery_cases/partial_overlap/ and recovery_cases/corrupted_bundle/ — neutral worker-facing cases that the submitted recovery tool must handle; README.md explains the expected behavior for each case"
     ],
-    standardResources: "Include orphaned_object_store/.git/objects, the after-force-push Git bundle, reflog export, commit graph spec, expected refs, expected file checksums, output schemas, verifier input fixtures, README.md, and the root-level version_manifest.json. Do not include a reference implementation, verifier script, precomputed outputs, or answer-bearing files in the worker-facing resource zip. No benchmark splits or ML artifacts. The loose Git objects, repository bundle, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.",
+    standardResources: "Include orphaned_object_store/.git/objects, the after-force-push Git bundle, reflog export, commit graph spec, expected refs, expected file checksums, output schemas, recovery_cases/, README.md, and the root-level version_manifest.json. Do not include a reference implementation, verifier script, precomputed outputs, or answer-bearing files in the worker-facing resource zip. No benchmark splits or ML artifacts. The loose Git objects, repository bundle, reflog export, commit graph spec, checksum files, and recovery cases are synthetically constructed to reproduce an offline force-push recovery scenario; all source content is original with no licensing restrictions.",
     composePrompt(profile, type, standard, scenario) {
-      const openerPools = {
-        "post-migration validation": [
-          "Please help me restore the release repo after a bad force push. The after-bundle, dangling loose object store, and reflog export should have what we need to bring back the original branch refs.",
-          "I need help recovering the release branch after a force push wiped a chunk of its history. Can you walk through restoring the original branch refs using the after-bundle, orphaned_object_store/.git/objects, and reflog evidence?",
-          "Help me out — a force push wiped the release branch history. I need to restore the original branch refs from the dangling loose objects and the reflog export.",
-          "Please walk me through recovering the release repo after a bad force push. The after-bundle, orphaned object store, and reflog export should be enough to put the original branch refs back where they were.",
-          "The release repo lost commits to a bad force push — please help me load the original objects from orphaned_object_store/.git/objects, cross-check against the reflog, and put the branch refs back."
-        ],
-        "regression triage": [
-          "Please help me recover the branch refs that no longer reach the commits listed in the reflog export. The original Git object IDs need to be preserved.",
-          "I need help reconciling the branch refs and the reflog — refs no longer reach the commits the reflog says should be there. Can you restore the original SHAs?",
-          "Help me out — the branch refs and the reflog disagree, and the recorded SHAs aren't reachable anymore. Please restore them with the original Git object IDs intact.",
-          "Please bring the branch refs back into line with the reflog evidence. The original Git object IDs have to stay exactly as recorded.",
-          "I'm trying to fix branch refs that have drifted from the reflog evidence — the recorded SHAs are no longer reachable. Help me restore them with their original Git object IDs."
-        ],
-        "compliance audit": [
-          "Please help me restore the published Git refs after a force push changed the branch history. Match expected_refs.json exactly and make sure there are no missing or corrupt objects so we keep confidence in the audit trail.",
-          "I need help bringing the original refs back — a force push rewrote published Git history and the audit needs every original commit SHA back where it was.",
-          "Help me out: published Git refs are pointing at the wrong history after a force push. They need to go back on the original commits exactly so the audit can clear.",
-          "Please walk me through putting published Git refs back on their original commit SHAs after a force push. The audit verdict won't pass until every published ref maps to its original commit.",
-          "The force-pushed history breaks the audit's chain of custody. Please help me restore the original refs so every published ref maps to its original commit SHA."
-        ],
-        "edge-case benchmark": [
-          "Please help me restore the force-pushed refs so every recovered SHA stays reachable through its original parent chain.",
-          "I need help bringing back force-pushed refs with the original parent chains intact — every recovered SHA has to remain reachable through its own ancestors.",
-          "Help me reconstruct the force-pushed refs so each recovered commit is reachable through its original parent chain, not a re-created one.",
-          "Please walk me through this force-push recovery edge case — each recovered SHA needs to stay reachable through its original parent chain, not a re-created one.",
-          "I need to preserve the original parent chains in this recovery — every recovered commit should reach through its own ancestors, not a substitute. Help me rebuild the refs that way."
-        ]
-      };
-      const pool = openerPools[scenario && scenario.name] || openerPools["post-migration validation"];
-      const opener = pickPhrase(pool);
-      const filesLine = pickPhrase([
-        "Land outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json in the outputs folder.",
-        "Please put outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json under the outputs folder.",
-        "Write outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json — all under the outputs folder."
-      ]);
-      const constraintsLine = pickPhrase([
-        "Please don't cherry-pick — it changes the commit IDs. The repaired bundle must clone successfully, pass git fsck --connectivity-only with 0 missing or corrupt objects, match expected_refs.json exactly, satisfy the parent-chain fixture exactly, and report every expected_file_checksums.json key as a matching Git blob ID.",
-        "Cherry-picking is off the table since it changes SHAs. Match expected_refs.json exactly and make sure there are no missing or corrupt objects so we keep confidence in the recovery. The repaired bundle should clone cleanly, git fsck --connectivity-only needs to report 0 missing or corrupt objects, every parent-chain fixture must match exactly, and every expected checksum entry must be present with status=match.",
-        "No cherry-picking — that changes the original commit IDs. Next, the repaired bundle has to clone successfully, pass git fsck --connectivity-only with 0 missing or corrupt objects, match expected_refs.json exactly, preserve reflog SHA ordering in repair_log.orphaned_shas, and satisfy every parent-chain and checksum fixture exactly."
-      ]);
-      const contractLine = "JSON output contract: repair_log.json, commit_graph_report.json, and run_manifest.json must match the schemas in output_schemas/. Preserve input order for refs and reflog SHAs, use deterministic JSON ordering, and use exact equality only; there is no numeric threshold or tolerance.";
-      return [opener, filesLine, constraintsLine, contractLine].join("\n\n");
+      return [
+        "## Objective",
+        "Restore the published Git refs after an accidental force push changed branch history. Preserve the exact original commit SHAs; do not recreate equivalent commits with cherry-pick.",
+        "",
+        "## Provided files",
+        "- `repo_after_force.bundle`, `orphaned_object_store/.git/objects`, `reflog_export.txt`, `expected_refs.json`, `commit_graph_spec.json`, and `expected_file_checksums.json` describe the primary recovery.",
+        "- `recovery_cases/partial_overlap/` contains a second valid recovery where the after-bundle and loose object store each provide only part of the required graph.",
+        "- `recovery_cases/corrupted_bundle/` contains an invalid bundle that your tool must reject without emitting a misleading successful repair.",
+        "- `output_schemas/` defines the JSON output contracts. README.md explains the case layouts.",
+        "",
+        "## Deliverables",
+        "Create `outputs/recovery_tool.py`, `outputs/repaired_repo.bundle`, `outputs/repair_log.json`, `outputs/commit_graph_report.json`, `outputs/recovery_case_report.json`, and `outputs/run_manifest.json`.",
+        "",
+        "## Success criteria",
+        "- The repaired primary bundle must clone successfully and pass `git fsck --connectivity-only` with no missing or corrupt objects.",
+        "- Restore every ref to the exact SHA in `expected_refs.json`, match `commit_graph_spec.json`, and report every `expected_file_checksums.json` entry with `status=\"match\"`.",
+        "- `repair_log.orphaned_shas` must include each leading SHA from `reflog_export.txt` exactly once, in first-seen reflog order, using 7-character short SHA form.",
+        "- `outputs/recovery_tool.py` must restore the partial-overlap case and reject the corrupted-bundle case. Record both outcomes in `outputs/recovery_case_report.json`.",
+        "",
+        "## Constraints",
+        "Run entirely offline after unpacking the zip. All JSON outputs must match the schemas in `output_schemas/`, preserve declared ordering, and be deterministic across clean reruns."
+      ].join("\n");
     },
     sources: [
       "Git reflog documentation: https://git-scm.com/docs/git-reflog",
@@ -4649,17 +4627,20 @@ if __name__ == "__main__":
       "commit_graph_spec.json — declares the expected final branch topology: branch name, expected tip SHA, expected ancestor chain, and orphaned commits.",
       "expected_file_checksums.json — expected Git blob IDs for key files at recovered commits.",
       "expected_refs.json — exact refs/heads/* to full-SHA mappings the verifier checks.",
+      "recovery_cases/partial_overlap/ — valid case whose bundle and loose object store each provide only part of the graph.",
+      "recovery_cases/corrupted_bundle/ — invalid bundle case that the submitted recovery tool must reject.",
       "version_manifest.json — root-level runtime manifest containing the actual Python, Node, and Git versions used to produce the package."
     ],
     solution: [
-      "Run: python solve.py from the zip root. The script reads orphaned_object_store/.git/objects, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, expected_refs.json, and expected_file_checksums.json, then writes outputs/.",
-      "Clone repo_after_force.bundle into a recovery worktree, copy in the dangling loose objects from orphaned_object_store/.git/objects, and run git fsck --lost-found to surface unreachable commits.",
-      "Parse reflog_export.txt and commit_graph_spec.json to identify the commits that must remain reachable after recovery.",
-      "For every ref in expected_refs.json, verify the target commit exists with git cat-file -e, then restore that exact ref with git update-ref. Do not cherry-pick; cherry-pick changes the commit SHAs.",
-      "Run git rev-list on each expected branch tip and compare the ancestor list to commit_graph_spec.json.",
-      "Verify file identity at each recovered commit with git rev-parse <sha>:<path> and compare the blob IDs to expected_file_checksums.json.",
-      "Export outputs/repaired_repo.bundle with git bundle create --all, plus outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json using the exact JSON keys described below.",
-      "Run python verify.py from the zip root and confirm it prints VERIFY PASS: All checks ok."
+      "Implement outputs/recovery_tool.py as an offline command-line recovery utility. It accepts paths for an after-bundle, loose object store, reflog export, expected refs, graph spec, checksum contract, and output directory.",
+      "For one recovery run, clone the supplied after-bundle into a clean worktree. If cloning fails, stop with a non-zero exit code and a failed run manifest; do not write a repaired bundle.",
+      "Copy loose objects into the cloned repository, then run git fsck --lost-found to surface unreachable objects. Treat missing object-store paths and corrupt required objects as failed runs.",
+      "Parse reflog_export.txt line by line. Record each leading SHA once in first-seen order and use its 7-character form in repair_log.orphaned_shas.",
+      "For every ref in expected_refs.json, confirm the target object exists with git cat-file -e and restore that exact object ID with git update-ref. Do not cherry-pick or rebuild commits.",
+      "Use git rev-list from each expected tip to compare the recovered ancestry with commit_graph_spec.json. Use git rev-parse <sha>:<path> to compare every required blob ID with expected_file_checksums.json.",
+      "Create the primary repaired bundle with git bundle create --all and write deterministic repair_log.json, commit_graph_report.json, and run_manifest.json reports.",
+      "Run the same recovery utility against recovery_cases/partial_overlap/ and confirm the repaired case bundle clones and passes connectivity checks. Run it against recovery_cases/corrupted_bundle/ and confirm it exits non-zero without a successful repaired bundle. Summarize both outcomes in outputs/recovery_case_report.json.",
+      "Re-run the primary workflow from a clean state and confirm equivalent refs, histories, connectivity results, and byte-identical JSON reports."
     ],
     verifiers: [
       "repaired_repo.bundle must be cloneable from a fresh directory and pass git fsck --connectivity-only with 0 missing or corrupt objects.",
@@ -4668,23 +4649,19 @@ if __name__ == "__main__":
       "Parent chain for each recovered commit must match commit_graph_spec.json.",
       "File checksums at each recovered commit must match expected_file_checksums.json.",
       "Fail if repair_log.json, commit_graph_report.json, or run_manifest.json is missing, empty, or not valid JSON.",
-      "Repeated runs must produce identical refs, checksums, and pass/fail results.",
+      "The submitted recovery tool must restore recovery_cases/partial_overlap/ and reject recovery_cases/corrupted_bundle/.",
+      "Repeated clean runs of outputs/recovery_tool.py must produce identical refs, checksums, and pass/fail results.",
     ],
     expectedOutputs: [
       "Expected output paths:",
+      "- outputs/recovery_tool.py",
       "- outputs/repaired_repo.bundle",
       "- outputs/repair_log.json",
       "- outputs/commit_graph_report.json",
+      "- outputs/recovery_case_report.json",
       "- outputs/run_manifest.json",
       "",
-      "Required repair_log.json schema: object with exactly branches_restored (array of refs/heads/* strings in expected_refs.json order), refs_expected (object mapping ref string to 40-character lowercase hex SHA), refs_restored (same shape and values as expected_refs), all_refs_restored (boolean true), orphaned_shas (array of 7-character SHAs in reflog_export.txt first-seen order), bundle_created (boolean true), and checksums (object keyed first by expected_file_checksums.json commit key, then file path).",
-      "Each checksums entry must contain status (one of match, mismatch, file_not_found), expected (40-character Git blob ID equal to expected_file_checksums.json), and actual (40-character Git blob ID when the file exists). Passing output requires every expected_file_checksums.json key to exist with status=match and actual equal to expected.",
-      "",
-      "Required commit_graph_report.json schema: object with branches. Each branch entry must include tip (7- or 40-character SHA), expected_ancestors (array of 7-character SHAs in commit_graph_spec.json order), found_ancestors (array of 7-character SHAs from git rev-list order), and all_reachable (boolean true for passing output).",
-      "",
-      "Required run_manifest.json schema: object with solver (non-empty string), python (non-empty string), branches_restored (non-negative integer equal to the number of refs_restored keys), and bundle_created (boolean true).",
-      "",
-      "Ordering and threshold rules: preserve expected_refs.json insertion order for branch-related arrays, preserve reflog_export.txt first-seen order for orphaned_shas, preserve expected_file_checksums.json nesting order for checksum reporting, and use exact equality only. There is no numeric tolerance or partial-credit threshold."
+      "Follow the JSON Schemas in output_schemas/. The core contract is exact ref restoration, exact blob IDs, 7-character first-seen reflog SHA ordering, successful partial-overlap recovery, explicit corrupted-bundle rejection, and deterministic clean reruns. There is no numeric tolerance or partial-credit threshold."
     ],
     solutionCode: `# solve.py — Git force-push recovery: fetch original commits, restore refs, verify topology
 # Run: python solve.py --objects orphaned_object_store --after repo_after_force.bundle --reflog reflog_export.txt --spec commit_graph_spec.json --out outputs
@@ -5747,9 +5724,11 @@ const TASK_RECIPES = {
     expertise: "masters",
     category: "Software Engineering, Version Control",
     outputPaths: [
+      "outputs/recovery_tool.py",
       "outputs/repaired_repo.bundle",
       "outputs/repair_log.json",
       "outputs/commit_graph_report.json",
+      "outputs/recovery_case_report.json",
       "outputs/run_manifest.json",
     ],
     inputFiles: [
@@ -5759,6 +5738,8 @@ const TASK_RECIPES = {
       "commit_graph_spec.json",
       "expected_file_checksums.json",
       "expected_refs.json",
+      "recovery_cases/partial_overlap/",
+      "recovery_cases/corrupted_bundle/",
     ],
     title:   "Git force-push recovery: restore refs with exact original topology",
     snippet: "Recover a force-pushed Git graph by loading dangling loose objects and restoring branch refs to the exact SHAs in the contract. Produce a verified repaired bundle and machine-readable recovery reports.",
@@ -5771,11 +5752,15 @@ const TASK_RECIPES = {
       "parent chain for each recovered commit matches commit_graph_spec.json exactly (SHA, not cherry-picked SHA)",
       "file checksums at each recovered commit match expected_file_checksums.json exactly",
       "branch refs match expected_refs.json (exact original SHAs — cherry-pick SHAs will fail this check)",
-      "repair_log.json and commit_graph_report.json are present and valid JSON with required fields",
+      "repair_log.json, commit_graph_report.json, recovery_case_report.json, and run_manifest.json are present and valid JSON with required fields",
+      "outputs/recovery_tool.py restores recovery_cases/partial_overlap/ when the bundle and loose object store each provide only part of the required graph",
+      "outputs/recovery_tool.py rejects recovery_cases/corrupted_bundle/ with a non-zero exit code and no successful repaired bundle",
+      "a clean rerun of outputs/recovery_tool.py produces byte-identical JSON reports and an equivalent repaired bundle",
     ],
     scenarioLabel: "force-push recovery",
-    difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is loading dangling loose objects from orphaned_object_store/.git/objects and restoring refs with git update-ref. A solution that cherry-picks will produce wrong SHAs and fail the topology check even if file contents look correct.",
-    difficultyText: "This is a master's-level Git recovery task that demands professional domain expertise in version-control engineering, not a simple file restore. The expert solver has to reason about loose-object reachability, reflog evidence, the after-force bundle, branch refs, parent SHAs, and checksum verification at the same time. The expert failure mode is cherry-pick — it makes files look right while producing the wrong commit IDs — so the repaired graph must be reconstructed from the supplied loose objects and then proven with git fsck, rev-list, and exact ref comparisons. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one.",
+    difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is loading dangling loose objects from orphaned_object_store/.git/objects and restoring refs with git update-ref. The submitted tool must also recover a partial-overlap case and reject a corrupted bundle instead of treating every fixture as a happy path.",
+    difficultyText: "This is a master's-level Git recovery task that demands professional domain expertise in version-control engineering, not a simple file restore. The expert solver has to design a reusable offline recovery tool that reasons about loose-object reachability, reflog evidence, partial overlap between a bundle and object store, corrupted inputs, branch refs, parent SHAs, and checksum verification. The expert failure mode is cherry-pick — it makes files look right while producing the wrong commit IDs — but a one-off object copy is also insufficient because the case suite exercises recovery and rejection behavior. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one.",
+    failureCodes: ["MISSING_FILE", "SCHEMA_INVALID", "TEST_FAIL", "CONTRACT_DRIFT", "NON_DETERMINISTIC_OUTPUT", "INVALID_CASE_ACCEPTED"],
   },
   "typescript-awaited-type": {
     id:       "typescript-awaited-type",
@@ -5857,7 +5842,8 @@ const TASK_RECIPES = {
 function buildVerifierFromRecipe(recipe, type, scenario, standard) {
   const outputList = recipe.outputPaths.map((p, i) => {
     let typeDesc;
-    if (/\.(tsx|ts)$/.test(p))   typeDesc = "present, non-empty, valid TypeScript/TSX syntax";
+    if (/\.py$/.test(p))         typeDesc = "present, non-empty, valid Python syntax";
+    else if (/\.(tsx|ts)$/.test(p))   typeDesc = "present, non-empty, valid TypeScript/TSX syntax";
     else if (/\.patch$/.test(p)) typeDesc = "present, non-empty, valid unified diff format";
     else if (/\.bundle$/.test(p))typeDesc = "present, non-empty, cloneable as a Git bundle";
     else if (/\.json$/.test(p))  typeDesc = "present, non-empty, valid JSON";
@@ -5870,6 +5856,7 @@ function buildVerifierFromRecipe(recipe, type, scenario, standard) {
     ? [`The verifier applies outputs/fix.patch (or copies the fixed component file) into a clean checkout, runs the test suite independently, captures stderr, and compares the resulting output against the submitted JSON reports — submitted report files alone are not sufficient to pass.`]
     : [];
   const checkList = recipe.verifierChecks.map((c, i) => `${i + 1}. ${c}.`);
+  const failureCodes = recipe.failureCodes || ["MISSING_FILE", "SCHEMA_INVALID", "TEST_FAIL", "STDERR_WARNING", "THRESHOLD_FAIL", "CONTRACT_DRIFT", "NON_DETERMINISTIC_OUTPUT"];
   return [
     "verify.py checks in order — fail immediately on first violation:",
     "Required output files (checked first):",
@@ -5880,7 +5867,7 @@ function buildVerifierFromRecipe(recipe, type, scenario, standard) {
     "Domain-specific checks:",
     ...checkList,
     "",
-    "Failure reporting: exit 1 on the first violation with one of MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, STDERR_WARNING, THRESHOLD_FAIL, CONTRACT_DRIFT, or NON_DETERMINISTIC_OUTPUT.",
+    `Failure reporting: exit 1 on the first violation with one of ${failureCodes.join(", ")}.`,
     "Exit code 0 = all pass. Exit code 1 = first failing check. Do not use an LLM judge. All checks must be deterministic.",
   ].join("\n");
 }
@@ -6069,8 +6056,8 @@ function buildResourceDraft(domainKey, profile, scenario, standard) {
     "",
     ...(isGitPackage
       ? [
-          "Verifier coverage:",
-          "- The grader deterministically checks required output files, bundle validity, cloneability, git fsck --connectivity-only, exact ref restoration, expected ancestor reachability, and checksum match status."
+          "Recovery case coverage:",
+          "- The required tool must restore recovery_cases/partial_overlap/ by combining the supplied bundle and loose object store, reject recovery_cases/corrupted_bundle/, and produce deterministic reports."
         ]
       : [
           "Verifier test cases:",
@@ -6226,7 +6213,7 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
   const goldenIntro = domainKey === "react"
     ? "This golden solution proves the task is solvable by showing the patched component, Jest test output confirming all fixtures pass, render-count evidence, and unmount-warning verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail. Every output file conforms to the declared JSON schema and to the verifier's PASS/FAIL reason-code threshold contract, with normal-case, edge-case, and invalid-case handling explicit."
     : domainKey === "git-workflows"
-    ? "This golden solution proves the task is solvable by showing the repaired bundle, git fsck output, ref topology confirmation, and file checksum verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail. Every output file conforms to the declared JSON schema and to the verifier's PASS/FAIL reason-code threshold contract."
+    ? "This golden solution explains the intended offline recovery strategy. It restores exact Git object IDs, verifies graph and blob identity, exercises the required partial-overlap and corrupted-bundle cases, and produces deterministic reports."
     : domainKey === "typescript"
     ? "This golden solution proves the task is solvable by showing the TypeScript patch, tsc diagnostic output confirming per-fixture expected codes, and public API unchanged evidence. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail. Every output file conforms to the declared JSON schema and to the verifier's PASS/FAIL reason-code threshold contract, with normal-case, edge-case, and invalid-case handling explicit."
     : "This is the proof that the task is solvable, not a checklist. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail.";
@@ -6237,7 +6224,7 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
     ...domainSteps.map((step, index) => `${index + 1}. ${step}`),
     `${domainSteps.length + 1}. Re-run from a clean checkout and confirm that output files, row ordering, checksums, and metrics are identical.`,
     domainKey === "git-workflows"
-      ? `${domainSteps.length + 2}. Run python verify.py from the zip root and confirm it prints VERIFY PASS: All checks ok; then make one controlled negative check by changing an expected ref or deleting one output file and confirm verify.py exits 1.`
+      ? `${domainSteps.length + 2}. Confirm the final recovery_case_report.json records a successful partial-overlap recovery and an explicit corrupted-bundle rejection.`
       : details && details.solutionCode
       ? `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; confirm all pass/fail results are recorded in the JSON reports listed above.`
       : `${domainSteps.length + 2}. Run the verifier fixtures for one normal case, one edge case, and one invalid case; record each pass/fail reason in outputs/qc_summary.json.`,
@@ -6247,7 +6234,11 @@ function buildGoldenSolutionDraft(domainKey, profile, scenario) {
 
   parts.push("", ...buildExpectedGoldenOutputsDraft(details, profile));
 
-  const solutionCode = domainKey === "react" ? reactReferenceImplementationCode() : details && details.solutionCode;
+  const solutionCode = domainKey === "react"
+    ? reactReferenceImplementationCode()
+    : domainKey === "git-workflows"
+    ? null
+    : details && details.solutionCode;
   if (solutionCode) {
     parts.push(
       "",

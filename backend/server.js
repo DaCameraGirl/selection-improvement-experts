@@ -5,12 +5,13 @@ const fs = require("fs");
 const os = require("os");
 const crypto = require("crypto");
 const cors = require("./lib/cors");
+const { generateGitPackageV2 } = require("./lib/git-package-v2");
 const multer = require("multer");
 const AdmZip = require("adm-zip");
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = "127.0.0.1";
-const RUNNER_VERSION = "2026-05-17-neutral-golden-readme";
+const RUNNER_VERSION = "2026-05-31-git-recovery-cases";
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
 const RUN_TIMEOUT_MS = 5 * 60 * 1000;      // 5 min per run step
 const WORKSPACES_DIR = path.join(__dirname, "workspaces");
@@ -2620,28 +2621,34 @@ function computeDifficultyHeuristic(taskDir) {
   }
   const all = walk(taskDir);
   const solvePath = path.join(taskDir, "solve.py");
+  const recoveryToolPath = path.join(taskDir, "recovery_tool.py");
   const solveLines = fs.existsSync(solvePath)
     ? fs.readFileSync(solvePath, "utf-8").split("\n").filter(l => l.trim() && !l.trim().startsWith("#")).length
     : 0;
-  const solveBytes = fs.existsSync(solvePath) ? fs.statSync(solvePath).size : 0;
+  const recoveryToolLines = fs.existsSync(recoveryToolPath)
+    ? fs.readFileSync(recoveryToolPath, "utf-8").split("\n").filter(l => l.trim() && !l.trim().startsWith("#")).length
+    : 0;
+  const implementationLines = solveLines + recoveryToolLines;
+  const solveBytes = (fs.existsSync(solvePath) ? fs.statSync(solvePath).size : 0) +
+    (fs.existsSync(recoveryToolPath) ? fs.statSync(recoveryToolPath).size : 0);
 
   // Crude "easiness" signal: small solve.py + large fixtures = solver mostly copies fixtures,
   // not much reasoning required. High solveLines + few fixtures = solver does the work.
   const fixtureBytes = Math.max(0, all.bytes - solveBytes);
-  const ratio = solveLines > 0 ? fixtureBytes / solveLines : 0;
+  const ratio = implementationLines > 0 ? fixtureBytes / implementationLines : 0;
   let estimate = "medium";
   let note = "";
-  if (solveLines < 60) {
+  if (implementationLines < 60) {
     estimate = "easy";
     note = "Reference solver is <60 non-comment lines. A frontier model is likely to one-shot this. Consider hardening the fixture so recovery requires more domain reasoning.";
-  } else if (solveLines >= 60 && solveLines < 150) {
+  } else if (implementationLines >= 60 && implementationLines < 150) {
     estimate = "medium";
     note = "Reference solver is 60-150 lines. Frontier models can solve this in 5-15 minutes. Add a trap that requires verification before action (e.g. fixtures that lie).";
   } else {
     estimate = "hard";
     note = "Reference solver is 150+ lines. Frontier models will need to think across multiple fixtures.";
   }
-  return { estimate, note, solveLines, solveBytes, fixtureBytes, totalFiles: all.files, fixtureToSolveRatio: Math.round(ratio) };
+  return { estimate, note, solveLines, recoveryToolLines, implementationLines, solveBytes, fixtureBytes, totalFiles: all.files, fixtureToSolveRatio: Math.round(ratio) };
 }
 
 // 3. Two-zip output: task_kit (worker-facing, no reference code / outputs) + golden_kit (reference).
@@ -2656,12 +2663,14 @@ function buildTwoZips(taskDir, taskId) {
       const full = path.join(dirAbs, entry.name);
       const rel = zipRelPrefix ? `${zipRelPrefix}/${entry.name}` : entry.name;
       // Skip solver/verifier at the root and outputs/ anywhere.
-      if (entry.isFile() && (rel === "solve.py" || rel === "verify.py")) continue;
+      if (entry.isFile() && (rel === "solve.py" || rel === "verify.py" || rel === "recovery_tool.py")) continue;
       if (entry.isDirectory() && (
         rel === "outputs" ||
         rel.endsWith("/outputs") ||
         rel === "recovery_worktree" ||
-        rel.endsWith("/recovery_worktree")
+        rel.endsWith("/recovery_worktree") ||
+        rel === "case_runs" ||
+        rel.endsWith("/case_runs")
       )) continue;
       if (entry.isDirectory()) addRecursive(full, rel);
       else if (entry.isFile()) taskKit.addLocalFile(full, zipRelPrefix);
@@ -2670,22 +2679,27 @@ function buildTwoZips(taskDir, taskId) {
   addRecursive(taskDir, "");
   taskKit.writeZip(taskKitPath);
 
-  // golden_kit: ONLY solve.py, verify.py, and outputs/ (plus a small companion README)
+  // golden_kit: reference-only code and outputs/ (plus a small companion README)
   const goldenKit = new AdmZip();
   const solveAbs = path.join(taskDir, "solve.py");
   if (fs.existsSync(solveAbs)) goldenKit.addLocalFile(solveAbs);
   const verifyAbs = path.join(taskDir, "verify.py");
   if (fs.existsSync(verifyAbs)) goldenKit.addLocalFile(verifyAbs);
+  const recoveryToolAbs = path.join(taskDir, "recovery_tool.py");
+  if (fs.existsSync(recoveryToolAbs)) goldenKit.addLocalFile(recoveryToolAbs);
   const outputsAbs = path.join(taskDir, "outputs");
   if (fs.existsSync(outputsAbs)) {
     for (const entry of fs.readdirSync(outputsAbs)) {
-      goldenKit.addLocalFile(path.join(outputsAbs, entry), "outputs");
+      const full = path.join(outputsAbs, entry);
+      if (!fs.statSync(full).isFile() || entry.endsWith(".pyc")) continue;
+      goldenKit.addLocalFile(full, "outputs");
     }
   }
   goldenKit.addFile("README.md", Buffer.from(
     `# Reference Solution\n\n` +
     `- \`solve.py\` — reference implementation.\n` +
     `- \`verify.py\` — deterministic verifier for the reference outputs.\n` +
+    `- \`recovery_tool.py\` — reusable reference recovery utility.\n` +
     `- \`outputs/\` — expected outputs produced by running \`solve.py\` against the task fixtures.\n`,
     "utf-8"
   ));
@@ -2698,7 +2712,7 @@ function buildTwoZips(taskDir, taskId) {
 //    Warning-only — does not delete (advertised fixtures may be intentionally informational).
 function auditUnusedFixtures(taskDir) {
   const sources = [];
-  for (const name of ["solve.py", "verify.py"]) {
+  for (const name of ["solve.py", "verify.py", "recovery_tool.py"]) {
     const p = path.join(taskDir, name);
     if (fs.existsSync(p)) sources.push(fs.readFileSync(p, "utf-8"));
   }
@@ -2712,6 +2726,8 @@ function auditUnusedFixtures(taskDir) {
         if (
           rel === "outputs" ||
           rel === "recovery_worktree" ||
+          rel === "case_runs" ||
+          rel === "recovery_cases" ||
           rel === "output_schemas" ||
           rel === "orphaned_object_store"
         ) continue;
@@ -2755,7 +2771,7 @@ switch (family) {
           generateTypeScriptPackage(taskDir, { title, prompt, resources, verifierDescription });
           break;
         case "git":
-          generateGitPackage(taskDir, { title, prompt, resources, verifierDescription });
+          generateGitPackageV2(taskDir, { title, prompt, resources, verifierDescription }, RUNTIMES);
           break;
         default:
           res.status(400).json({ ok: false, error: "Unsupported family: " + family + ". Supported: react, typescript, git." });
@@ -2830,7 +2846,7 @@ switch (family) {
        task_kit: {
          path: taskKitPath,
          download_url: `/api/download/${task_id}_task_kit`,
-         description: "Worker-facing fixtures only. Upload to Outlier 'Resources' slot. Does NOT contain solve.py, verify.py, outputs/, or scratch worktrees."
+         description: "Worker-facing fixtures only. Upload to Outlier 'Resources' slot. Does NOT contain solve.py, verify.py, recovery_tool.py, outputs/, or scratch worktrees."
        },
        golden_kit: {
          path: goldenKitPath,
