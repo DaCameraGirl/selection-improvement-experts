@@ -84,6 +84,20 @@ Applied fixes:
   deliverables, success criteria, and constraints.
 - Keep the generated golden write-up focused on ordered prose steps.
 
+## May 31, 2026: Calibrate Difficulty Wording
+
+The upload-ready form text now describes the revised task as a hard
+senior-level Git recovery task with a 3-5 hour estimate. This keeps the
+difficulty claim aligned with the required implementation: exact object
+identity recovery, a partial-overlap case where both evidence sources are
+necessary, corrupted-bundle rejection, schema-backed reports, and deterministic
+clean reruns.
+
+The paste-ready handoff now includes the viability, category, title, prompt,
+summary, difficulty, resources, golden solution, solution summary, final
+verifiers, verifier explanation, time estimate, and author email fields in one
+document.
+
 ## Current Verification Evidence
 
 The revised generator was exercised through the real local backend build

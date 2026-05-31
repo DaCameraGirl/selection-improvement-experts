@@ -4,8 +4,26 @@ Use this document when resubmitting the Git force-push recovery task. Do not
 reuse text copied from the May 16, May 22, or May 28 submissions.
 
 The generator and independent verifier implement the contract described below.
-The only remaining platform-only action is running the GPTZero linter before
-clicking Submit.
+The upload ZIPs have already passed the local pre-ship gate. Paste each field
+below into the matching Outlier form field.
+
+## Viability Field
+
+```text
+Yes - Task is viable
+```
+
+## Category Field
+
+```text
+Software Engineering, Version Control
+```
+
+## Title Field
+
+```text
+Git force-push recovery: restore refs with exact original topology
+```
 
 ## Prompt Field
 
@@ -35,6 +53,60 @@ Create `outputs/recovery_tool.py`, `outputs/repaired_repo.bundle`, `outputs/repa
 ## Constraints
 
 Run entirely offline after unpacking the zip. All JSON outputs must match the schemas in `output_schemas/`, preserve declared ordering, and be deterministic across clean reruns.
+```
+
+## Short Summary Field
+
+```text
+Recover a force-pushed Git graph by combining the surviving after-bundle with dangling loose objects, restoring branch refs to the exact SHAs in the contract, and handling both partial-overlap recovery and corrupted-bundle rejection. Produce a verified repaired bundle and deterministic machine-readable recovery reports.
+```
+
+## Difficulty Explanation Field
+
+```text
+This is a hard senior-level version-control recovery task because it requires practical Git internals knowledge beyond routine branch commands. In real work, senior software engineers, release engineers, and DevOps/SRE staff need to solve this when an accidental force push rewrites published history and disrupts an audit trail, release branch, hotfix branch, or deployment source of truth.
+
+The solver must preserve exact commit identities, combine a surviving bundle with dangling loose objects, restore refs without recreating commits, recover a partial-overlap case where neither evidence source is sufficient alone, reject a corrupted bundle without emitting a misleading successful repair, and produce deterministic JSON reports validated against independent fixtures. Common approaches such as cherry-picking can produce plausible file contents while failing the required SHA contract.
+```
+
+## Resources Field
+
+```text
+Resources:
+
+Public source references:
+- Git reflog documentation: https://git-scm.com/docs/git-reflog
+- Git bundle documentation: https://git-scm.com/docs/git-bundle
+- Real force-push recovery scenarios: https://ohshitgit.com/
+
+Upload one self-contained resources zip named selection_improvement_experts_RESOURCES_task_kit.zip. It contains the worker-facing task inputs only and does not contain solve.py, verify.py, recovery_tool.py, precomputed outputs, or scratch worktrees.
+
+Files included in the resources zip:
+- README.md - describes each fixture, required output path, and offline workflow requirement.
+- version_manifest.json - runtime and package manifest with Python, Node, Git, variant, and OS assumptions.
+- repo_after_force.bundle - Git bundle reflecting the surviving remote state after the force push.
+- orphaned_object_store/.git/HEAD - minimal Git metadata for the dangling object store.
+- orphaned_object_store/.git/objects/ - dangling loose Git objects containing lost commits and related trees and blobs.
+- reflog_export.txt - reflog-style evidence; the first token on each line is a commit SHA to preserve.
+- commit_graph_spec.json - expected final branch topology, expected tips, and expected ancestor chains.
+- expected_refs.json - exact refs/heads/* to 40-character SHA mappings.
+- expected_file_checksums.json - expected Git blob IDs for required files at recovered commits.
+- output_schemas/repair_log.schema.json - JSON Schema for outputs/repair_log.json.
+- output_schemas/commit_graph_report.schema.json - JSON Schema for outputs/commit_graph_report.json.
+- output_schemas/recovery_case_report.schema.json - JSON Schema for outputs/recovery_case_report.json.
+- output_schemas/run_manifest.schema.json - JSON Schema for outputs/run_manifest.json.
+- recovery_cases/partial_overlap/ - valid recovery case where the after-bundle and loose object store each provide only part of the required graph.
+- recovery_cases/corrupted_bundle/ - invalid bundle case that the submitted tool must reject as after_bundle_invalid.
+
+Required deliverables from the solver:
+- outputs/recovery_tool.py
+- outputs/repaired_repo.bundle
+- outputs/repair_log.json
+- outputs/commit_graph_report.json
+- outputs/recovery_case_report.json
+- outputs/run_manifest.json
+
+The workflow must run without network access after the zip is unpacked. The repository bundle, dangling object store, reflog export, commit graph spec, expected refs, checksum fixtures, schemas, and recovery cases are synthetically constructed for this force-push recovery scenario and have no licensing restrictions.
 ```
 
 ## Golden Solution Field
@@ -76,6 +148,14 @@ Common failure modes:
 - Creating the repaired bundle without `--all`, which omits required refs.
 ```
 
+## Solution Summary Field
+
+```text
+The task is an offline Git ref-restoration problem, not a content-reconstruction problem. The solution starts from the surviving after-force-push bundle, loads dangling loose objects into a clean recovery repository, and moves each required branch ref to the exact original object ID with git update-ref. Recreated commits are invalid even if their file contents match.
+
+The submitted utility must also prove that it handles two materially different cases: a partial-overlap recovery where the bundle and loose object store are both necessary, and a corrupted bundle that must be rejected without producing a misleading successful repair. The repaired bundle, JSON reports, reflog ordering, graph topology, required Git blob IDs, and clean-rerun determinism are all checked against independent fixtures.
+```
+
 ## Final Verifiers Field
 
 ```text
@@ -110,6 +190,24 @@ The verifier is deterministic and grades the submitted artifacts and recovery-to
 Exit code 0 means every check passed. Exit code 1 means the first violation was reported with one of these reason codes: `MISSING_FILE`, `SCHEMA_INVALID`, `TEST_FAIL`, `CONTRACT_DRIFT`, `NON_DETERMINISTIC_OUTPUT`, or `INVALID_CASE_ACCEPTED`.
 ```
 
+## Verifiers Explanation Field
+
+```text
+The verifier grades only the required outputs and the submitted recovery tool's behavior. It checks that the repaired primary bundle clones and passes Git connectivity checks, compares restored refs and report values directly with independent fixtures, enforces first-seen reflog ordering, resolves required Git blob IDs independently, executes the submitted tool against the partial-overlap and corrupted-bundle cases, and reruns the submitted tool from a clean state to detect non-deterministic output. No LLM judge is used.
+```
+
+## Time Estimate Field
+
+```text
+3-5 hours for a senior software engineer, release engineer, or DevOps/SRE practitioner with hands-on Git internals experience.
+```
+
+## Author Email Field
+
+```text
+angela.hudson.data@gmail.com
+```
+
 ## ZIP Uploads
 
 Generate a fresh Git package through the local backend immediately before
@@ -129,8 +227,3 @@ The Resources ZIP must not contain:
 - scratch `recovery_worktree/`
 - generated `case_runs/`
 - worker-facing `verifier_inputs/`
-
-## Manual Platform Check
-
-Run the platform GPTZero linter after pasting the final text and before
-submitting. The local repository cannot execute the platform's GPTZero service.

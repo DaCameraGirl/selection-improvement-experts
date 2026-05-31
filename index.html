@@ -494,7 +494,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-31 git-recovery-cases";
+const APP_VERSION = "2026-05-31 git-recovery-senior";
 
 const state = {
   guides: [],
@@ -6213,7 +6213,7 @@ const TASK_RECIPES = {
     id:       "git-force-push-recovery",
     label:    "Git — Force-Push Recovery",
     domain:   "git-workflows",
-    expertise: "masters",
+    expertise: "professional",
     category: "Software Engineering, Version Control",
     outputPaths: [
       "outputs/recovery_tool.py",
@@ -6251,7 +6251,8 @@ const TASK_RECIPES = {
     ],
     scenarioLabel: "force-push recovery",
     difficultyCore: "Requires understanding Git's content-addressed object model — cherry-pick creates new SHAs, so the only correct recovery method is loading dangling loose objects from orphaned_object_store/.git/objects and restoring refs with git update-ref. The submitted tool must also recover a partial-overlap case and reject a corrupted bundle instead of treating every fixture as a happy path.",
-    difficultyText: "This is a master's-level Git recovery task that demands professional domain expertise in version-control engineering, not a simple file restore. The expert solver has to design a reusable offline recovery tool that reasons about loose-object reachability, reflog evidence, partial overlap between a bundle and object store, corrupted inputs, branch refs, parent SHAs, and checksum verification. The expert failure mode is cherry-pick — it makes files look right while producing the wrong commit IDs — but a one-off object copy is also insufficient because the case suite exercises recovery and rejection behavior. Domain reasoning across Git's content-addressed object model is what separates a sound recovery from a plausible-looking one.",
+    difficultyText: "This is a hard senior-level version-control recovery task because it requires practical Git internals knowledge beyond routine branch commands. The solver must preserve exact commit identities, combine a surviving bundle with dangling loose objects, restore refs without recreating commits, recover a partial-overlap case where neither evidence source is sufficient alone, reject a corrupted bundle without emitting a misleading successful repair, and produce deterministic JSON reports validated against independent fixtures. Common approaches such as cherry-picking can produce plausible file contents while failing the required SHA contract.",
+    timeEstimate: "3-5 hours for a senior software engineer, release engineer, or DevOps/SRE practitioner with hands-on Git internals experience.",
     failureCodes: ["MISSING_FILE", "SCHEMA_INVALID", "TEST_FAIL", "CONTRACT_DRIFT", "NON_DETERMINISTIC_OUTPUT", "INVALID_CASE_ACCEPTED"],
   },
   "typescript-awaited-type": {
@@ -6404,7 +6405,7 @@ function buildFromRecipe(recipeId) {
 
   if (recipe.difficultyText) els.taskDifficulty.value = recipe.difficultyText;
   els.taskDomain.value    = `${capitalize(expLabel)} ${scenarioDesc} task in ${profile.domain}.`;
-  els.taskTime.value      = timeEstimateFor(recipe.expertise, profile.domain);
+  els.taskTime.value      = recipe.timeEstimate || timeEstimateFor(recipe.expertise, profile.domain);
   els.taskAgentCheck.value = "Required before submission: test against a frontier model (Claude, GPT-4o, Gemini Ultra) with full terminal access. Record the exact step where it failed. Submissions where a frontier model fully solves the task will be rejected.";
 
   return true;
