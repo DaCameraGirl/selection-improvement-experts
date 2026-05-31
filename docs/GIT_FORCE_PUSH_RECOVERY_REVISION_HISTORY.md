@@ -4,6 +4,9 @@ This note records the reviewer feedback for the Selection Improvement Experts Gi
 force-push recovery task and the corresponding generator changes. It is kept in
 the repository so future submissions do not regress to an earlier contract.
 
+The complete original reviewer wording is preserved verbatim in
+[`reviewer-feedback/`](reviewer-feedback/README.md).
+
 ## May 16, 2026: Remove Answer Leakage
 
 Reviewer findings:
