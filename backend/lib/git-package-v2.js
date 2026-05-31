@@ -156,6 +156,7 @@ function createScenario(taskDir) {
 
     const corrupt = path.join(taskDir, "recovery_cases", "corrupted_bundle");
     ensureDir(path.join(corrupt, "orphaned_object_store", ".git", "objects"));
+    fs.writeFileSync(path.join(corrupt, "orphaned_object_store", ".git", "objects", ".gitkeep"), "");
     fs.writeFileSync(path.join(corrupt, "orphaned_object_store", ".git", "HEAD"), "ref: refs/heads/recovery\n");
     fs.writeFileSync(path.join(corrupt, "repo_after_force.bundle"), "corrupted bundle fixture\n");
     copyJsonContracts(taskDir, corrupt);
@@ -348,6 +349,8 @@ if partial.returncode == 0 and partial_bundle.exists():
 corrupt_out = case_runs / "corrupted_bundle_outputs"
 corrupt = run_tool(tool.resolve(), "recovery_cases/corrupted_bundle", corrupt_out, case_runs / "corrupted_bundle_work")
 corrupt_repaired = (corrupt_out / "repaired_repo.bundle").exists()
+corrupt_manifest_path = corrupt_out / "run_manifest.json"
+corrupt_manifest = json.loads(corrupt_manifest_path.read_text(encoding="utf-8")) if corrupt_manifest_path.exists() else {}
 
 report = {
     "partial_overlap": {
@@ -356,9 +359,10 @@ report = {
         "fsck_connectivity": partial_fsck_ok
     },
     "corrupted_bundle": {
-        "status": "PASS" if corrupt.returncode != 0 and not corrupt_repaired else "FAIL",
+        "status": "PASS" if corrupt.returncode != 0 and not corrupt_repaired and corrupt_manifest.get("error") == "after_bundle_invalid" else "FAIL",
         "tool_exit_code": corrupt.returncode, "rejected": corrupt.returncode != 0,
-        "repaired_bundle_created": corrupt_repaired
+        "repaired_bundle_created": corrupt_repaired,
+        "error": corrupt_manifest.get("error", "")
     }
 }
 (out / "recovery_case_report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
@@ -532,6 +536,9 @@ with tempfile.TemporaryDirectory() as td:
     corrupt = run_tool("recovery_cases/corrupted_bundle", corrupt_out, base / "corrupt_work")
     if corrupt.returncode == 0 or (corrupt_out / "repaired_repo.bundle").exists():
         fail("INVALID_CASE_ACCEPTED", "corrupted bundle was accepted")
+    corrupt_manifest = read_json(corrupt_out / "run_manifest.json")
+    if corrupt_manifest.get("error") != "after_bundle_invalid":
+        fail("CONTRACT_DRIFT", f"corrupted-bundle case failed for the wrong reason: {corrupt_manifest.get('error')!r}")
 
     rerun_out = base / "rerun_out"
     rerun = run_tool(".", rerun_out, base / "rerun_work")
@@ -601,9 +608,10 @@ function schemas() {
         partial_overlap: { type: "object", required: ["status", "tool_exit_code", "bundle_cloneable", "fsck_connectivity"],
           properties: { status: { type: "string", enum: ["PASS", "FAIL"] }, tool_exit_code: { type: "integer" },
             bundle_cloneable: { type: "boolean" }, fsck_connectivity: { type: "boolean" } }, additionalProperties: false },
-        corrupted_bundle: { type: "object", required: ["status", "tool_exit_code", "rejected", "repaired_bundle_created"],
+        corrupted_bundle: { type: "object", required: ["status", "tool_exit_code", "rejected", "repaired_bundle_created", "error"],
           properties: { status: { type: "string", enum: ["PASS", "FAIL"] }, tool_exit_code: { type: "integer" },
-            rejected: { type: "boolean" }, repaired_bundle_created: { type: "boolean" } }, additionalProperties: false },
+            rejected: { type: "boolean" }, repaired_bundle_created: { type: "boolean" },
+            error: { type: "string", enum: ["after_bundle_invalid"] } }, additionalProperties: false },
       }, additionalProperties: false,
     },
   };
@@ -676,7 +684,7 @@ function generateGitPackageV2(taskDir, fields, runtimes) {
     "| Path | Required behavior |",
     "|---|---|",
     "| `recovery_cases/partial_overlap/` | Recover successfully by combining the bundle with loose objects; neither source is sufficient by itself |",
-    "| `recovery_cases/corrupted_bundle/` | Reject with a non-zero exit code and do not emit a successful repaired bundle |",
+    "| `recovery_cases/corrupted_bundle/` | Reject the corrupt bundle with `error=after_bundle_invalid`; do not emit a successful repaired bundle |",
     "",
     "## Deliverables",
     "- `outputs/recovery_tool.py`",

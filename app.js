@@ -4594,7 +4594,7 @@ if __name__ == "__main__":
         "## Provided files",
         "- `repo_after_force.bundle`, `orphaned_object_store/.git/objects`, `reflog_export.txt`, `expected_refs.json`, `commit_graph_spec.json`, and `expected_file_checksums.json` describe the primary recovery.",
         "- `recovery_cases/partial_overlap/` contains a second valid recovery where the after-bundle and loose object store each provide only part of the required graph.",
-        "- `recovery_cases/corrupted_bundle/` contains an invalid bundle that your tool must reject without emitting a misleading successful repair.",
+        "- `recovery_cases/corrupted_bundle/` contains an invalid bundle that your tool must reject as `after_bundle_invalid` without emitting a misleading successful repair.",
         "- `output_schemas/` defines the JSON output contracts. README.md explains the case layouts.",
         "",
         "## Deliverables",
@@ -4604,7 +4604,7 @@ if __name__ == "__main__":
         "- The repaired primary bundle must clone successfully and pass `git fsck --connectivity-only` with no missing or corrupt objects.",
         "- Restore every ref to the exact SHA in `expected_refs.json`, match `commit_graph_spec.json`, and report every `expected_file_checksums.json` entry with `status=\"match\"`.",
         "- `repair_log.orphaned_shas` must include each leading SHA from `reflog_export.txt` exactly once, in first-seen reflog order, using 7-character short SHA form.",
-        "- `outputs/recovery_tool.py` must restore the partial-overlap case and reject the corrupted-bundle case. Record both outcomes in `outputs/recovery_case_report.json`.",
+        "- `outputs/recovery_tool.py` must restore the partial-overlap case and reject the corrupted-bundle case with `error=\"after_bundle_invalid\"`. Record both outcomes in `outputs/recovery_case_report.json`.",
         "",
         "## Constraints",
         "Run entirely offline after unpacking the zip. All JSON outputs must match the schemas in `output_schemas/`, preserve declared ordering, and be deterministic across clean reruns."
@@ -4639,7 +4639,7 @@ if __name__ == "__main__":
       "For every ref in expected_refs.json, confirm the target object exists with git cat-file -e and restore that exact object ID with git update-ref. Do not cherry-pick or rebuild commits.",
       "Use git rev-list from each expected tip to compare the recovered ancestry with commit_graph_spec.json. Use git rev-parse <sha>:<path> to compare every required blob ID with expected_file_checksums.json.",
       "Create the primary repaired bundle with git bundle create --all and write deterministic repair_log.json, commit_graph_report.json, and run_manifest.json reports.",
-      "Run the same recovery utility against recovery_cases/partial_overlap/ and confirm the repaired case bundle clones and passes connectivity checks. Run it against recovery_cases/corrupted_bundle/ and confirm it exits non-zero without a successful repaired bundle. Summarize both outcomes in outputs/recovery_case_report.json.",
+      "Run the same recovery utility against recovery_cases/partial_overlap/ and confirm the repaired case bundle clones and passes connectivity checks. Run it against recovery_cases/corrupted_bundle/ and confirm it exits non-zero with error=after_bundle_invalid and without a successful repaired bundle. Summarize both outcomes in outputs/recovery_case_report.json.",
       "Re-run the primary workflow from a clean state and confirm equivalent refs, histories, connectivity results, and byte-identical JSON reports."
     ],
     verifiers: [
@@ -4649,7 +4649,7 @@ if __name__ == "__main__":
       "Parent chain for each recovered commit must match commit_graph_spec.json.",
       "File checksums at each recovered commit must match expected_file_checksums.json.",
       "Fail if repair_log.json, commit_graph_report.json, or run_manifest.json is missing, empty, or not valid JSON.",
-      "The submitted recovery tool must restore recovery_cases/partial_overlap/ and reject recovery_cases/corrupted_bundle/.",
+      "The submitted recovery tool must restore recovery_cases/partial_overlap/ and reject recovery_cases/corrupted_bundle/ with error=after_bundle_invalid.",
       "Repeated clean runs of outputs/recovery_tool.py must produce identical refs, checksums, and pass/fail results.",
     ],
     expectedOutputs: [
@@ -5754,7 +5754,7 @@ const TASK_RECIPES = {
       "branch refs match expected_refs.json (exact original SHAs — cherry-pick SHAs will fail this check)",
       "repair_log.json, commit_graph_report.json, recovery_case_report.json, and run_manifest.json are present and valid JSON with required fields",
       "outputs/recovery_tool.py restores recovery_cases/partial_overlap/ when the bundle and loose object store each provide only part of the required graph",
-      "outputs/recovery_tool.py rejects recovery_cases/corrupted_bundle/ with a non-zero exit code and no successful repaired bundle",
+      "outputs/recovery_tool.py rejects recovery_cases/corrupted_bundle/ with error=after_bundle_invalid, a non-zero exit code, and no successful repaired bundle",
       "a clean rerun of outputs/recovery_tool.py produces byte-identical JSON reports and an equivalent repaired bundle",
     ],
     scenarioLabel: "force-push recovery",

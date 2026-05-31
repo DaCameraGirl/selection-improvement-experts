@@ -45,6 +45,7 @@ Git-workflow package generation uses a hardened contract: worker-facing resource
 
 Reviewer feedback and the corresponding Git-task fixes are tracked in [`docs/GIT_FORCE_PUSH_RECOVERY_REVISION_HISTORY.md`](docs/GIT_FORCE_PUSH_RECOVERY_REVISION_HISTORY.md).
 The original reviewer wording is preserved verbatim in [`docs/reviewer-feedback/`](docs/reviewer-feedback/README.md).
+Paste-ready Outlier resubmission fields and upload instructions are stored in [`docs/OUTLIER_GIT_RECOVERY_RESUBMISSION.md`](docs/OUTLIER_GIT_RECOVERY_RESUBMISSION.md).
 
 ## Vercel Deployment
 

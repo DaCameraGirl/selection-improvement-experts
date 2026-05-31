@@ -69,6 +69,11 @@ Applied fixes:
 - Generate a real partial-overlap case where the bundle and loose object store
   are both necessary.
 - Generate a corrupted-bundle case that the submitted tool must reject.
+- Preserve the corrupted case's intentionally empty loose-object directory with
+  `.gitkeep` so ZIP extraction cannot turn the test into a missing-input case.
+- Require the corrupted case to fail specifically with
+  `error=after_bundle_invalid`, proving the tool actually attempted to clone and
+  reject the corrupt bundle.
 - Add `outputs/recovery_case_report.json`.
 - Run determinism checks against the submitted recovery tool, independent of
   the hidden reference wrapper.
@@ -112,6 +117,40 @@ The worker-facing ZIP was inspected directly. It contains input fixtures,
 
 The golden attachment contains the hidden reference scripts and computed
 outputs. These remain isolated from the worker resource ZIP.
+
+### Direct Extracted-ZIP Case Proof
+
+After adding the corrupted-bundle `.gitkeep` safeguard, fresh desktop upload
+ZIPs were generated and extracted into a clean workspace. The required cases
+were exercised directly against those exact upload artifacts.
+
+Observed partial-overlap results:
+
+```text
+combined recovery-tool exit: 0
+combined repaired-bundle clone exit: 0
+combined git fsck --connectivity-only exit: 0
+combined refs exactly match expected_refs.json: true
+bundle-only recovered tip exists: false
+loose-object-subset-only git fsck exit: 2
+```
+
+This proves that the valid edge case succeeds only when the after-bundle and
+loose-object subset are combined.
+
+Observed corrupted-bundle results:
+
+```text
+objects directory exists after ZIP extraction: true
+.gitkeep exists after ZIP extraction: true
+recovery-tool exit: 1
+run_manifest.error: after_bundle_invalid
+repaired bundle exists: false
+```
+
+This proves that the invalid case reaches the corrupt-bundle clone attempt and
+fails for the intended reason. It is not accidentally passing as a missing-input
+case.
 
 ## Future Submission Checklist
 
