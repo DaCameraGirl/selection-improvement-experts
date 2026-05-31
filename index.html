@@ -8877,6 +8877,10 @@ async function buildAndDownloadZip() {
     return;
   }
   if (!lastTemplateState) { alert("Generate a draft in Prompt Maker first, then click Download ZIP."); return; }
+  if (lastTemplateState.domainKey === "git-workflows") {
+    alert("Git recovery packages must be built by the local Runner so the hardened task-kit and golden-kit split, recovery cases, and pre-ship verifier gate are applied.");
+    return;
+  }
 
   const btn = document.querySelector("#build-zip-package");
   if (btn) { btn.textContent = "Building…"; btn.disabled = true; }

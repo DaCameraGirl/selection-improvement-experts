@@ -11,7 +11,7 @@ const AdmZip = require("adm-zip");
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = "127.0.0.1";
-const RUNNER_VERSION = "2026-05-31-git-recovery-cases";
+const RUNNER_VERSION = "2026-05-31-git-recovery-senior";
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
 const RUN_TIMEOUT_MS = 5 * 60 * 1000;      // 5 min per run step
 const WORKSPACES_DIR = path.join(__dirname, "workspaces");
@@ -1872,7 +1872,9 @@ function buildGitBundles(taskDir) {
 }
 
 // ── Git package generator ──────────────────────────────────────────────
-function generateGitPackage(taskDir, fields) {
+// Legacy implementation retained only for historical workspace readability.
+// Live Git builds use generateGitPackageV2 from ./lib/git-package-v2.
+function generateLegacyGitPackageUnused(taskDir, fields) {
   const verifierDir = path.join(taskDir, "verifier_inputs");
   const outputSchemasDir = path.join(taskDir, "output_schemas");
   ensureDir(verifierDir);
@@ -2810,12 +2812,14 @@ switch (family) {
        for (const entry of fs.readdirSync(dirAbs, { withFileTypes: true })) {
          const full = path.join(dirAbs, entry.name);
          const rel = zipRelPrefix ? `${zipRelPrefix}/${entry.name}` : entry.name;
-         if (entry.isFile() && (rel === "solve.py" || rel === "verify.py")) continue;
+         if (entry.isFile() && (rel === "solve.py" || rel === "verify.py" || rel === "recovery_tool.py")) continue;
          if (entry.isDirectory() && (
            rel === "outputs" ||
            rel.endsWith("/outputs") ||
            rel === "recovery_worktree" ||
-           rel.endsWith("/recovery_worktree")
+           rel.endsWith("/recovery_worktree") ||
+           rel === "case_runs" ||
+           rel.endsWith("/case_runs")
          )) continue;
          if (entry.isDirectory()) addWorkerRecursive(full, rel);
          else if (entry.isFile()) zip.addLocalFile(full, zipRelPrefix);

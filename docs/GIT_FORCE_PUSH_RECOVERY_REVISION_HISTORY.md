@@ -98,6 +98,13 @@ summary, difficulty, resources, golden solution, solution summary, final
 verifiers, verifier explanation, time estimate, and author email fields in one
 document.
 
+The live export engine was also hardened so Git recovery packages cannot fall
+back to the browser's generic placeholder ZIP builder. Git builds must go
+through the local Runner and its pre-ship gate. The backend compatibility ZIP
+now excludes `solve.py`, `verify.py`, `recovery_tool.py`, `outputs/`,
+`recovery_worktree/`, and generated `case_runs/`, matching the worker-facing
+sanitization policy.
+
 ## Current Verification Evidence
 
 The revised generator was exercised through the real local backend build
