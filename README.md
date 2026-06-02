@@ -6,7 +6,7 @@
 
 Draft, check, package, and refine worker-side Selection Improvement Expert tasks against onboarding guidelines.
 
-[![Live App](https://img.shields.io/badge/Live_App-Open_Workspace-0f766e?style=for-the-badge&logo=githubpages&logoColor=white)](https://dacameragirl.github.io/selection-improvement-experts/)
+[![Local App](https://img.shields.io/badge/Local_App-Quick_Start-0f766e?style=for-the-badge&logo=googlechrome&logoColor=white)](#-quick-start)
 [![Static SPA](https://img.shields.io/badge/Frontend-Static_SPA-2563eb?style=for-the-badge&logo=html5&logoColor=white)](#-quick-start)
 [![Local Storage](https://img.shields.io/badge/Data-Local_Only-7c3aed?style=for-the-badge&logo=databricks&logoColor=white)](#-privacy-first)
 
@@ -28,13 +28,13 @@ Draft, check, package, and refine worker-side Selection Improvement Expert tasks
 | 🛠️ **Prompt Maker** | Generates a draft package with a prompt, resources, golden solution, difficulty explanation, time estimate, verifiers, rubric, and optional agent difficulty check. |
 | ✅ **Quality Gates** | Checks goal clarity, terminal requirements, realism, complete resources, deterministic verifiers, output-based grading, solvability, expertise depth, and other visible onboarding rules. |
 | 🔎 **Question Helper** | Finds relevant saved rules for a pasted onboarding question and creates an answer outline. |
-| 📦 **Task Packaging** | Supports local runner workflows for React, TypeScript, and Git recovery packages. |
+| 📦 **Task Packaging** | Uses the optional local runner backend to generate and execute React, TypeScript, and Git recovery packages. |
 
 Difficulty targets include **Senior professional**, **Master's level**, and **PhD / research level** across software engineering, computer science, databases, distributed systems, compilers, ML systems, applied math, statistics, scientific computing, and formal methods.
 
 ## 🚀 Quick Start
 
-The browser app has zero frontend dependencies and needs no build step.
+The browser app needs no build step. Its ZIP export feature loads JSZip from a CDN, while the guideline library, prompt drafting, and visible quality checks run in the browser.
 
 1. Clone or download this repository.
 2. Open [`index.html`](index.html) directly in a browser.
@@ -58,7 +58,7 @@ Then open `http://localhost:8000`.
 | ![HTML](https://img.shields.io/badge/-HTML5-E34F26?style=flat-square&logo=html5&logoColor=fff) | Static SPA entry point and inlined browser script |
 | ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat-square&logo=python&logoColor=fff) | Generated task solvers, verification scripts, and recovery tooling |
 | ![CSS](https://img.shields.io/badge/-CSS3-1572B6?style=flat-square&logo=css3&logoColor=fff) | Workspace layout, visual states, and responsive styling |
-| ![PowerShell](https://img.shields.io/badge/-PowerShell-5391FE?style=flat-square&logo=powershell&logoColor=fff) | Local startup and PDF extraction workflows |
+| ![PowerShell](https://img.shields.io/badge/-PowerShell-5391FE?style=flat-square&logo=powershell&logoColor=fff) | Local startup launcher and command-line workflows |
 
 ## 📄 PDF Workflow
 
@@ -101,14 +101,14 @@ The Git force-push recovery task was refined across reviewer rounds and accepted
 
 ## 🔐 Privacy First
 
-- Browser data stays in local storage under `selection-improvement-experts-v1`.
-- The static site has no backend requirement.
+- Saved browser workspace data stays in local storage under `selection-improvement-experts-v1`.
+- The guideline library, prompt drafting, and visible quality checks work without a backend.
 - Private PDFs and extracted guideline text are ignored by git.
-- The runner backend stays local and is not deployed with the static app.
+- Package generation and execution require the optional local runner backend, which is not deployed with the static app.
 
 ## 🌐 Deployment
 
-The repository includes [`vercel.json`](vercel.json) for static deployment on Vercel. GitHub Pages can also host the browser app.
+The repository includes [`vercel.json`](vercel.json) for static deployment on Vercel. GitHub Pages can also host the browser app after Pages is configured for the repository.
 
 1. Push the repository to GitHub.
 2. Import it in the Vercel dashboard, or enable GitHub Pages.
@@ -121,6 +121,6 @@ The repository includes [`vercel.json`](vercel.json) for static deployment on Ve
 
 ### 🧭 Build clear tasks. Verify concrete outputs. Keep private data local.
 
-[Open the workspace](https://dacameragirl.github.io/selection-improvement-experts/) · [Read the resubmission handoff](RESUBMISSIONS/README_FIRST.md) · [Review the accepted baseline](docs/accepted-submissions/README.md)
+[Start locally](#-quick-start) · [Read the resubmission handoff](RESUBMISSIONS/README_FIRST.md) · [Review the accepted baseline](docs/accepted-submissions/README.md)
 
 </div>

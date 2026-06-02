@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Url = "http://127.0.0.1:8787"
 $HealthUrl = "$Url/api/health"
-$ExpectedRunnerVersion = "2026-05-17-neutral-golden-readme"
+$ExpectedRunnerVersion = "2026-05-31-git-recovery-senior"
 $OutLogPath = Join-Path $Root "backend\server.out.log"
 $ErrLogPath = Join-Path $Root "backend\server.err.log"
 
