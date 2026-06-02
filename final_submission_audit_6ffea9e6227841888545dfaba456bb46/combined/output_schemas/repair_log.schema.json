@@ -1,0 +1,84 @@
+{
+  "type": "object",
+  "required": [
+    "branches_restored",
+    "refs_expected",
+    "refs_restored",
+    "all_refs_restored",
+    "orphaned_shas",
+    "bundle_created",
+    "checksums"
+  ],
+  "properties": {
+    "branches_restored": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^refs/heads/"
+      }
+    },
+    "refs_expected": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{40}$"
+      }
+    },
+    "refs_restored": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{40}$"
+      }
+    },
+    "all_refs_restored": {
+      "type": "boolean"
+    },
+    "orphaned_shas": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{7}$"
+      }
+    },
+    "bundle_created": {
+      "type": "boolean"
+    },
+    "checksums": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": [
+            "status",
+            "expected",
+            "actual"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "match",
+                "mismatch",
+                "file_not_found"
+              ]
+            },
+            "expected": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            "actual": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

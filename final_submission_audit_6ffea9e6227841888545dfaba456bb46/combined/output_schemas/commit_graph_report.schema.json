@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "required": [
+    "branches"
+  ],
+  "properties": {
+    "branches": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "tip",
+          "expected_ancestors",
+          "found_ancestors",
+          "all_reachable"
+        ],
+        "properties": {
+          "tip": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{7}$"
+          },
+          "expected_ancestors": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{7}$"
+            }
+          },
+          "found_ancestors": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{7}$"
+            }
+          },
+          "all_reachable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,15 @@
+{
+  "generator": "selection-improvement-runner",
+  "generator_version": "2026-05-31-git-recovery-cases",
+  "generated_at": "2026-05-31T16:00:54.965Z",
+  "domain": "git",
+  "variant": {
+    "branch": "release-v2.1",
+    "project": "my-app"
+  },
+  "runtimes": {
+    "python": "Python 3.11.1",
+    "node": "v24.15.0",
+    "git": "git version 2.53.0.windows.3"
+  }
+}

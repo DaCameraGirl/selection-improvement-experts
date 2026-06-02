@@ -648,8 +648,8 @@ function generateGitPackageV2(taskDir, fields, runtimes) {
   fs.writeFileSync(path.join(taskDir, "verify.py"), verifySource());
 
   const manifest = {
-    generator: "selection-improvement-runner",
-    generator_version: "2026-05-31-git-recovery-cases",
+    generator: "offline-git-recovery-fixture-builder",
+    generator_version: "2026-06-02-git-recovery-accepted-5of5",
     generated_at: new Date().toISOString(),
     domain: "git",
     variant: { branch: scenario.branch, project: scenario.project },

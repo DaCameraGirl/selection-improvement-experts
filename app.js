@@ -2,7 +2,7 @@ history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 
 const STORAGE_KEY = "selection-improvement-experts-v1";
-const APP_VERSION = "2026-05-31 git-recovery-senior";
+const APP_VERSION = "2026-06-02 git-recovery-accepted-5of5";
 
 const state = {
   guides: [],
@@ -975,6 +975,9 @@ function buildErrorIfWrong(domainKey, profile) {
   const paths = expectedOutputPathsFor(details);
   const missing = paths.length ? ` Missing or empty files such as ${paths.slice(0, 3).join(", ")} trigger MISSING_FILE.` : "";
   const threshold = profile.threshold ? ` Threshold failure: ${profile.threshold.replace(/\.$/, "")}.` : "";
+  if (domainKey === "git-workflows") {
+    return `verify.py exits 1 and reports the first deterministic failure reason: MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, CONTRACT_DRIFT, NON_DETERMINISTIC_OUTPUT, or INVALID_CASE_ACCEPTED.${missing}${threshold}`;
+  }
   return `verify.py exits 1 and reports the first deterministic failure reason: MISSING_FILE, SCHEMA_INVALID, THRESHOLD_FAIL, INVALID_FIXTURE_ACCEPTED, NON_DETERMINISTIC_OUTPUT, or CONTRACT_DRIFT.${missing}${threshold}`;
 }
 
@@ -6367,7 +6370,9 @@ function buildVerifierDraft(domainKey, type, scenario, standard) {
   const typeAwareChecks = [
     "- Output file content is type-checked by extension: .tsx files must contain valid TypeScript; .patch files must be valid unified diff (git apply --check); .bundle files must be cloneable via git clone; .json files must parse as valid JSON."
   ];
-  const reasonCodeLine = "- On failure, return exit code 1 with the first matching reason code: MISSING_FILE, SCHEMA_INVALID, THRESHOLD_FAIL, INVALID_FIXTURE_ACCEPTED, NON_DETERMINISTIC_OUTPUT, or CONTRACT_DRIFT.";
+  const reasonCodeLine = domainKey === "git-workflows"
+    ? "- On failure, return exit code 1 with the first matching reason code: MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, CONTRACT_DRIFT, NON_DETERMINISTIC_OUTPUT, or INVALID_CASE_ACCEPTED."
+    : "- On failure, return exit code 1 with the first matching reason code: MISSING_FILE, SCHEMA_INVALID, THRESHOLD_FAIL, INVALID_FIXTURE_ACCEPTED, NON_DETERMINISTIC_OUTPUT, or CONTRACT_DRIFT.";
 
   const cleanCheckoutNote = needsCleanCheckout
     ? ["- The verifier must apply the fix from a clean checkout (git clone or git clean -fdx), re-run tests, and confirm output passes independently of any pre-existing state."]
@@ -8244,7 +8249,7 @@ function buildZipReadme(domainKey, profile, scenario, details, fields) {
         "| `orphaned_object_store/` | Dangling loose Git objects for recovered commits |",
         "| `repo_after_force.bundle` | Repository bundle after the force push |",
         "| `output_schemas/` | JSON Schema definitions for required reports |",
-        "| `verifier_inputs/` | Recovery-case fixture descriptions |",
+        "| `recovery_cases/` | Required partial-overlap recovery and corrupted-bundle rejection cases |",
         "| `outputs/` | Worker-created output artifacts |",
         "| `version_manifest.json` | Runtime and generator manifest |"
       ]

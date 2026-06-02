@@ -1,0 +1,73 @@
+{
+  "type": "object",
+  "required": [
+    "partial_overlap",
+    "corrupted_bundle"
+  ],
+  "properties": {
+    "partial_overlap": {
+      "type": "object",
+      "required": [
+        "status",
+        "tool_exit_code",
+        "bundle_cloneable",
+        "fsck_connectivity"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "tool_exit_code": {
+          "type": "integer"
+        },
+        "bundle_cloneable": {
+          "type": "boolean"
+        },
+        "fsck_connectivity": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "corrupted_bundle": {
+      "type": "object",
+      "required": [
+        "status",
+        "tool_exit_code",
+        "rejected",
+        "repaired_bundle_created",
+        "error"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "tool_exit_code": {
+          "type": "integer"
+        },
+        "rejected": {
+          "type": "boolean"
+        },
+        "repaired_bundle_created": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "string",
+          "enum": [
+            "after_bundle_invalid"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "required": [
+    "solver",
+    "python",
+    "branches_restored",
+    "bundle_created"
+  ],
+  "properties": {
+    "solver": {
+      "type": "string",
+      "minLength": 1
+    },
+    "python": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branches_restored": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bundle_created": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

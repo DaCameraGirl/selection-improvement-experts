@@ -21,25 +21,38 @@ C:\Users\enter\selection-improvement-experts\6a1885adf570e57154a8295c\6a1885adf5
 
 Important: the resources ZIP is the worker-facing input package. It must not contain `solve.py`, `verify.py`, `outputs/`, or scratch worktrees. The golden solution ZIP is the reference package and may contain `solve.py`, `verify.py`, and computed `outputs/`.
 
-## Original Prompt
+## Submission History
 
+Full verbatim reviewer feedback is preserved in [`docs/reviewer-feedback/`](../reviewer-feedback/README.md).
+Full generator/engine fix history is in [`docs/GIT_FORCE_PUSH_RECOVERY_REVISION_HISTORY.md`](../GIT_FORCE_PUSH_RECOVERY_REVISION_HISTORY.md).
+
+### Submission 1 — May 16, 2026 (Returned)
+
+**Task ID:** 6a08d3fe795d5869e9415745
+
+**Original prompt:**
 ```text
 Please help me with restoring the published Git refs after a force push changes the branch history. Match expected_refs.json exactly and ensure no missing or corrupt objects to promote confidence in the process. Land outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json in the outputs folder. Next, ensure the repaired bundle clones successfully, pass git fsck --connectivity-only with 0 missing or corrupt objects, and satisfy the parent-chain and checksum fixtures within the contract threshold.
 ```
 
-## Review Feedback
+**Reviewer findings:**
+- `solve.py` and `verify.py` were included in the worker-facing ZIP.
+- The resources description listed those answer-bearing files.
+- The prompt incorrectly referred to outputs that "produce new SHAs."
+- Unresolved GPTZero linter flag.
 
-Main return reasons:
+**Fixes applied:**
+- Split archives into worker task kit and reference golden kit.
+- Excluded reference scripts and precomputed outputs from the worker ZIP.
+- Removed misleading new-SHA wording.
 
-1. The prompt named four artifacts but did not define a deterministic output contract: JSON schemas, field types, ordering rules, or the meaning of "contract threshold."
-2. Written verifier claims did not match actual `verify.py`: missing schema checks, manifest reads, reflog/orphan checks, verifier input usage, and rerun/determinism checks.
-3. Checksum verification trusted only reported `repair_log.checksums` entries and did not compare every required key from `expected_file_checksums.json`.
-4. The worker/input ZIP still contained reference files or references to them, despite the Resources text claiming they had been removed.
+---
 
-## Corrected Prompt
+### Submission 2 — May 22, 2026 (Returned)
 
-Use a short prompt with exact output requirements and no vague threshold language:
+**Task ID:** 6a10ba7542205e26762a2ff8
 
+**Prompt at submission:**
 ```text
 I am in a jam. My team needs help restoring published Git refs after a force push changed branch history. Please use the provided after-bundle, dangling object store, reflog export, expected refs, commit graph spec, checksum fixtures, schemas, and verifier fixtures.
 
@@ -47,6 +60,88 @@ Create these files in the outputs folder: repaired_repo.bundle, repair_log.json,
 
 The repaired bundle must clone successfully and pass git fsck --connectivity-only with no missing or corrupt objects. It must preserve reflog SHAs in repair_log.orphaned_shas order, match commit_graph_spec.json exactly, and report every expected_file_checksums.json entry as status="match". All JSON outputs must follow the schemas in output_schemas, and rerunning the solution from a clean state must produce deterministic equivalent outputs.
 ```
+
+**Reviewer findings:**
+- Prompt did not fully define JSON schemas, ordering rules, or exact-match behavior.
+- Written verifier description promised checks that `verify.py` did not perform.
+- Checksum verification accepted omitted fixture keys because it only examined keys reported by the solution.
+- Run manifest, reflog ordering, and clean-rerun determinism contracts were not enforced.
+
+**Fixes applied:**
+- Added schemas for every JSON report.
+- Required checksum keys loaded from `expected_file_checksums.json` directly.
+- Enforced exact refs, reflog first-seen ordering, graph reachability, manifest consistency, bundle cloneability, `git fsck --connectivity-only`, and clean reruns.
+- Added pre-ship gate.
+
+---
+
+### Submission 3 — May 28, 2026 (Returned, Rating: 3/5)
+
+**Task ID:** 6a18eea3494f9eec266db729
+
+**Reviewer findings:**
+- Recovery too mechanical after the solver grasped the exact-SHA requirement.
+- Edge and corrupted fixtures listed but not exercised as required behavior.
+- `verifier_inputs/` folder name exposed internal assessment language.
+- Offline behavior and reflog ordering not stated directly in prompt.
+- Golden solution contained reference code, repeated schema details, and instructions to run the checker.
+- Generic reason codes (`STDERR_WARNING`, `THRESHOLD_FAIL`) did not map to real checks.
+- Determinism check depended on `solve.py` being present.
+- Prompt not structured into sections.
+
+**Fixes applied:**
+- Required `outputs/recovery_tool.py` as a reusable utility.
+- Added real `recovery_cases/partial_overlap/` and `recovery_cases/corrupted_bundle/` as required behavior.
+- Added `.gitkeep` to preserve intentionally empty corrupted-bundle object store.
+- Added `outputs/recovery_case_report.json`.
+- Renamed `verifier_inputs/` to `recovery_cases/`.
+- Rewrote prompt with Objective / Provided files / Deliverables / Success criteria / Constraints sections.
+- Rewrote golden solution as 12 ordered prose steps, no code dump.
+- Replaced `solve.py`-dependent determinism check with submitted-tool-based check.
+- Removed invalid reason codes.
+
+---
+
+### Submission 4 — May 31, 2026 (Accepted, Rating: Excellent 5/5)
+
+**Task ID:** 6a1cacbfccca29bb61cae446
+
+**Prompt (final):**
+```text
+## Objective
+Restore the published Git refs after an accidental force push changed branch history. Preserve the exact original commit SHAs; do not recreate equivalent commits with cherry-pick.
+
+## Provided files
+- `repo_after_force.bundle`, `orphaned_object_store/.git/objects`, `reflog_export.txt`, `expected_refs.json`, `commit_graph_spec.json`, and `expected_file_checksums.json` describe the primary recovery.
+- `recovery_cases/partial_overlap/` contains a second valid recovery where the after-bundle and loose object store each provide only part of the required graph.
+- `recovery_cases/corrupted_bundle/` contains an invalid bundle that your tool must reject as `after_bundle_invalid` without emitting a misleading successful repair.
+- `output_schemas/` defines the JSON output contracts. README.md explains the case layouts.
+
+## Deliverables
+Create `outputs/recovery_tool.py`, `outputs/repaired_repo.bundle`, `outputs/repair_log.json`, `outputs/commit_graph_report.json`, `outputs/recovery_case_report.json`, and `outputs/run_manifest.json`.
+
+## Success criteria
+- The repaired primary bundle must clone successfully and pass `git fsck --connectivity-only` with no missing or corrupt objects.
+- Restore every ref to the exact SHA in `expected_refs.json`, match `commit_graph_spec.json`, and report every `expected_file_checksums.json` entry with `status="match"`.
+- `repair_log.orphaned_shas` must include each leading SHA from `reflog_export.txt` exactly once, in first-seen reflog order, using 7-character short SHA form.
+- `outputs/recovery_tool.py` must restore the partial-overlap case and reject the corrupted-bundle case with `error="after_bundle_invalid"`. Record both outcomes in `outputs/recovery_case_report.json`.
+
+## Constraints
+Run entirely offline after unpacking the zip. All JSON outputs must match the schemas in `output_schemas/`, preserve declared ordering, and be deterministic across clean reruns.
+```
+
+**Additional form-field fixes during submission:**
+- Golden Solution Steps Description: removed auto-generated `verify.py` invocation steps; added steps 11–13 covering recovery cases, recovery_case_report, and determinism rerun.
+- Final Verifiers: replaced auto-generated 17-item list (which had `solve.py` dependency) with the 13-point numbered list.
+
+**Platform LLM assessment result:** Strong Accept (all 7 criteria passed).
+
+**Final reviewer result:** Excellent 5/5. The verbatim accepted feedback is
+preserved in
+[`docs/reviewer-feedback/2026-05-31-6a1cacbfccca29bb61cae446.md`](../reviewer-feedback/2026-05-31-6a1cacbfccca29bb61cae446.md).
+The complete accepted baseline, including submitted fields, implementation
+ledger, upload artifacts, and audit evidence, is indexed in
+[`docs/accepted-submissions/2026-05-31-6a1cacbfccca29bb61cae446.md`](../accepted-submissions/2026-05-31-6a1cacbfccca29bb61cae446.md).
 
 ## Corrected Summary
 
@@ -113,18 +208,22 @@ The key insight: this is a ref-restore problem, not a re-commit problem. The sol
 
 Create outputs/ if it does not exist. This is where every result lands.
 
+Create outputs/recovery_tool.py as a reusable command-line utility. It must accept three arguments: a case root directory, an output directory, and a clean worktree path. All recovery logic — primary case and the two required cases — runs through this same tool.
+
 Use these standard Python modules: os, sys, json, re, subprocess, shutil, stat, platform, and pathlib.Path.
 
 2. Parse input files
 
 Read every input file the task ships:
 
-- repo_after_force.bundle - Git bundle reflecting the surviving remote state after the force push.
-- orphaned_object_store/.git/objects - dangling loose Git objects containing the lost commits and related trees/blobs.
-- reflog_export.txt - reflog-style text. The first whitespace token on each line is a commit SHA.
-- commit_graph_spec.json - expected final branch topology.
-- expected_refs.json - exact mapping of refs/heads/<name> to a full 40-character SHA.
-- expected_file_checksums.json - expected Git blob IDs for key files at recovered commits.
+- repo_after_force.bundle — Git bundle reflecting the surviving remote state after the force push.
+- orphaned_object_store/.git/objects — dangling loose Git objects containing the lost commits and related trees/blobs.
+- reflog_export.txt — reflog-style text. The first whitespace token on each line is a commit SHA.
+- commit_graph_spec.json — expected final branch topology.
+- expected_refs.json — exact mapping of refs/heads/<name> to a full 40-character SHA.
+- expected_file_checksums.json — expected Git blob IDs for key files at recovered commits.
+- recovery_cases/partial_overlap/ — a valid recovery case where neither the bundle nor the loose object store is sufficient alone.
+- recovery_cases/corrupted_bundle/ — an invalid bundle case the tool must reject.
 
 3. Process reflog entries
 
@@ -132,7 +231,7 @@ Walk reflog_export.txt line by line and pull out the leading SHA. Keep entries i
 
 4. Prepare the recovery repository
 
-Delete any old recovery_worktree/ safely. Clone repo_after_force.bundle into recovery_worktree/. This gives the post-force-push repository state.
+Delete any old recovery_worktree/ safely. Clone repo_after_force.bundle into recovery_worktree/. If cloning fails, exit non-zero, write a failed run_manifest.json with error="after_bundle_invalid", and do not write a repaired bundle.
 
 Copy every directory and file from orphaned_object_store/.git/objects into recovery_worktree/.git/objects. Run git fsck --lost-found after copying so Git can surface unreachable objects, but do not use lost-found output as the source of truth.
 
@@ -166,70 +265,119 @@ refs_expected must echo expected_refs.json. refs_restored must contain the exact
 
 Write outputs/run_manifest.json with solver, python, branches_restored, and bundle_created. branches_restored must equal the number of refs in refs_restored.
 
-11. Verify the recovery
+11. Handle the two required recovery cases
 
-Run python verify.py from the task root. Expect exit code 0 and VERIFY PASS: All checks ok.
+Run outputs/recovery_tool.py against recovery_cases/partial_overlap/ in a fresh temporary directory. It must exit 0 and produce a cloneable repaired bundle that passes git fsck --connectivity-only with exact expected refs. Neither the bundle nor the loose object store alone is sufficient — both are required for this case to succeed.
 
-The verifier checks required outputs, schemas, repaired bundle cloneability, git fsck --connectivity-only, exact refs, reflog SHA ordering, parent-chain reachability, required checksum keys, run_manifest consistency, and deterministic rerun behavior.
+Run outputs/recovery_tool.py against recovery_cases/corrupted_bundle/ in a fresh temporary directory. It must exit non-zero and write run_manifest.error="after_bundle_invalid". No repaired bundle should be produced.
 
-12. Controlled negative check
+12. Write outputs/recovery_case_report.json
 
-Temporarily delete one output file or change one expected ref value in refs_restored and rerun verify.py. It should exit 1 with a deterministic FAIL reason. Restore the correct outputs before submission.
+Record the result of each case run. The partial-overlap recovery outcome must be PASS. The corrupted-bundle rejection outcome must be PASS. This file must follow the schema in output_schemas/recovery_case_report.schema.json.
+
+13. Confirm deterministic reruns
+
+Re-run outputs/recovery_tool.py against the primary case in a fresh temporary directory. repair_log.json, commit_graph_report.json, and run_manifest.json must be byte-identical to the first run. The rebuilt bundle must have the same refs, histories, and connectivity result.
+
+Common failure modes to avoid:
+
+- Recreating commits with new SHAs instead of restoring refs to existing object IDs.
+- Using only repo_after_force.bundle and never loading orphaned_object_store/.git/objects.
+- Assuming either source alone is sufficient for the partial-overlap case.
+- Writing the repaired bundle without --all.
+- Comparing file SHA-256 hashes instead of Git blob IDs.
+- Reporting only checksum keys that pass instead of every key in expected_file_checksums.json.
+- Treating a non-empty bundle path string as bundle success instead of checking the git bundle create exit code.
+- Omitting run_manifest.json or making branches_restored inconsistent with repair_log.refs_restored.
+- Producing non-deterministic JSON ordering or changed report contents across clean reruns.
+- Accepting a corrupt bundle and writing a misleading successful repair.
 ```
 
 ## Solution Summary
 
 ```text
-The task is a Git ref-restore problem, not a content reconstruction problem. The recovery starts from repo_after_force.bundle, copies dangling loose objects from orphaned_object_store/.git/objects into a recovery worktree, then points each refs/heads/* entry to the exact 40-character SHA from expected_refs.json using git update-ref. Recreated commits with different SHAs are invalid even if their file contents match.
+The task is an offline Git ref-restoration problem, not a content-reconstruction problem. The solution starts from the surviving after-force-push bundle, loads dangling loose objects into a clean recovery repository, and moves each required branch ref to the exact original object ID with git update-ref. Recreated commits are invalid even if their file contents match.
 
-The proof has three core parts: create outputs/repaired_repo.bundle with git bundle create --all and confirm it clones and passes git fsck --connectivity-only; use git rev-list from each restored branch tip to confirm expected parent-chain reachability from commit_graph_spec.json; and use git rev-parse <sha>:<path> to confirm every required Git blob ID in expected_file_checksums.json is reported as a match. The JSON reports must follow the declared schemas, preserve required ordering, and remain deterministic across clean reruns.
+The submitted utility must also prove that it handles two materially different cases: a partial-overlap recovery where the bundle and loose object store are both necessary, and a corrupted bundle that must be rejected without producing a misleading successful repair. The repaired bundle, JSON reports, reflog ordering, graph topology, required Git blob IDs, and clean-rerun determinism are all checked against independent fixtures.
 ```
 
 ## Final Verifiers List
 
-The linter was sensitive to wording. Keep these exact concepts and avoid mentioning `verifier_inputs` in the verifier list, because those are input fixtures and the linter classified them as ancillary.
+Use the 13-point numbered list below. Do not use the auto-generated platform proposal — it will include a solve.py-dependent determinism check and will be missing the partial-overlap, corrupted-bundle, and recovery-case-report checks.
 
 ```text
-Verify that outputs/repaired_repo.bundle exists, is non-empty, clones successfully in a fresh temporary directory, and passes git fsck --connectivity-only with no missing or corrupt objects.
+The verifier is deterministic and grades the submitted artifacts and recovery-tool behavior using programmatic checks only.
 
-Verify that outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json exist, are non-empty, parse as valid JSON, and satisfy their schemas in output_schemas/.
+1. Required output presence. Require non-empty outputs/recovery_tool.py, outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, outputs/recovery_case_report.json, and outputs/run_manifest.json. Failure code: MISSING_FILE.
 
-Load expected_refs.json and verify that every full ref name in expected_refs.json is present in the cloned repaired bundle and points to the exact expected 40-character SHA.
+2. Python tool validity. Compile outputs/recovery_tool.py with Python's compile check. Failure code: TEST_FAIL.
 
-repair_log.refs_expected_matches_expected_refs: Verify that repair_log.refs_expected exactly equals expected_refs.json.
+3. JSON schema validation. Parse each required JSON report and validate its required keys, types, nested value shapes, allowed values, and additional-property rules against the matching file in output_schemas/. Failure code: SCHEMA_INVALID.
 
-repair_log.refs_restored_matches_expected: Verify that repair_log.refs_restored exactly equals expected_refs.json.
+4. Primary bundle validity. Clone outputs/repaired_repo.bundle into a fresh mirror repository and run git fsck --connectivity-only. Cloning and connectivity must succeed with no missing or corrupt objects. Failure code: TEST_FAIL.
 
-repair_log.branches_restored_content: Verify that repair_log.branches_restored contains exactly the refs from expected_refs.json and the cloned repaired bundle, with no missing, extra, or substituted refs.
+5. Exact ref restoration. Load expected_refs.json directly and compare it with the full refs/heads/* mapping from the cloned repaired bundle. Compare the same mapping with repair_log.refs_expected, repair_log.refs_restored, repair_log.branches_restored, and repair_log.all_refs_restored. Recreated commits with different SHAs fail even if file contents match. Failure code: TEST_FAIL or CONTRACT_DRIFT.
 
-Verify that repair_log.all_refs_restored is true because repair_log.refs_restored exactly equals expected_refs.json and the cloned bundle refs.
+6. Reflog ordering. Parse each leading SHA from reflog_export.txt, shorten it to 7 characters, dedupe by first appearance, and require exact ordered equality with repair_log.orphaned_shas. Failure code: CONTRACT_DRIFT.
 
-repair_log.bundle_created_true: Verify that repair_log.bundle_created is true and consistent with the repaired bundle existing, cloning successfully, and passing git fsck --connectivity-only.
+7. Commit graph. Load commit_graph_spec.json directly. Require the same branch set, expected tip values, expected ancestor arrays, ordered found ancestry prefixes, and all_reachable=true values in commit_graph_report.json. Failure code: TEST_FAIL or CONTRACT_DRIFT.
 
-Parse reflog_export.txt, extract the leading SHA from each line, dedupe by first appearance, convert to 7-character short SHAs, and verify that the ordered list exactly equals repair_log.orphaned_shas.
+8. Required Git blob IDs. Load expected_file_checksums.json directly. Require every declared commit/path key in repair_log.checksums, require status="match", and independently resolve each blob with git rev-parse <sha>:<path> in the cloned repaired bundle. The reported expected value, actual value, fixture value, and independently resolved blob ID must all match. Failure code: TEST_FAIL or CONTRACT_DRIFT.
 
-commit_graph_report_exact_match: Verify that commit_graph_report.json exactly equals commit_graph_spec.json for the graph contract, including branch set, expected tip values, ancestor lists, SHA values, field values, and ordering.
+9. Run-manifest consistency. Require run_manifest.branches_restored to equal the exact restored-ref count and require run_manifest.bundle_created=true. Failure code: CONTRACT_DRIFT.
 
-Verify that every expected ancestor in commit_graph_spec.json appears in commit_graph_report.json for the matching branch and that all_reachable is true.
+10. Partial-overlap recovery case. Execute the submitted outputs/recovery_tool.py against recovery_cases/partial_overlap/ in a fresh temporary directory. Require exit code 0, a cloneable repaired case bundle, git fsck --connectivity-only success, and exact equality with the case's expected refs. Failure code: TEST_FAIL.
 
-Load expected_file_checksums.json directly and verify that every required commit/file key appears in repair_log.checksums.
+11. Corrupted-bundle rejection case. Execute the submitted outputs/recovery_tool.py against recovery_cases/corrupted_bundle/ in a fresh temporary directory. Require a non-zero exit code, require run_manifest.error="after_bundle_invalid", and require that no repaired bundle was produced. Failure code: INVALID_CASE_ACCEPTED or CONTRACT_DRIFT.
 
-For every required checksum entry, verify that status is "match", expected equals the fixture Git blob ID, and actual equals the same Git blob ID.
+12. Clean-rerun determinism. Execute the submitted outputs/recovery_tool.py against the primary case in a fresh temporary directory. Require byte-identical repair_log.json, commit_graph_report.json, and run_manifest.json files plus an equivalent repaired-bundle signature: same refs, same histories, and same connectivity result. This check runs against the submitted tool and does not depend on a reference solve.py being present. Failure code: NON_DETERMINISTIC_OUTPUT.
 
-Verify that run_manifest.solver and run_manifest.python are non-empty strings.
+13. Recovery-case report consistency. Require outputs/recovery_case_report.json to record PASS for partial-overlap recovery and PASS for corrupted-bundle rejection. Failure code: CONTRACT_DRIFT.
 
-Verify that run_manifest.bundle_created is true and consistent with repair_log.bundle_created and the actual repaired bundle checks.
-
-Verify that run_manifest.branches_restored equals the number of refs in repair_log.refs_restored, equals the number of refs in repair_log.branches_restored, and equals the number of restored refs actually present in the cloned repaired bundle.
-
-If solve.py is present in the golden solution package, rerun it from a clean state after deleting outputs/ and recovery_worktree/. Verify that the JSON reports are byte-identical across runs and that the rebuilt bundle clones to the same refs, rev-list histories, and git fsck --connectivity-only result.
+Exit code 0 means every check passed. Exit code 1 means the first violation was reported with one of these reason codes: MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, CONTRACT_DRIFT, NON_DETERMINISTIC_OUTPUT, or INVALID_CASE_ACCEPTED.
 ```
 
 ## Verifiers Explanation
 
 ```text
-The verifiers grade only the required outputs: the repaired bundle and the three JSON reports. They first check file existence, JSON validity, schema compliance, bundle cloneability, and Git object integrity. The ref checks compare every full ref name in expected_refs.json against the cloned repaired bundle and compare the same expected mapping against repair_log.refs_expected, repair_log.refs_restored, and repair_log.branches_restored. They also check repair_log.all_refs_restored, repair_log.bundle_created, and run_manifest.branches_restored against the actual cloned bundle so the reports cannot disagree with the recovered repository. The reflog check confirms repair_log.orphaned_shas preserves first-seen reflog order. The graph check explicitly verifies exact equality between commit_graph_report.json and commit_graph_spec.json for the graph contract, including branch set, expected tips, ancestor lists, SHA values, field values, and ordering. The checksum checks load expected_file_checksums.json directly and require every required commit/file key to appear with matching Git blob IDs. The manifest checks confirm run_manifest.json is consistent with the repair log and actual bundle, and the determinism check confirms repeated clean runs produce stable reports and equivalent bundle behavior.
+The verifier grades only the required outputs and the submitted recovery tool's behavior. It checks that the repaired primary bundle clones and passes Git connectivity checks, compares restored refs and report values directly with independent fixtures, enforces first-seen reflog ordering, resolves required Git blob IDs independently, executes the submitted tool against the partial-overlap and corrupted-bundle cases, and reruns the submitted tool from a clean state to detect non-deterministic output. All checks are programmatic.
 ```
+
+## Engine and Generator Changes
+
+These are the changes made to the pipeline generator so future Git recovery tasks are produced correctly without requiring manual fixes.
+
+### app.js — composePrompt (Git domain)
+
+- Replaced rotating first-person openerPools with a fixed structured prompt containing five labeled sections: Objective, Provided files, Deliverables, Success criteria, and Constraints. Reviewers explicitly require this structure.
+- Added `outputs/recovery_tool.py` and `outputs/recovery_case_report.json` to the Deliverables section.
+- Added `recovery_cases/partial_overlap/` and `recovery_cases/corrupted_bundle/` to the Provided files section with plain-language descriptions.
+- Added the offline constraint directly in the Constraints section ("Run entirely offline after unpacking the zip").
+- Added explicit reflog ordering rule to Success criteria (7-character short SHA, first-seen order, no duplicates, no sorting).
+- Added the corrupted-bundle rejection requirement to Success criteria (`error="after_bundle_invalid"`).
+- Updated Git-specific fallback verifier and README generation so bypassing the locked recipe cannot reintroduce stale template reason codes or the old `verifier_inputs/` folder label.
+
+### backend/lib/git-package-v2.js — package generator
+
+- Added `recovery_cases/partial_overlap/` as a real generated case where the bundle and loose object store each provide only part of the required graph. Confirmed with extracted-ZIP proof that neither source alone is sufficient.
+- Added `recovery_cases/corrupted_bundle/` as a real generated case with a corrupt bundle the tool must reject.
+- Added `.gitkeep` to `recovery_cases/corrupted_bundle/orphaned_object_store/.git/objects/` so ZIP extraction cannot convert the intentionally empty directory into a missing-input case.
+- Added `output_schemas/recovery_case_report.schema.json` to the generated package.
+- Renamed `verifier_inputs/` to `recovery_cases/` to remove internal assessment language from the worker-facing package.
+- Updated README.md template to use `recovery_cases/` naming and document both required cases.
+
+### verify.py — independent verifier
+
+- Replaced solve.py-dependent determinism check with a tool-based check that runs `outputs/recovery_tool.py` against the primary case in a fresh directory. The check does not require a reference `solve.py` to be present.
+- Added partial-overlap case execution check (verifier 10).
+- Added corrupted-bundle rejection check (verifier 11).
+- Added recovery-case report consistency check (verifier 13).
+- Removed `STDERR_WARNING` and `THRESHOLD_FAIL` reason codes. Valid codes are now: `MISSING_FILE`, `SCHEMA_INVALID`, `TEST_FAIL`, `CONTRACT_DRIFT`, `NON_DETERMINISTIC_OUTPUT`, `INVALID_CASE_ACCEPTED`.
+
+### server.js — backend export engine
+
+- Hardened Git package export so it cannot fall back to the browser's generic placeholder ZIP builder. Git builds must go through the local Runner and its pre-ship gate.
+- Backend compatibility ZIP now excludes `solve.py`, `verify.py`, `recovery_tool.py`, `outputs/`, `recovery_worktree/`, and generated `case_runs/`, matching the worker-facing sanitization policy.
 
 ## Linter Traps From This Task
 
@@ -260,12 +408,17 @@ When creating future upload ZIPs, use human-readable task-ID names and avoid pat
 Before resubmitting a revised task:
 
 1. Regenerate both ZIPs after making generator/verifier fixes.
-2. Confirm worker-facing resources ZIP excludes `solve.py`, `verify.py`, `outputs/`, and scratch folders.
+2. Confirm worker-facing resources ZIP excludes `solve.py`, `verify.py`, `recovery_tool.py`, `outputs/`, and scratch folders.
 3. Confirm resources text lists only actual files in the resources ZIP.
-4. Confirm prompt has no vague threshold language.
-5. Confirm `run_manifest.json` has a schema and verifier checks.
-6. Confirm checksum verifier loads `expected_file_checksums.json` directly and requires every key.
-7. Confirm final verifier list has no input-fixture checks unless those fixtures are solver outputs.
-8. Confirm final verifier list explicitly compares report fields to fixture files when the prompt says "exactly."
-9. Confirm upload filenames are clear and professional.
-10. Re-run the platform linter and only dismiss issues that refer to stale computer-generated suggestions, not your final pasted fields.
+4. Confirm prompt has no vague threshold language and uses five labeled sections: Objective, Provided files, Deliverables, Success criteria, Constraints.
+5. Confirm prompt states the offline requirement directly in the Constraints section.
+6. Confirm prompt defines 7-character first-seen reflog SHA ordering in Success criteria.
+7. Confirm worker-facing case folder is named `recovery_cases/`, not `verifier_inputs/`.
+8. Confirm `run_manifest.json` has a schema and verifier checks.
+9. Confirm checksum verifier loads `expected_file_checksums.json` directly and requires every key.
+10. Confirm final verifier list has no input-fixture checks unless those fixtures are solver outputs.
+11. Confirm final verifier list explicitly compares report fields to fixture files when the prompt says "exactly."
+12. On the form's Golden Solution Steps Description page, replace the auto-generated content. Remove any steps that invoke `verify.py` or describe running the checker. The correct version has 13 steps covering setup, parse, reflog, recovery repo, refs, graph, checksums, bundle, repair_log, run_manifest, two required cases, recovery_case_report, and determinism rerun.
+13. On the form's Final Verifiers page, replace the auto-generated list with the 13-point numbered list from the checklist. Confirm verifier 12 (determinism) does not reference `solve.py`.
+14. Confirm upload filenames are clear and professional.
+15. Re-run the platform linter and only dismiss issues that refer to stale computer-generated suggestions, not your final pasted fields.

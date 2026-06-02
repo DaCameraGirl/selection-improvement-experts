@@ -1,0 +1,967 @@
+Review Your Task Feedback
+Learn from feedback left on your task attempt.
+selection_improvement_experts
+
+6a08d3fe795d5869e9415745
+
+May 16th, 2026
+
+Feedback Acknowledged
+
+
+Okay 3/5
+Overall Feedback
+
+Hi Attempter! This task is being sent back for major revisions because of the following issues: 1) `solve.py` and `verify.py` are both inside `input.zip`, which is the agent's working directory. This completely eliminates any difficulty. Please remove both files. Also update the resources description, which in its final paragraph explicitly names both files as included artifacts. 2) The GPTZero linter flag was not disputed at all. A task cannot move forward with an active GPTZero flag. Ensure the re-submitted task passes this linter. "I used Grammarly" is not a valid justification. 3) The prompt contains the phrase "in the outputs folder that produce new SHAs." This is misleading since the task requires restoring the original SHAs, and the golden solution explicitly forbids cherry-pick precisely because it produces new SHAs. Please rephrase to remove the ambiguity.
+
+Review the instructions and make sure you understand the requirements of this project.
+
+
+Welcome to our Terminal Bench 3.0 task! You will submit difficult prompts specific to your domain which represent tasks that would stump frontier models.
+DAILY WORKING SESSION: FIND ZOOM LINK HERE
+Important:
+You will be paid per task in this project. Please come up with a task description, including a golden response, as described in the instructions.
+You will be paid first for task submission, then for advancement past our initial quality and difficulty checks.
+The best tasks, which are accepted to be part of the benchmark, will be rewarded additionally.
+Note: if you have already submitted a task, please do not submit it again here unless specifically directed to!
+assistant
+Review and determine if this task is viable for fixing
+1/1 completed
+Is this task viable? (applicable to SBQ'd tasks ¸— skip for new tasks)
+You can skip this if this is a new task.
+
+Briefly review the prompt, golden solution, and check results. A viable task is one you can fix within the given time.
+
+Select No if:
+
+The prompt needs a full rewrite (AI-generated, fundamentally too easy, not fixable)
+The answer is inherently unverifiable (subjective, open-ended, algebraic expressions)
+The task doesn't require code execution — it can be solved by reasoning alone
+Required data is proprietary, restricted, or doesn't exist
+Select Yes if:
+
+The core concept is sound (genuinely difficult, real-world, requires code)
+The failures are surface-level or can be fixed in the given time
+You are confident it will pass checks after your modifications
+Note: If viable but you don't plan to work on it (outside your domain, at capacity, or unfamiliar with the original author's intent), skip this task so it can be picked up by someone better suited.
+
+
+Yes - Task is viable
+
+No - Task is not viable
+Respond to the questions below
+12/12 completed
+Please name the specific field, including sub-field, which describes the category of the task.*
+Software Engineering, Version Control
+Title or name*
+Please provide a name or title for the problem / task. The title should be brief but descriptive
+
+Git force-push recovery: restore refs with exact original topology
+
+Prompt (previously "instruction") *
+This is the task you are proposing in the form of a prompt to the agent. Your prompt must have a verifiable solution (or solution set). Ensure to include sufficient detail that would allow an expert to perform the task and arrive at the proper solution.
+
+Please help me restore the published Git refs after a force push changes the branch history. Match expected_refs.json exactly and ensure no missing or corrupt objects to promote confidence in the process. Land outputs/repaired_repo.bundle, outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json in the outputs folder that produce new SHAs. Next, ensure the repaired bundle clones successfully, pass git fsck --connectivity-only with 0 missing or corrupt objects, and satisfy the parent-chain and checksum fixtures within the contract threshold.
+Short summary or "proposal"*
+Write a brief summary or description of the problem. Think "proposal" or "executive summary."
+
+If the prompt itself is very short, then this will be similar to the prompt.
+
+Recover a force-pushed Git graph by fetching original objects from the before-bundle and restoring branch refs to the exact SHAs in the contract. Produce a verified repaired bundle and machine-readable recovery reports.
+Explain why this task is difficult and what expertise it requires*
+NEW Instructions
+
+The difficulty explanation should contain a description of the real-life application of the task (who needs to solve this in their everyday work and why).
+If data is needed for the task, the difficulty explanation should explain the origin of the data and how realistic it is.
+verify.py exits with code 1 — repaired_repo.bundle is missing or invalid, git fsck --connectivity-only reports missing objects, recovered SHAs are not reachable from the required branch refs, or parent chains do not match commit_graph_spec.json. Standard failure codes: MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, STDERR_WARNING, THRESHOLD_FAIL, CONTRACT_DRIFT, NON_DETERMINISTIC_OUTPUT, or INVALID_FIXTURE_ACCEPTED.
+List and provide the resources required to complete this task.*
+List any information or links required for doing this task.
+
+REQUIRED: You must also list all the files that you will upload as a zip in the next step. If you do not, the automatic quality check at the last step may overflag issues.
+
+Example: "zipfile: sensor_data.csv (10,000 rows of temperature/humidity readings), config.yaml (model hyperparameters), reference_output.png (expected visualization)"
+The first word in your response must be "Resources:"
+
+"Resources:"
+
+Provide one self-contained zip folder with this structure:
+
+Public source references:
+- [Git reflog documentation](https://git-scm.com/docs/git-reflog)
+- [Git bundle documentation](https://git-scm.com/docs/git-bundle)
+- [Real force-push recovery scenarios](https://ohshitgit.com/)
+
+Direct downloads — click each link, download the file, and place it at the path shown:
+- repo_before_force.bundle and repo_after_force.bundle — included in the zip; no external download needed.
+- A modern Git runtime compatible with git bundle, git update-ref, git rev-list, and git fsck --connectivity-only; the actual version used is recorded in version_manifest.json.
+- reflog_export.txt — included in the zip; contains the commit SHAs to recover.
+
+README.md
+- Describe each file, its Git object type or format, expected output path, and what the verifier checks against it.
+- State that the workflow must run without network access after the zip is unpacked.
+- Include SHA-256 checksums for every input fixture and note which files are synthetic, sanitized public extracts, or generated from public sources.
+
+version_manifest.json
+- Root-level version_manifest.json with Python/Node/Git versions, generator metadata, variant details, and OS assumptions.
+
+Source data and task fixtures:
+- repo_before_force.bundle — git bundle containing the full object store before the force-push, including the lost commit objects.
+- repo_after_force.bundle — git bundle reflecting what remains on the remote after the accidental push.
+- reflog_export.txt — reflog-style lines whose first token is a commit SHA to preserve and recover.
+- commit_graph_spec.json — declares the expected final branch topology: branch name, expected tip SHA, expected ancestor chain, and orphaned commits.
+- expected_file_checksums.json — expected Git blob IDs for key files at recovered commits.
+- expected_refs.json — exact refs/heads/* to full-SHA mappings the verifier checks.
+- version_manifest.json — root-level runtime manifest containing the actual Python, Node, and Git versions used to produce the package.
+
+Task evidence files:
+- output_schemas/repair_log.schema.json and output_schemas/commit_graph_report.schema.json — JSON Schemas for the two required output reports
+- verifier_inputs/normal_recovery_case.json, edge_partial_overlap_case.json, and invalid_corrupted_bundle_case.json — fixture cases describing normal, edge, and invalid recovery scenarios
+
+Required deliverables:
+- The submitted solution must create a repaired git bundle, a repair log JSON, and a commit graph verification report JSON.
+- Use the JSON keys named in the golden solution for every required output artifact.
+
+Verifier coverage:
+- verify.py deterministically checks required output files, bundle validity, cloneability, git fsck --connectivity-only, exact ref restoration, expected ancestor reachability, and checksum match status.
+
+Include the two Git bundles, reflog export, commit graph spec, expected refs, expected file checksums, solve.py, verify.py, README.md, and the root-level version_manifest.json. No benchmark splits or ML artifacts. The repository bundles, reflog export, commit graph spec, and checksum files are synthetically constructed to reproduce a force-push recovery scenario; all source content is original with no licensing restrictions.
+Provide any files required to complete this task.
+Please zip any files and then upload. We are only accepting .zip files.
+
+Upload attachment
+git_fbd05527e5e94a86_2119d031-4b6f-4e65-8606-3b6268dccd33.zip
+
+
+Attachments 1
+
+Please write the full golden solution. Check it multiple times to ensure that it is correct.*
+IMPORTANT: Please read
+This is the first version of your solution. In the next section, an LLM will assess your task and solution by translating the expert approach into a clear, step-by-step implementation plan that a non-expert coder can follow.
+
+The LLM may identify missing assumptions, unclear steps, or areas where more detail is needed to make the solution programmatically implementable.
+
+If you decide to incorporate feedback into this first version, you may update it here and click Save to rerun the LLM assessment below. Make sure the final solution in the following section is updated to reflect any changes made here.
+
+NOTE: This is not the final solution that will be shared with the coders. You will paste your finalized version in the section with the LLM feedback.
+
+This golden solution proves the task is solvable by showing the repaired bundle, git fsck output, ref topology confirmation, and file checksum verification. It must show the authoritative computation, the exact outputs a correct worker would produce, and the checks that make wrong answers fail. Every output file conforms to the declared JSON schema and to the verifier's PASS/FAIL reason-code threshold contract.
+
+1. Run: python solve.py from the zip root. The script reads repo_before_force.bundle, repo_after_force.bundle, reflog_export.txt, commit_graph_spec.json, expected_refs.json, and expected_file_checksums.json, then writes outputs/.
+2. Clone repo_before_force.bundle into a recovery worktree so the original lost objects are available without network access.
+3. Parse reflog_export.txt and commit_graph_spec.json to identify the commits that must remain reachable after recovery.
+4. For every ref in expected_refs.json, verify the target commit exists with git cat-file -e, then restore that exact ref with git update-ref. Do not cherry-pick; cherry-pick changes the commit SHAs.
+5. Run git rev-list on each expected branch tip and compare the ancestor list to commit_graph_spec.json.
+6. Verify file identity at each recovered commit with git rev-parse <sha>:<path> and compare the blob IDs to expected_file_checksums.json.
+7. Export outputs/repaired_repo.bundle with git bundle create --all, plus outputs/repair_log.json, outputs/commit_graph_report.json, and outputs/run_manifest.json using the exact JSON keys described below.
+8. Run python verify.py from the zip root and confirm it prints VERIFY PASS: All checks ok.
+9. Re-run from a clean checkout and confirm that output files, row ordering, checksums, and metrics are identical.
+10. Run python verify.py from the zip root and confirm it prints VERIFY PASS: All checks ok; then make one controlled negative check by changing an expected ref or deleting one output file and confirm verify.py exits 1.
+
+Important edge cases: cherry-picking changes into new commits instead of restoring original refs (producing different SHAs than expected), recovering commits in the wrong order breaking the parent chain, leaving recovered commits unreachable from the required branch ref, and failing to verify file contents at each recovered commit match the expected checksums.
+
+EXPECTED GOLDEN OUTPUTS:
+----------------------------------------------
+Expected output paths:
+- outputs/repaired_repo.bundle
+- outputs/repair_log.json
+- outputs/commit_graph_report.json
+- outputs/run_manifest.json
+
+Required repair_log.json keys: branches_restored, refs_expected, refs_restored, all_refs_restored, orphaned_shas, bundle_created, checksums.
+Each checksums entry must be keyed by recovered commit SHA and file path, with status, expected, and actual values where the file exists.
+
+Required commit_graph_report.json keys: branches. Each branch object must include tip, expected_ancestors, found_ancestors, and all_reachable.
+
+Required run_manifest.json keys: solver, python, branches_restored, bundle_created.
+
+CORRECT REFERENCE IMPLEMENTATION (solve.py):
+----------------------------------------------
+```python
+#!/usr/bin/env python3
+"""Solve: Recover orphaned commits from git bundle using reflog."""
+import sys, json, subprocess, re
+from pathlib import Path
+
+OUT_DIR = Path('outputs')
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+import platform
+GIT = 'git.exe' if platform.system() == 'Windows' else 'git'
+
+def git(args, cwd=None):
+    return subprocess.run([GIT] + args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=cwd)
+
+# ---- Parse inputs ----
+before_bundle = Path('repo_before_force.bundle')
+reflog_txt = Path('reflog_export.txt').read_text()
+spec = json.loads(Path('commit_graph_spec.json').read_text())
+expected_checksums = json.loads(Path('expected_file_checksums.json').read_text())
+expected_refs = json.loads(Path('expected_refs.json').read_text())
+
+# Extract SHAs from reflog evidence in file order for deterministic output
+reflog_shas = []
+seen_reflog_shas = set()
+for line in reflog_txt.strip().splitlines():
+    m = re.match(r'^([a-f0-9]{7,40})\s', line)
+    if m and m.group(1) not in seen_reflog_shas:
+        seen_reflog_shas.add(m.group(1))
+        reflog_shas.append(m.group(1))
+
+orphaned = reflog_shas
+if not orphaned:
+    orphaned = next(iter(spec.get("branches", {}).values()), {}).get("orphaned_commits", [])
+
+# Clone the before-bundle so original object identities are available.
+# Cloning is the portable bundle validity check; git bundle verify can require an existing repo.
+recovery = Path('recovery_worktree')
+if recovery.exists():
+    import shutil; shutil.rmtree(recovery)
+fetch_r = git(['clone', str(before_bundle), str(recovery)])
+if fetch_r.returncode != 0:
+    print("FAIL: could not clone before_bundle")
+    (OUT_DIR / 'run_manifest.json').write_text(json.dumps({
+        "solver": "solve.py", "status": "failed",
+        "error": "before_bundle_invalid",
+        "details": fetch_r.stderr.strip()
+    }, indent=2))
+    sys.exit(1)
+
+# Restore branch refs to exact expected SHAs. Do not cherry-pick.
+restored = {}
+for ref, expected_sha in expected_refs.items():
+    cat_r = git(["cat-file", "-e", expected_sha], cwd=str(recovery))
+    if cat_r.returncode != 0:
+        print(f"Commit {expected_sha} not found in bundle - skipping {ref}")
+        continue
+    ur_r = git(["update-ref", ref, expected_sha], cwd=str(recovery))
+    if ur_r.returncode == 0:
+        restored[ref] = expected_sha
+        print(f"Restored {ref} -> {expected_sha}")
+
+# Verify reachability against commit_graph_spec.json.
+graph_report = {'branches': {}}
+for ref, info in spec.get('branches', {}).items():
+    tip = info['expected_tip']
+    ancestors_raw = git(['rev-list', tip], cwd=str(recovery)).stdout.strip().splitlines()[:20]
+    ancestors = [s[:7] for s in ancestors_raw]
+    expected_ancestors_short = [s[:7] for s in info.get('expected_ancestors', [])]
+    all_found = all(any(ea in a for a in ancestors) for ea in expected_ancestors_short)
+    graph_report['branches'][ref] = {
+        "tip": tip,
+        "expected_ancestors": expected_ancestors_short,
+        "found_ancestors": ancestors,
+        "all_reachable": all_found
+    }
+(OUT_DIR / 'commit_graph_report.json').write_text(json.dumps(graph_report, indent=2))
+
+# Check file blob identity at recovered commits.
+checksum_results = {}
+for sha, files in expected_checksums.items():
+    checksum_results[sha] = {}
+    for fpath, expected_hash in files.items():
+        rev_r = git(["rev-parse", f"{sha}:{fpath}"], cwd=str(recovery))
+        if rev_r.returncode != 0:
+            checksum_results[sha][fpath] = {'status': 'file_not_found', 'expected': expected_hash}
+        else:
+            actual = rev_r.stdout.strip()
+            match = actual == expected_hash
+            checksum_results[sha][fpath] = {'status': 'match' if match else 'mismatch', 'expected': expected_hash, 'actual': actual}
+
+# Create repaired bundle.
+bundle_path = str((OUT_DIR / "repaired_repo.bundle").resolve())
+bundle_r = git(["bundle", "create", bundle_path, "--all"], cwd=str(recovery))
+bundle_ok = bundle_r.returncode == 0
+if not bundle_ok:
+    print("bundle stderr:", bundle_r.stderr[:300])
+
+repair_log = {
+    "branches_restored": list(restored.keys()),
+    "refs_expected": expected_refs,
+    "refs_restored": restored,
+    "all_refs_restored": len(restored) == len(expected_refs),
+    "orphaned_shas": [s[:7] for s in orphaned],
+    "bundle_created": bundle_ok,
+    "checksums": checksum_results,
+}
+(OUT_DIR / 'repair_log.json').write_text(json.dumps(repair_log, indent=2))
+
+(OUT_DIR / 'run_manifest.json').write_text(json.dumps({
+    "solver": "solve.py",
+    "python": sys.version,
+    "branches_restored": len(restored),
+    "bundle_created": bundle_ok,
+}, indent=2))
+
+print(f"Done. Restored {len(restored)} refs, bundle ok: {bundle_ok}")
+```
+Golden Solution Files. Please upload any files that are part of the solution, if necessary. Please zip and then upload.
+Upload attachment
+golden_solution_files_git_fbd05527.zip
+
+
+Attachments 1
+
+Time estimate*
+How much time would it take a professional to fully do the instructions you asked for?
+
+5-9 hours for a master's-level practitioner with applied experience in Git internals using the object model, reflog, bundle files, ref restoration, reachability analysis, and deterministic commit graph validation.
+Propose and describe a set of verifiers, or programmatic scripts which will deterministically check the core components of the golden solution. *
+You will not write the scripts, they will be created by software engineers in a later stage of this project's pipeline to automatically verify whether their model correctly completed all parts of the task.
+
+IMPORTANT: Please read
+This is the first version of your verifiers. In the next section, an LLM will assess your task and propose additional verifier suggestions based on your prompt and golden solution.
+
+The LLM may identify missing verification checks, suggest more robust ways to validate core components, or highlight areas where your verifiers could be more comprehensive or deterministic.
+
+If you decide to incorporate feedback into this first version, you may update it here and click Save to rerun the LLM assessment below. Make sure the final verifiers in the following sections are updated to reflect any changes made here.
+
+NOTE: This is not the final set of verifiers. You will paste your finalized version in the section with the LLM feedback.
+
+verify.py checks in order — fail immediately on first violation:
+Required output files (checked first):
+1. outputs/repaired_repo.bundle — present, non-empty, cloneable as a Git bundle.
+2. outputs/repair_log.json — present, non-empty, valid JSON.
+3. outputs/commit_graph_report.json — present, non-empty, valid JSON.
+4. outputs/run_manifest.json — present, non-empty, valid JSON.
+
+Domain-specific checks:
+1. repaired_repo.bundle exists and is non-empty.
+2. git clone from repaired_repo.bundle succeeds.
+3. git fsck --connectivity-only exits 0 with no missing or corrupt objects.
+4. every recovered SHA from reflog_export.txt is reachable via git rev-list from the restored branch refs.
+5. parent chain for each recovered commit matches commit_graph_spec.json exactly (SHA, not cherry-picked SHA).
+6. file checksums at each recovered commit match expected_file_checksums.json exactly.
+7. branch refs match expected_refs.json (exact original SHAs — cherry-pick SHAs will fail this check).
+8. repair_log.json and commit_graph_report.json are present and valid JSON with required fields.
+
+Failure reporting: exit 1 on the first violation with one of MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, STDERR_WARNING, THRESHOLD_FAIL, CONTRACT_DRIFT, or NON_DETERMINISTIC_OUTPUT.
+Exit code 0 = all pass. Exit code 1 = first failing check. Do not use an LLM judge. All checks must be deterministic.
+Author email
+Please add the email associated with the task author (which may be you)
+
+angela.hudson.data@gmail.com
+Off-Platform Task ID (if relevant)
+If this task began off-platform and has an off-platform task ID, input it here
+
+Please edit the below description which will be used by a coder to write the golden solution path as a series of terminal commands.
+Response
+
+To address the task of restoring published Git refs after a force push effectively and accurately, here is a detailed breakdown of steps, meant for an audience with basic understanding and familiarity with Git but who might not be experts. This approach assumes access only to the described files and resources, with no network access, and aims to accurately reflect pre-accident branch history using fixed inputs.
+
+Set up the Environment:
+
+Create an output directory named "outputs" if it does not exist. This is where all the results will be stored.
+Python
+
+
+
+1234
+import os
+O
+Parse Input Files:
+
+Read the contents of the relevant input files to get the necessary information for recovery:
+
+reflog_export.txt: Contains a list of commit SHAs that need to be preserved. Extract SHA references from the file.
+commit_graph_spec.json: Describes the expected final branch structure, including branch names, expected tip SHAs, and ancestor chains.
+expected_refs.json: Maps branch names to their expected final commit SHAs.
+expected_file_checksums.json: Contains expected file checksums for key files at recovered commits.
+Python
+
+
+
+12345
+import jso
+Process Reflog Entries:
+
+Use regular expressions to extract SHA values from reflog_export.txt. Maintain a list of unique commit SHAs for deterministic outcomes.
+Python
+
+
+
+12345678910
+import re
+r
+Prepare Recovery Environment:
+
+Clone the repo_before_force.bundle into a recovery directory. Ensure it is a clean environment for restoring the original commit objects.
+Python
+
+
+
+12345678
+import sub
+Restore Git Refs:
+
+For each ref in expected_refs.json, verify the target commit exists using git cat-file -e. If it does, restore it using git update-ref.
+Python
+
+
+
+12345678910
+restored_r
+Verify Commit Reachability:
+
+Use git rev-list to verify the ancestor chain for each branch tip against commit_graph_spec.json.
+Python
+
+
+
+1234567891011121314151617
+graph_repo
+Verify File Checksums:
+
+For each recovered commit, verify the expected file checksums match the actual blob IDs using git rev-parse.
+Python
+
+
+
+123456789101112131415161718192021
+checksum_r
+
+See more
+
+Create Repaired Bundle:
+
+Create a Git bundle of the repaired repository using git bundle create.
+Python
+
+
+
+123456
+bundle_pat
+Generate Repair Log and Run Manifest:
+
+Write out detailed logs and manifest files, including the refs restored, reachability checks, and file checksum results.
+Python
+
+
+
+1234567891011121314151617
+repair_log
+Verification Steps:
+
+Run the verifier script verify.py to check validity - ensure the output meets the schema and function tests as described.
+Python
+
+
+
+1
+subprocess
+This structured detail should provide a comprehensive roadmap to implement the force-push recovery process, ensuring each component is properly detailed for those implementing the solution.
+
+2/2 completed
+Golden Solution Steps Description*
+Paste and edit the generated description of the solution steps which will be provided to a coder who will translate this task into terminal commands.
+
+There will be issues in the auto-generated description as this expert task is designed to stump fronteir models
+
+This should provide a granular, step-by-step description of how to implement the solution programmatically.
+
+Begin by pasting the proposed granular solution steps and editing in the below field. We recommend editing in a markdown editor or similar before pasting here.
+
+Please do not use an LLM for this portion of the task.
+
+⚠️ IMPORTANT: This is the final solution that will be shared with the coders. Ensure all changes and improvements from earlier sections are reflected here.
+
+This describes how to restore Git branch refs after a force push, using only the files in the zip. No network access is needed after unpack. The audience is a coder with basic Git familiarity who will translate this into terminal commands.
+
+The key insight: this is a ref-restore problem, not a re-commit problem. Cherry-picking is forbidden because it produces new commit SHAs, which fail the exact-SHA contract. Instead, clone the before-bundle, point each expected ref at its original SHA with git update-ref, and prove the recovery with git fsck, git rev-list, and git rev-parse.
+
+1. Set up the environment
+
+Create outputs/ if it doesn't exist. This is where every result lands.
+
+import os, sys, json, re, subprocess, shutil
+OUT_DIR = 'outputs'
+os.makedirs(OUT_DIR, exist_ok=True)
+
+2. Parse input files
+
+Read every input file the task ships. The script depends on all four JSON files plus the reflog and the before-bundle.
+
+- reflog_export.txt — reflog-style text. The first whitespace token on each line is a commit SHA.
+- commit_graph_spec.json — expected final branch topology: each branch's expected tip SHA, its expected ancestor chain, and any orphaned commits.
+- expected_refs.json — exact mapping of refs/heads/<name> to a full 40-character SHA.
+- expected_file_checksums.json — expected Git blob IDs (not file SHA-256s) for key files at recovered commits.
+
+reflog_txt = open('reflog_export.txt').read().strip()
+spec = json.load(open('commit_graph_spec.json'))
+expected_refs = json.load(open('expected_refs.json'))
+expected_checksums = json.load(open('expected_file_checksums.json'))
+
+3. Process reflog entries
+
+Walk the reflog line by line and pull out the leading SHA. Keep them in file order, dedupe, but don't sort — order is part of the deterministic output contract.
+
+reflog_shas = []
+seen = set()
+for line in reflog_txt.splitlines():
+    m = re.match(r'^([a-f0-9]{7,40})\s', line)
+    if m and m.group(1) not in seen:
+        seen.add(m.group(1))
+        reflog_shas.append(m.group(1))
+
+4. Prepare the recovery environment
+
+Clone repo_before_force.bundle into a fresh recovery_worktree/. Cloning is the portable way to validate a Git bundle — git bundle verify requires an existing repo, which we don't have here. If the clone fails, the before-bundle is broken, so write a failed manifest and stop. Don't fabricate downstream outputs from a bad bundle.
+
+recovery_dir = 'recovery_worktree'
+if os.path.exists(recovery_dir):
+    shutil.rmtree(recovery_dir)
+
+clone = subprocess.run(['git', 'clone', 'repo_before_force.bundle', recovery_dir],
+                       capture_output=True, text=True)
+if clone.returncode != 0:
+    json.dump({"solver": "solve.py", "status": "failed",
+               "error": "before_bundle_invalid",
+               "details": clone.stderr.strip()},
+              open(f'{OUT_DIR}/run_manifest.json', 'w'), indent=2)
+    sys.exit(1)
+
+5. Restore Git refs to their exact original SHAs
+
+For every ref in expected_refs.json, confirm the target commit object exists in the clone with git cat-file -e, then move the ref onto it with git update-ref. Do not use cherry-pick. Cherry-picking creates a new commit with a new SHA, which fails the exact-SHA check at verification time.
+
+restored_refs = {}
+for ref, expected_sha in expected_refs.items():
+    cat = subprocess.run(['git', 'cat-file', '-e', expected_sha],
+                         cwd=recovery_dir, capture_output=True)
+    if cat.returncode != 0:
+        continue
+    ur = subprocess.run(['git', 'update-ref', ref, expected_sha],
+                        cwd=recovery_dir)
+    if ur.returncode == 0:
+        restored_refs[ref] = expected_sha
+
+6. Verify commit reachability
+
+For each branch in commit_graph_spec.json, walk back from the expected tip with git rev-list and check that every expected ancestor appears in the actual list. Compare on 7-character short SHAs because the spec lists them in that form. Cap the actual list at 20 entries to match the reference output format.
+
+graph_report = {'branches': {}}
+for ref, info in spec.get('branches', {}).items():
+    tip = info['expected_tip']
+    rev = subprocess.run(['git', 'rev-list', tip],
+                         cwd=recovery_dir, capture_output=True, text=True)
+    ancestors_short = [s[:7] for s in rev.stdout.strip().splitlines()[:20]]
+    expected_short = [s[:7] for s in info.get('expected_ancestors', [])]
+    graph_report['branches'][ref] = {
+        "tip": tip,
+        "expected_ancestors": expected_short,
+        "found_ancestors": ancestors_short,
+        "all_reachable": all(e in ancestors_short for e in expected_short)
+    }
+json.dump(graph_report, open(f'{OUT_DIR}/commit_graph_report.json', 'w'), indent=2)
+
+7. Verify file checksums at recovered commits
+
+For each (commit SHA, file path) in expected_file_checksums.json, look up the file's Git blob ID at that commit with git rev-parse <sha>:<path>. The expected value is a blob ID, not a SHA-256 of the file's bytes. Record one of match, mismatch, or file_not_found per entry.
+
+checksum_results = {}
+for sha, files in expected_checksums.items():
+    checksum_results[sha] = {}
+    for fpath, expected_hash in files.items():
+        rp = subprocess.run(['git', 'rev-parse', f'{sha}:{fpath}'],
+                            cwd=recovery_dir, capture_output=True, text=True)
+        if rp.returncode != 0:
+            checksum_results[sha][fpath] = {'status': 'file_not_found',
+                                            'expected': expected_hash,
+                                            'actual': None}
+        else:
+            actual = rp.stdout.strip()
+            checksum_results[sha][fpath] = {
+                'status': 'match' if actual == expected_hash else 'mismatch',
+                'expected': expected_hash, 'actual': actual}
+
+8. Create the repaired bundle
+
+Write a new bundle containing every ref in the recovery worktree. The --all flag matters — without it, refs other than HEAD are excluded and the verifier's clone step won't see them. Use an absolute path because cwd is set to recovery_dir.
+
+bundle_path = os.path.abspath(f'{OUT_DIR}/repaired_repo.bundle')
+bundle_r = subprocess.run(['git', 'bundle', 'create', bundle_path, '--all'],
+                          cwd=recovery_dir)
+bundle_ok = bundle_r.returncode == 0
+
+9. Generate the repair log and run manifest
+
+Write outputs/repair_log.json with the exact keys the verifier expects: branches_restored, refs_expected, refs_restored, all_refs_restored, orphaned_shas, bundle_created, and checksums. The orphaned_shas list uses 7-character short SHAs in reflog order. bundle_created is the real exit-code-based boolean, not a truthiness check on a string path.
+
+Then write outputs/run_manifest.json with solver, python, branches_restored, and bundle_created.
+
+repair_log = {
+    "branches_restored": list(restored_refs.keys()),
+    "refs_expected": expected_refs,
+    "refs_restored": restored_refs,
+    "all_refs_restored": len(restored_refs) == len(expected_refs),
+    "orphaned_shas": [s[:7] for s in reflog_shas],
+    "bundle_created": bundle_ok,
+    "checksums": checksum_results,
+}
+json.dump(repair_log, open(f'{OUT_DIR}/repair_log.json', 'w'), indent=2)
+
+run_manifest = {
+    "solver": "solve.py",
+    "python": sys.version,
+    "branches_restored": len(restored_refs),
+    "bundle_created": bundle_ok,
+}
+json.dump(run_manifest, open(f'{OUT_DIR}/run_manifest.json', 'w'), indent=2)
+
+10. Verify the recovery
+
+Run python verify.py from the task root. Expect exit code 0 and the line VERIFY PASS: All checks ok. The verifier clones outputs/repaired_repo.bundle to a temp directory, runs git fsck --connectivity-only, then cross-checks the repair log and graph report against expected_refs.json, commit_graph_spec.json, and expected_file_checksums.json.
+
+For a controlled negative check, change one SHA in refs_restored or delete one output file and re-run verify.py. It should exit 1 with a FAIL message. Restore the original outputs before submission.
+
+Common failure modes a coder should avoid
+
+- Cherry-picking instead of update-ref — produces new commit SHAs that don't match expected_refs.json.
+- Sourcing objects from repo_after_force.bundle — the orphaned objects aren't there; cat-file -e will fail.
+- Writing the bundle without --all — non-HEAD refs are missing from the bundle, breaking the verifier's clone.
+- Comparing file SHA-256 instead of Git blob ID — expected_file_checksums.json holds blob IDs, not file content hashes. Use git rev-parse <sha>:<path>.
+- Treating bool(bundle_path) as bundle success — that's always true for a non-empty string. Check the subprocess exit code.
+- Missing import sys — needed for sys.version in run_manifest.json and for sys.exit(1) on bundle clone failure.
+- Writing repair_log.json twice with different content — keep only one write, at the end, with the full repair_log dict.
+
+
+
+
+Solution Summary*
+Briefly summarize the solution. This should be a high-level description of the approach and key insights needed to solve the task (e.g., what strategy/algorithm/tools the reference solution uses and why).
+
+The task is a Git ref-restore, not a content reconstruction. After a force push, the original commit objects still exist inside repo_before_force.bundle — they're just not reachable from any branch ref anymore. The recovery is to clone the before-bundle into a fresh worktree, then point each expected refs/heads/* at its original 40-character SHA with git update-ref. The forbidden alternative is cherry-pick, which re-creates commits with new SHAs and fails the exact-SHA verifier.
+
+The proof side has three independent checks: (1) git bundle create --all plus a clone-and-git fsck --connectivity-only round-trip to confirm the recovered object graph is intact; (2) git rev-list from each restored tip to confirm the expected ancestors are reachable; (3) git rev-parse <sha>:<path> to confirm the file blob IDs at recovered commits match expected_file_checksums.json. Note that expected_file_checksums.json stores Git blob IDs, not file-content SHA-256s — a coder who mistakes one for the other will see every checksum mismatch even though the recovery is correct. The four outputs/ files (repaired_repo.bundle, repair_log.json, commit_graph_report.json, run_manifest.json) are what the verifier reads.
+
+Please review the below verifier suggesitons.
+Response
+
+Verifiers List:
+
+Output File Presence and Non-Emptiness:
+
+Verify outputs/repaired_repo.bundle is present, non-empty, and valid as a git bundle file.
+Verify outputs/repair_log.json is present, non-empty, and valid JSON format.
+Verify outputs/commit_graph_report.json is present, non-empty, and valid JSON format.
+Verify outputs/run_manifest.json is present, non-empty, and valid JSON format.
+Bundle Validity:
+
+Clone the repository from outputs/repaired_repo.bundle to ensure it is cloneable and verify its contents.
+Git Object Integrity:
+
+Run git fsck --connectivity-only on the cloned repository and verify it exits with code 0, ensuring no missing or corrupt objects.
+SHA Reachability Check:
+
+Ensure every SHA extracted from reflog_export.txt is reachable from the restored branch references in the cloned repository using git rev-list.
+Parent Chain Verification:
+
+Use git rev-list to verify that the parent chain for each recovered commit matches the commit_graph_spec.json exactly (assess exact SHAs, not re-created ones).
+File Checksum Verification:
+
+For each relevant file path in each recovered commit, verify the file checksum matches the expected values specified in expected_file_checksums.json.
+Branch Reference Integrity:
+
+For every branch ref listed in expected_refs.json, check that the ref points to the exact SHA specified, ensuring no divergence from the expected commit history.
+Log and Report Validation:
+
+Check repair_log.json contains the required keys: branches_restored, refs_expected, refs_restored, all_refs_restored, orphaned_shas, bundle_created, and checksums.
+Check commit_graph_report.json contains the required branches keys, ensuring the values match necessary criteria for each branch included.
+Manifest Validation:
+
+Ensure run_manifest.json contains the keys: solver, python, branches_restored, bundle_created.
+Failure should be reported with an exit code 1 using specific codes like MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, etc., for each type of check that fails. Conversely, an exit code of 0 indicates all checks have passed successfully. All verifications must be deterministic and should not require LLM interventions.
+
+2/2 completed
+Final Verifiers list*
+Please paste the list of verifiers from your prior list and the auto-generated proposed list and edit the list down to what you think the final set of core verifiers are.
+
+Please be careful to ensure none are incorrect and all are core to the problem (do not include verifiers focused on non-core aspects of the task or which are incorrect).
+
+Remember, the set of verifiers should comprehensively check all core parts of the golden response (the necessary aspects required by the prompt).
+
+⚠️ IMPORTANT: These is the final verifiers that will be shared with the coders. Ensure all changes and improvements from earlier sections are reflected here.
+
+  1. outputs/repaired_repo.bundle. Present and non-empty. Cloneability is checked separately in step 2. Failure code: MISSING_FILE.
+  2. Bundle cloneability. git clone outputs/repaired_repo.bundle must succeed in an empty temporary directory. Failure code: TEST_FAIL.
+  3. Object integrity. git fsck --connectivity-only run inside the cloned repo must exit 0 with no missing or corrupt objects on stderr. Failure code: TEST_FAIL.
+  4. outputs/repair_log.json — presence, parseable JSON, schema, and structure. Must be present, non-empty, and parse as valid JSON. Required top-level keys: branches_restored, refs_expected, refs_restored, all_refs_restored, orphaned_shas, bundle_created, checksums.
+The checksum value must be a nested object keyed first by recovered commit SHA, then by file path. Each innermost entry must contain status (one of match, mismatch, file_not_found), expected (a 40-character hex Git blob ID), and actual (same format, present when the file exists). 
+Missing keys, wrong types, or wrong nesting fail. Failure code:
+MISSING_FILE or SCHEMA_INVALID.
+
+5. outputs/commit_graph_report.json — presence, parseable JSON, and schema. Must be present, non-empty, and parse as valid JSON. Must contain a top-level branches object. Each branch entry must contain tip (string), expected_ancestors (list of short SHAs), and found_ancestors
+(list of short SHAs), and all_reachable (boolean). Failure code: MISSING_FILE or SCHEMA_INVALID.
+
+ 6. outputs/run_manifest.json — presence, parseable JSON, schema, and value sanity. Must be present, non-empty, and parse as valid JSON. Required keys with required types and values: solver (non-empty string), python (non-empty string, the running Python version), branches_restored (non-negative integer, must equal len(repair_log.refs_restored)), bundle_created (boolean, must be true when outputs/repaired_repo.bundle exists and was successfully created). Wrong types, missing keys, or inconsistency with repair_log.json
+fail. Failure code: MISSING_FILE or SCHEMA_INVALID.
+  
+7. Branch refs match expected SHAs exactly. For every key in expected_refs.json, repair_log.refs_restored must contain the same key mapped to the same full 40-character SHA. repair_log.all_refs_restored must be true. Cherry-pick output (same diff, different SHA)
+fails this check. Failure code: TEST_FAIL.
+  
+8. Ancestor reachability. For every branch in commit_graph_spec.json, the matching entry in commit_graph_report.json must have all_reachable: true, and every short SHA in the spec's expected_ancestors must appear in the report's found_ancestors. Failure code: TEST_FAIL.
+  
+9. Blob checksum match at recovered commits. Every entry in repair_log.checksums must have status: "match". Any mismatch or file_not_found fails. The expected values are Git blob IDs from expected_file_checksums.json, not file-content SHA-256s. Failure code: THRESHOLD_FAIL.
+ 
+ 10. Reflog SHA preservation. Every commit SHA in reflog_export.txt must appear (in 7-character short form) in repair_log.orphaned_shas, in reflog order. Failure code: CONTRACT_DRIFT.
+  
+11. Determinism on re-run. Re-running python solve.py from a clean state — recovery_worktree/ removed and outputs/ removed before the second run — must produce: (a) repair_log.json byte-identical to the first run, (b) commit_graph_report.json byte-identical to the first run, (c) run_manifest.json byte-identical except for the python field if the
+interpreter changed, (d) a new repaired_repo.bundle whose clone produces the same refs/heads/* mapping, the same git rev-list output per ref, and the same git fsck --connectivity-only exit code as the first run. Any drift in JSON content, ordering, or ref/object reachability fails. Failure code: NON_DETERMINISTIC_OUTPUT.
+  
+12. Deterministic exit contract. Exit code 0 on full pass; exit code 1 on the first failing check, paired with one reason code from MISSING_FILE, SCHEMA_INVALID, TEST_FAIL, THRESHOLD_FAIL, CONTRACT_DRIFT, NON_DETERMINISTIC_OUTPUT, or STDERR_WARNING.
+Verifiers Explanation*
+Succinctly describe in natural language what the verifiers are doing. This should be a description of how the tests verify that the task was completed correctly.
+
+The verifiers grade outputs, not approach. They first confirm every required output file is on disk and parses as valid JSON, then prove the recovered Git graph is real and not faked: clone the repaired bundle to a fresh directory, fsck it for missing or corrupt objects, and reject the submission if either step fails. Next, they cross-check the worker's repair_log.json against the contract files — branch refs must map to exactly the SHAs in expected_refs.json (cherry-pick output fails this), ancestor chains must reach every commit listed in commit_graph_spec.json, and every Git blob-ID check against expected_file_checksums.json must come back as match. Schema checks on the three JSON
+reports catch malformed output that would still parse but hide missing fields, and value-level checks on run_manifest.json catch wrong types and inconsistencies with repair_log.json. A final determinism check re-runs the solver from a clean state and confirms the JSON reports come out byte-identical and the rebuilt bundle clones to the same refs and the same git fsck result — non-deterministic output is rejected. Any failure flips the exit code from 0 to 1 with a specific reason code, and the whole pipeline runs without model judgment — every check is a deterministic comparison or Git CLI command.
+
+Read the response and respond to the questions on the right
+Response
+
+Problem statement: The agent must recover a Git repository's published refs after a force push has overwritten branch history. Using provided bundles (before and after the force push), a reflog export, and various fixture files, the agent must produce four output files: a repaired Git bundle, a repair log JSON, a commit graph report JSON, and a run manifest JSON. The repaired bundle must pass git fsck, restore exact original SHAs, and satisfy parent-chain and checksum contracts defined in the fixture files.
+
+Verifiable:
+Pros:
+
+The verifier (verify.py) is fully deterministic and checks concrete, binary outcomes: file existence, JSON validity, git clone success, git fsck exit code, exact SHA matching, parent chain matching, and blob checksum matching.
+No LLM-as-a-judge is used; all checks are programmatic.
+The exact SHAs required are fixed in expected_refs.json, so there's no ambiguity in what "correct" means.
+Failure codes are enumerated and specific.
+Cons:
+
+The verifier is described but not shown in full — we must trust the description is accurate. However, the description is detailed enough to be convincing.
+The resource zip file cannot be inspected, so we cannot confirm the fixture files are internally consistent (e.g., that the SHAs in expected_refs.json actually exist in repo_before_force.bundle).
+Judgement: Accept
+
+Well-specified:
+Pros:
+
+The prompt clearly states what files must be produced, where they go, and what JSON keys are required.
+The agent is told to match expected_refs.json exactly and pass git fsck --connectivity-only with 0 errors.
+The README.md in the zip is described as explaining each file and its purpose.
+The agent is told the workflow must run without network access.
+Cons:
+
+The prompt is somewhat verbose and mixes implementation hints with requirements, which could confuse the agent about what is required vs. suggested.
+The agent does not see the verifier details, but the prompt does describe the verification criteria sufficiently (exact SHA restoration, parent chains, checksums).
+The prompt mentions "contract threshold" without defining it explicitly in the agent-visible portion — this is slightly vague, but the fixture files (commit_graph_spec.json, expected_refs.json) presumably define it.
+The agent must explore the fixture files to understand the full scope, which is appropriate for TB3.
+Judgement: Accept
+
+Solvable:
+Pros:
+
+A complete, working solve.py is provided as the golden solution — this definitively proves solvability.
+The approach is straightforward: clone the before-bundle, restore refs using git update-ref, verify reachability, create a new bundle. All operations use standard Git commands.
+The solution is self-contained and runs without network access.
+The solve.py is ~100 lines of Python using only stdlib and subprocess — implementable in well under a few hours.
+Cons:
+
+We cannot verify the fixture files are internally consistent (e.g., the SHAs in expected_refs.json must exist in repo_before_force.bundle), but the author claims they are synthetically constructed for this purpose.
+The golden solution itself is provided as the reference, so the task is definitively solvable.
+Judgement: Strong Accept
+
+Difficult:
+Pros:
+
+Git internals (bundles, refs, object stores, reflog recovery) require non-trivial expertise.
+The agent must understand that cherry-picking creates new SHAs (not the original ones) and therefore must use git update-ref instead — a subtle but critical distinction.
+The agent must navigate multiple fixture files, understand their relationships, and produce correctly structured JSON outputs.
+Without internet access, the agent must rely on its training knowledge of Git internals.
+The parent-chain verification against commit_graph_spec.json adds complexity.
+Cons:
+
+The golden solve.py is essentially the complete solution. An agent that reads the prompt carefully and has good Git knowledge could reconstruct this approach without much difficulty.
+The core operations (git clone, git update-ref, git bundle create, git fsck) are well-known Git commands.
+The JSON output requirements, while specific, are not algorithmically complex.
+A skilled Git user could solve this in a few hours, which approaches the "too easy" threshold for TB3.
+The task is more about careful execution and understanding Git object model than deep algorithmic difficulty.
+Cons are significant here. The task requires Git expertise but the approach is essentially: clone bundle → restore refs → create bundle → write JSON reports. This is professional-level Git work but not "several years of specialized domain expertise." A senior developer with solid Git knowledge could solve this in a day.
+
+Judgement: Uncertain
+
+Interesting:
+Pros:
+
+Force-push recovery is a real-world scenario that happens in production environments and can cause significant data loss.
+Git bundle-based disaster recovery is a genuine professional skill.
+There's clear marginal utility: recovering lost commits after an accidental force push is something engineers get paid to do.
+Cons:
+
+The scenario is somewhat artificial (synthetic bundles), but the underlying skill is real.
+Judgement: Strong Accept
+
+Outcome-verified:
+Pros:
+
+The verifier checks the final output files only (bundle, JSON reports), not intermediate steps.
+The agent is given the goal upfront and has latitude in how to achieve it (the prompt doesn't mandate using solve.py).
+The grading is based on the repaired bundle passing git fsck, exact ref restoration, and JSON structure — all final-state checks.
+Cons:
+
+The prompt mentions "Use the JSON keys named in the golden solution for every required output artifact" — this slightly over-specifies the approach, but JSON key names are really just output format requirements, not process requirements.
+The golden solution's JSON keys are listed explicitly in the prompt, which is appropriate specification of output format.
+Judgement: Accept
+
+Requires-code:
+Pros:
+
+The agent must write and execute code to: clone Git bundles, run git commands, parse JSON fixture files, restore refs, create a new bundle, and write structured JSON reports.
+Pure reasoning cannot produce a valid repaired_repo.bundle — this requires actually running Git commands.
+The git fsck check cannot be passed without executing Git.
+Cons:
+
+None significant. This task absolutely requires code execution.
+Judgement: Strong Accept
+
+Final analysis:
+
+The task is well-constructed overall. It is verifiable, interesting, outcome-verified, and definitively requires code execution. The solvability is proven by the provided golden solution. The main concern is difficulty: the core approach (clone before-bundle → restore refs with git update-ref → create new bundle → write JSON) is not algorithmically complex, and a skilled Git user could work this out in a day. However, the task does require:
+
+Understanding Git object model deeply enough to know cherry-pick changes SHAs
+Navigating multiple fixture files without internet access
+Producing correctly structured JSON outputs matching specific schemas
+Making git fsck pass with no missing objects
+The difficulty concern is real but not disqualifying for TB3. The task sits at the boundary between "hard for a professional" and "very hard." The absence of internet access makes it harder, as the agent must rely on training knowledge of Git internals. The multiple interacting fixture files (commit_graph_spec.json, expected_refs.json, expected_file_checksums.json, reflog_export.txt) create enough complexity that getting everything right simultaneously is non-trivial.
+
+The resource zip cannot be inspected, which is a minor concern, but the author's description is detailed and the golden solution's consistency with the fixture descriptions is convincing.
+
+Decision: Accept
+
+0/0 completed
+Read the response and respond to the questions on the right
+Response
+
+Problem statement: The agent must recover a Git repository's published refs after a force push has overwritten branch history. Using provided bundles (before and after the force push), a reflog export, and various fixture files, the agent must produce four output files: a repaired Git bundle, a repair log JSON, a commit graph report JSON, and a run manifest JSON. The repaired bundle must pass git fsck, restore exact original SHAs, and satisfy parent-chain and checksum contracts defined in the fixture files.
+
+Verifiable:
+Pros:
+
+The verifier (verify.py) is fully deterministic and checks concrete, binary outcomes: file existence, JSON validity, git clone success, git fsck exit code, exact SHA matching, parent chain matching, and blob checksum matching.
+No LLM-as-a-judge is used; all checks are programmatic.
+The exact SHAs required are fixed in expected_refs.json, so there's no ambiguity in what "correct" means.
+Failure codes are enumerated and specific.
+Cons:
+
+The verifier is described but not shown in full — we must trust the description is accurate. However, the description is detailed enough to be convincing.
+The resource zip file cannot be inspected, so we cannot confirm the fixture files are internally consistent (e.g., that the SHAs in expected_refs.json actually exist in repo_before_force.bundle).
+Judgement: Accept
+
+Well-specified:
+Pros:
+
+The prompt clearly states what files must be produced, where they go, and what JSON keys are required.
+The agent is told to match expected_refs.json exactly and pass git fsck --connectivity-only with 0 errors.
+The README.md in the zip is described as explaining each file and its purpose.
+The agent is told the workflow must run without network access.
+Cons:
+
+The prompt is somewhat verbose and mixes implementation hints with requirements, which could confuse the agent about what is required vs. suggested.
+The agent does not see the verifier details, but the prompt does describe the verification criteria sufficiently (exact SHA restoration, parent chains, checksums).
+The prompt mentions "contract threshold" without defining it explicitly in the agent-visible portion — this is slightly vague, but the fixture files (commit_graph_spec.json, expected_refs.json) presumably define it.
+The agent must explore the fixture files to understand the full scope, which is appropriate for TB3.
+Judgement: Accept
+
+Solvable:
+Pros:
+
+A complete, working solve.py is provided as the golden solution — this definitively proves solvability.
+The approach is straightforward: clone the before-bundle, restore refs using git update-ref, verify reachability, create a new bundle. All operations use standard Git commands.
+The solution is self-contained and runs without network access.
+The solve.py is ~100 lines of Python using only stdlib and subprocess — implementable in well under a few hours.
+Cons:
+
+We cannot verify the fixture files are internally consistent (e.g., the SHAs in expected_refs.json must exist in repo_before_force.bundle), but the author claims they are synthetically constructed for this purpose.
+The golden solution itself is provided as the reference, so the task is definitively solvable.
+Judgement: Strong Accept
+
+Difficult:
+Pros:
+
+Git internals (bundles, refs, object stores, reflog recovery) require non-trivial expertise.
+The agent must understand that cherry-picking creates new SHAs (not the original ones) and therefore must use git update-ref instead — a subtle but critical distinction.
+The agent must navigate multiple fixture files, understand their relationships, and produce correctly structured JSON outputs.
+Without internet access, the agent must rely on its training knowledge of Git internals.
+The parent-chain verification against commit_graph_spec.json adds complexity.
+Cons:
+
+The golden solve.py is essentially the complete solution. An agent that reads the prompt carefully and has good Git knowledge could reconstruct this approach without much difficulty.
+The core operations (git clone, git update-ref, git bundle create, git fsck) are well-known Git commands.
+The JSON output requirements, while specific, are not algorithmically complex.
+A skilled Git user could solve this in a few hours, which approaches the "too easy" threshold for TB3.
+The task is more about careful execution and understanding Git object model than deep algorithmic difficulty.
+Cons are significant here. The task requires Git expertise but the approach is essentially: clone bundle → restore refs → create bundle → write JSON reports. This is professional-level Git work but not "several years of specialized domain expertise." A senior developer with solid Git knowledge could solve this in a day.
+
+Judgement: Uncertain
+
+Interesting:
+Pros:
+
+Force-push recovery is a real-world scenario that happens in production environments and can cause significant data loss.
+Git bundle-based disaster recovery is a genuine professional skill.
+There's clear marginal utility: recovering lost commits after an accidental force push is something engineers get paid to do.
+Cons:
+
+The scenario is somewhat artificial (synthetic bundles), but the underlying skill is real.
+Judgement: Strong Accept
+
+Outcome-verified:
+Pros:
+
+The verifier checks the final output files only (bundle, JSON reports), not intermediate steps.
+The agent is given the goal upfront and has latitude in how to achieve it (the prompt doesn't mandate using solve.py).
+The grading is based on the repaired bundle passing git fsck, exact ref restoration, and JSON structure — all final-state checks.
+Cons:
+
+The prompt mentions "Use the JSON keys named in the golden solution for every required output artifact" — this slightly over-specifies the approach, but JSON key names are really just output format requirements, not process requirements.
+The golden solution's JSON keys are listed explicitly in the prompt, which is appropriate specification of output format.
+Judgement: Accept
+
+Requires-code:
+Pros:
+
+The agent must write and execute code to: clone Git bundles, run git commands, parse JSON fixture files, restore refs, create a new bundle, and write structured JSON reports.
+Pure reasoning cannot produce a valid repaired_repo.bundle — this requires actually running Git commands.
+The git fsck check cannot be passed without executing Git.
+Cons:
+
+None significant. This task absolutely requires code execution.
+Judgement: Strong Accept
+
+Final analysis:
+
+The task is well-constructed overall. It is verifiable, interesting, outcome-verified, and definitively requires code execution. The solvability is proven by the provided golden solution. The main concern is difficulty: the core approach (clone before-bundle → restore refs with git update-ref → create new bundle → write JSON) is not algorithmically complex, and a skilled Git user could work this out in a day. However, the task does require:
+
+Understanding Git object model deeply enough to know cherry-pick changes SHAs
+Navigating multiple fixture files without internet access
+Producing correctly structured JSON outputs matching specific schemas
+Making git fsck pass with no missing objects
+The difficulty concern is real but not disqualifying for TB3. The task sits at the boundary between "hard for a professional" and "very hard." The absence of internet access makes it harder, as the agent must rely on training knowledge of Git internals. The multiple interacting fixture files (commit_graph_spec.json, expected_refs.json, expected_file_checksums.json, reflog_export.txt) create enough complexity that getting everything right simultaneously is non-trivial.
+
+The resource zip cannot be inspected, which is a minor concern, but the author's description is detailed and the golden solution's consistency with the fixture descriptions is convincing.
+
+Decision: Accept
+
+2/2 completed
+Do you agree with the evaluation?*
+Select whether you agree or disagree with the Claude evaluation above
+
+
+Agree
+
+Disagree
+Explanation*
+Please provide an explanation for your choice
+
+Agree with the overall Accept and with the per‑criterion judgements on Verifiable,
+Well specified, Solvable, Interesting, Outcome‑verified, and requires‑code.
+
+On Difficulty I lean toward Accept rather than Uncertain. The evaluator's own reasoning supports that — they say a senior developer could solve this in a day, which matches the
+5–9 hour estimates on the form for master's‑level Git work. 
+
+That's the intended difficulty band, not a sign the task is too easy. The expert failure mode (cherry‑pick produces new
+SHAs and fails the exact‑SHA check) is exactly the kind of subtle Git‑internals trap that separates someone who's used Git daily from someone who actually understands its
+content‑addressed object model. The agent also has to read four interacting fixture files, restore refs without network access, get the parent chain right, and look up Git blob IDs
+(not file SHA‑256s) at each recovered commit. Getting all of that right simultaneously is where the difficulty comes from — it's careful‑execution‑under‑constraints difficulty, which is legitimate for TB3 master's‑level even if no single step is algorithmically novel.
+
+The cons the evaluator raises on Verifiable and Solvable (can't inspect the zip), can' confirm fixture internal consistency) are inherent to evaluating from text alone, not
+actual defects in the task. The fixtures are synthetically generated from a working solver, so consistency is guaranteed by construction.
+

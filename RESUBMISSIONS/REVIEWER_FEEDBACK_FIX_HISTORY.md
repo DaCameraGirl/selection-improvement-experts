@@ -139,6 +139,18 @@ The worker-facing ZIP was inspected directly. It contains input fixtures,
 The golden attachment contains the hidden reference scripts and computed
 outputs. These remain isolated from the worker resource ZIP.
 
+## May 31, 2026: Accepted Baseline, Excellent 5/5
+
+The fourth submission was accepted as task `6a1cacbfccca29bb61cae446` with an
+Excellent 5/5 review. The verbatim reviewer wording is preserved in
+[`reviewer-feedback/2026-05-31-6a1cacbfccca29bb61cae446.md`](reviewer-feedback/2026-05-31-6a1cacbfccca29bb61cae446.md).
+
+The accepted review confirms the full four-round repair: clear structured
+worker prompt, direct offline constraint, exact first-seen reflog ordering,
+clean prose golden solution, no leaked assessment wording, no stale verifier
+reason codes, submitted-tool determinism, and required partial-overlap and
+corrupted-bundle execution.
+
 ### Direct Extracted-ZIP Case Proof
 
 After adding the corrupted-bundle `.gitkeep` safeguard, fresh desktop upload
@@ -173,109 +185,6 @@ This proves that the invalid case reaches the corrupt-bundle clone attempt and
 fails for the intended reason. It is not accidentally passing as a missing-input
 case.
 
-## May 31, 2026: Form Submission Fixes
-
-During the actual Outlier form submission, two additional issues were found and
-corrected in the live form fields before final submission.
-
-### Golden Solution Steps Description field
-
-The Outlier platform auto-generates a "Golden Solution Steps Description" field
-from an LLM assessment of the golden solution. The auto-generated version
-contained two steps that violated the May 28 reviewer requirement to remove
-checker invocations from the golden write-up:
-
-- A step instructing the solver to run `python verify.py` from the task root.
-- A step instructing the solver to deliberately break an output file and rerun
-  `verify.py` as a negative check.
-
-Both steps were removed. Three replacement steps were added covering the
-required behavior that was missing from the auto-generated version:
-
-- Step 11: Run `outputs/recovery_tool.py` against `recovery_cases/partial_overlap/`
-  and `recovery_cases/corrupted_bundle/` as required behavior, not optional
-  testing.
-- Step 12: Write `outputs/recovery_case_report.json` recording `PASS` for both
-  case outcomes.
-- Step 13: Confirm deterministic reruns by re-running the submitted tool from a
-  clean state and verifying byte-identical JSON outputs.
-
-The `recovery_cases/partial_overlap/` and `recovery_cases/corrupted_bundle/`
-input files were also added to the Provided Files step, since the auto-generated
-version omitted them.
-
-### Final Verifiers field
-
-The Outlier platform auto-fills the Final Verifiers field with an LLM-generated
-proposal. The auto-generated version contained 17 checks including:
-
-- Verifier 17: *"If solve.py is present in the golden solution package, rerun
-  it..."* — this re-introduced the `solve.py` dependency that was removed in the
-  May 28 revision.
-- Missing: partial-overlap case execution check.
-- Missing: corrupted-bundle rejection case check.
-- Missing: recovery-case report consistency check.
-
-The field was replaced with the 13-point numbered list from the checklist, which
-runs the determinism check against the submitted `outputs/recovery_tool.py` and
-does not depend on a reference `solve.py`.
-
-### LLM assessment result
-
-The platform's LLM assessment of the submitted task returned:
-
-```
-Decision: Strong Accept
-```
-
-All seven evaluation criteria passed. Difficulty received "Accept" (not Strong
-Accept) with the note that difficulty is in implementation rather than discovery,
-which is accurate and does not affect the overall verdict.
-
-### Checklist file reordered
-
-`OUTLIER_FORM_TEXT_AND_CHECKLIST.md` was reordered to match the exact Outlier
-form page flow: Viability → Category → Title → Prompt → Short Summary →
-Difficulty → Resources → Golden Solution → Time Estimate → Verifiers (page 1),
-then Golden Solution Steps Description → Solution Summary → Final Verifiers →
-Verifiers Explanation (page 2 after LLM assessment).
-
----
-
-## May 31, 2026: Accepted Baseline, Excellent 5/5
-
-The fourth submission was accepted with an Excellent 5/5 review.
-
-**Task ID:** `6a1cacbfccca29bb61cae446`
-
-The accepted reviewer wording is preserved verbatim in
-[`reviewer-feedback/2026-05-31-6a1cacbfccca29bb61cae446.md`](reviewer-feedback/2026-05-31-6a1cacbfccca29bb61cae446.md).
-The complete accepted baseline is indexed in
-[`accepted-submissions/2026-05-31-6a1cacbfccca29bb61cae446.md`](accepted-submissions/2026-05-31-6a1cacbfccca29bb61cae446.md).
-
-The accepted review explicitly confirms that the four-round repair is complete:
-
-- The worker prompt is a realistic teammate request with clear objective,
-  provided files, deliverables, success criteria, and constraints.
-- The prompt states the offline requirement and exact first-seen, one-entry,
-  7-character reflog SHA rule directly.
-- The worker-facing ZIP has no internal assessment language or leaked reference
-  implementation.
-- The golden solution is ordered prose and does not paste the reference
-  implementation or restate schemas.
-- The verifier reason-code set contains no leftover template codes.
-- Determinism runs against the submitted tool rather than a reference solution.
-- Partial-overlap recovery and corrupted-bundle rejection are required executed
-  behaviors, not unused fixtures.
-
-The browser app version and backend package-generator version were advanced to
-the accepted 5/5 baseline so future exports identify this contract explicitly.
-Git-specific fallback verifier and README generation were also aligned with the
-accepted contract so a future alternate draft path cannot reintroduce stale
-template reason codes or the old `verifier_inputs/` folder label.
-
----
-
 ## Future Submission Checklist
 
 Before uploading another Git recovery task:
@@ -294,13 +203,6 @@ Before uploading another Git recovery task:
    `verifier_inputs/`.
 9. Confirm the golden write-up is prose-only and does not paste the reference
    implementation or instruct the solver to run an internal checker.
-10. On the form's Golden Solution Steps Description page, remove any auto-generated
-    steps that invoke `verify.py` or describe running the checker. Replace with
-    steps covering partial-overlap case, corrupted-bundle case, recovery-case
-    report, and determinism rerun.
-11. On the form's Final Verifiers page, replace the auto-generated list with the
-    13-point numbered list from the checklist. Confirm the determinism check does
-    not reference `solve.py`.
-12. Run the platform linter, including GPTZero, before submission. The local
+10. Run the platform linter, including GPTZero, before submission. The local
     repository cannot execute the platform's GPTZero service, so this remains a
     manual upload-time check.

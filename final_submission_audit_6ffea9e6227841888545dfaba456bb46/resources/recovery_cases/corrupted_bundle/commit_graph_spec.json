@@ -1,0 +1,22 @@
+{
+  "description": "Expected branch topology after recovery. Ancestor arrays are ordered exactly as git rev-list must report them.",
+  "branches": {
+    "refs/heads/release-v2.1": {
+      "expected_tip": "1b1be16",
+      "expected_ancestors": [
+        "1b1be16",
+        "83b40ee",
+        "9156e76",
+        "85748bd",
+        "19fca0e"
+      ]
+    },
+    "refs/heads/main": {
+      "expected_tip": "cba43b8",
+      "expected_ancestors": [
+        "cba43b8",
+        "19fca0e"
+      ]
+    }
+  }
+}

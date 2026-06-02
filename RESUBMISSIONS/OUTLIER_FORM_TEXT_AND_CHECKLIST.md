@@ -151,6 +151,112 @@ Common failure modes:
 - Creating the repaired bundle without `--all`, which omits required refs.
 ```
 
+## Time Estimate Field
+
+```text
+3-5 hours for a senior software engineer, release engineer, or DevOps/SRE practitioner with hands-on Git internals experience.
+```
+
+---
+*Page 2 — paste after the LLM assessment runs*
+---
+
+## Golden Solution Steps Description Field
+
+```text
+This describes how to restore Git branch refs after a force push, using only the files in the resources zip. No network access is needed after unpacking. The audience is a coder with basic Git familiarity who will translate this into terminal commands.
+
+The key insight: this is a ref-restore problem, not a re-commit problem. The solution must preserve original commit object IDs. Recreated commits with different SHAs are not acceptable, even if the file contents look correct. Start from repo_after_force.bundle, load the dangling loose objects from orphaned_object_store/.git/objects, restore each expected ref with git update-ref, and prove the recovery with git fsck, git rev-list, and git rev-parse.
+
+1. Set up the environment
+
+Create outputs/ if it does not exist. This is where every result lands.
+
+Create outputs/recovery_tool.py as a reusable command-line utility. It must accept three arguments: a case root directory, an output directory, and a clean worktree path. All recovery logic — primary case and the two required cases — runs through this same tool.
+
+Use these standard Python modules: os, sys, json, re, subprocess, shutil, stat, platform, and pathlib.Path.
+
+2. Parse input files
+
+Read every input file the task ships:
+
+- repo_after_force.bundle — Git bundle reflecting the surviving remote state after the force push.
+- orphaned_object_store/.git/objects — dangling loose Git objects containing the lost commits and related trees/blobs.
+- reflog_export.txt — reflog-style text. The first whitespace token on each line is a commit SHA.
+- commit_graph_spec.json — expected final branch topology.
+- expected_refs.json — exact mapping of refs/heads/<name> to a full 40-character SHA.
+- expected_file_checksums.json — expected Git blob IDs for key files at recovered commits.
+- recovery_cases/partial_overlap/ — a valid recovery case where neither the bundle nor the loose object store is sufficient alone.
+- recovery_cases/corrupted_bundle/ — an invalid bundle case the tool must reject.
+
+3. Process reflog entries
+
+Walk reflog_export.txt line by line and pull out the leading SHA. Keep entries in file order, dedupe by first appearance, and do not sort. repair_log.orphaned_shas must use 7-character short SHAs in this same order.
+
+4. Prepare the recovery repository
+
+Delete any old recovery_worktree/ safely. Clone repo_after_force.bundle into recovery_worktree/. If cloning fails, exit non-zero, write a failed run_manifest.json with error="after_bundle_invalid", and do not write a repaired bundle.
+
+Copy every directory and file from orphaned_object_store/.git/objects into recovery_worktree/.git/objects. Run git fsck --lost-found after copying so Git can surface unreachable objects, but do not use lost-found output as the source of truth.
+
+5. Restore Git refs to exact expected SHAs
+
+For every ref in expected_refs.json, confirm the target commit exists with git cat-file -e <sha>. If it exists, run git update-ref <ref> <sha>. Record successful updates in refs_restored.
+
+The restored refs must exactly match expected_refs.json.
+
+6. Verify commit reachability
+
+For each branch in commit_graph_spec.json, walk back from the expected tip with git rev-list <tip>. Convert found commits and expected ancestors to 7-character short SHAs.
+
+Write outputs/commit_graph_report.json with branches, tip, expected_ancestors, found_ancestors, and all_reachable. Set all_reachable true only when every expected ancestor appears in found_ancestors.
+
+7. Verify file checksums
+
+For every commit SHA and file path in expected_file_checksums.json, run git rev-parse <sha>:<path>. Compare the returned Git blob ID exactly to the fixture value. Record status, expected, and actual for every required entry.
+
+8. Create the repaired bundle
+
+Run git bundle create <absolute path to outputs/repaired_repo.bundle> --all from recovery_worktree. Use --all so all restored refs are included. Record bundle_created from the command exit code.
+
+9. Generate repair_log.json
+
+Write outputs/repair_log.json with exactly these top-level keys: branches_restored, refs_expected, refs_restored, all_refs_restored, orphaned_shas, bundle_created, and checksums.
+
+refs_expected must echo expected_refs.json. refs_restored must contain the exact restored ref-to-SHA mapping. all_refs_restored is true only when every expected ref was restored. checksums must include every required key from expected_file_checksums.json.
+
+10. Generate run_manifest.json
+
+Write outputs/run_manifest.json with solver, python, branches_restored, and bundle_created. branches_restored must equal the number of refs in refs_restored.
+
+11. Handle the two required recovery cases
+
+Run outputs/recovery_tool.py against recovery_cases/partial_overlap/ in a fresh temporary directory. It must exit 0 and produce a cloneable repaired bundle that passes git fsck --connectivity-only with exact expected refs. Neither the bundle nor the loose object store alone is sufficient — both are required for this case to succeed.
+
+Run outputs/recovery_tool.py against recovery_cases/corrupted_bundle/ in a fresh temporary directory. It must exit non-zero and write run_manifest.error="after_bundle_invalid". No repaired bundle should be produced.
+
+12. Write outputs/recovery_case_report.json
+
+Record the result of each case run. The partial-overlap recovery outcome must be PASS. The corrupted-bundle rejection outcome must be PASS. This file must follow the schema in output_schemas/recovery_case_report.schema.json.
+
+13. Confirm deterministic reruns
+
+Re-run outputs/recovery_tool.py against the primary case in a fresh temporary directory. repair_log.json, commit_graph_report.json, and run_manifest.json must be byte-identical to the first run. The rebuilt bundle must have the same refs, histories, and connectivity result.
+
+Common failure modes to avoid:
+
+- Recreating commits with new SHAs instead of restoring refs to existing object IDs.
+- Using only repo_after_force.bundle and never loading orphaned_object_store/.git/objects.
+- Assuming either source alone is sufficient for the partial-overlap case.
+- Writing the repaired bundle without --all.
+- Comparing file SHA-256 hashes instead of Git blob IDs.
+- Reporting only checksum keys that pass instead of every key in expected_file_checksums.json.
+- Treating a non-empty bundle path string as bundle success instead of checking the git bundle create exit code.
+- Omitting run_manifest.json or making branches_restored inconsistent with repair_log.refs_restored.
+- Producing non-deterministic JSON ordering or changed report contents across clean reruns.
+- Accepting a corrupt bundle and writing a misleading successful repair.
+```
+
 ## Solution Summary Field
 
 ```text
@@ -197,12 +303,6 @@ Exit code 0 means every check passed. Exit code 1 means the first violation was 
 
 ```text
 The verifier grades only the required outputs and the submitted recovery tool's behavior. It checks that the repaired primary bundle clones and passes Git connectivity checks, compares restored refs and report values directly with independent fixtures, enforces first-seen reflog ordering, resolves required Git blob IDs independently, executes the submitted tool against the partial-overlap and corrupted-bundle cases, and reruns the submitted tool from a clean state to detect non-deterministic output. All checks are programmatic.
-```
-
-## Time Estimate Field
-
-```text
-3-5 hours for a senior software engineer, release engineer, or DevOps/SRE practitioner with hands-on Git internals experience.
 ```
 
 ## Author Email Field
